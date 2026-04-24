@@ -1,0 +1,82 @@
+# Water Resource Simulator — Example 3-node branching network
+#
+# Topology:
+#   reservoir_a  (headwater)
+#       |
+#     60%  40%
+#       |    \
+#  reservoir_b  reservoir_c  (both are leaf nodes / outlets)
+#
+# All rate values (inflow, demand, max_production) are in m3/day.
+# Reservoir levels and capacities are in m3 (volumes, not rates).
+
+settings:
+  timestep_days: 1.0            # change to e.g. 0.5 for 12-hour timesteps
+
+nodes:
+  - id: reservoir_a
+    catchment_inflow:
+      type: timeseries           # daily inflow varies (e.g. seasonal pattern)
+      values:                    # m3/day — 7-day repeating pattern
+        - 180.0
+        - 200.0
+        - 220.0
+        - 210.0
+        - 190.0
+        - 160.0
+        - 150.0
+    reservoir:
+      initial_level: 800.0        # m3 starting reservoir level
+      max_capacity: 2000.0        # m3 maximum reservoir capacity
+    max_production: 150.0         # m3/day maximum water release for hydropower
+    connections:
+      - node_id: reservoir_b
+        fraction: 0.6
+        delay: 2             # water takes 2 timesteps to travel to reservoir_b
+      - node_id: reservoir_c
+        fraction: 0.4
+        delay: 1             # water takes 1 timestep to travel to reservoir_c
+    modules:
+      drink_water:
+        daily_demand: 30.0        # m3/day constant drinking-water withdrawal
+      food_production:
+        water_coefficient: 0.8    # m3 of water consumed per food unit produced
+        max_food_units: 50.0      # maximum food units producible per day
+      energy:
+        price_per_unit: 0.12      # currency per m3 of production release
+
+  - id: reservoir_b
+    catchment_inflow:
+      type: constant
+      rate: 80.0                  # m3/day
+    reservoir:
+      initial_level: 400.0
+      max_capacity: 1000.0
+    max_production: 100.0
+    connections: []
+    modules:
+      drink_water:
+        daily_demand: 15.0
+      food_production:
+        water_coefficient: 0.6
+        max_food_units: 30.0
+      energy:
+        price_per_unit: 0.10
+
+  - id: reservoir_c
+    catchment_inflow:
+      type: constant
+      rate: 50.0                  # m3/day
+    reservoir:
+      initial_level: 300.0
+      max_capacity: 800.0
+    max_production: 70.0
+    connections: []
+    modules:
+      drink_water:
+        daily_demand: 10.0
+      food_production:
+        water_coefficient: 1.0
+        max_food_units: 20.0
+      energy:
+        price_per_unit: 0.09
