@@ -1,7 +1,7 @@
 schema_version: 0.1.0
 metadata:
   name: Nile MVP Demo
-  description: Small Nile-inspired network used to validate the simulator MVP.
+  description: Nile-inspired MVP network with major branches, reservoirs, demand zones, and downstream municipal/agricultural use.
 simulation:
   horizon_days: 90
   reporting: monthly30_day
@@ -10,18 +10,30 @@ simulation:
     - irrigation
 network:
   nodes:
-    - id: white_nile_headwaters
-      name: White Nile Headwaters
+    - id: lake_victoria_outlet
+      name: Lake Victoria Outlet
       kind: river
       local_inflow:
         kind: monthly30_day
-        values: [280.0, 255.0, 235.0]
-    - id: blue_nile_headwaters
-      name: Blue Nile Headwaters
+        values: [125.0, 118.0, 110.0]
+    - id: sudd_wetland
+      name: Sudd Wetland
       kind: river
       local_inflow:
         kind: monthly30_day
-        values: [220.0, 260.0, 210.0]
+        values: [30.0, 25.0, 20.0]
+    - id: malakal
+      name: Malakal White Nile
+      kind: river
+      local_inflow:
+        kind: monthly30_day
+        values: [18.0, 16.0, 14.0]
+    - id: lake_tana_outlet
+      name: Lake Tana Outlet
+      kind: river
+      local_inflow:
+        kind: monthly30_day
+        values: [170.0, 220.0, 160.0]
     - id: gerd
       name: GERD
       kind: reservoir
@@ -34,24 +46,62 @@ network:
         initial_storage: 500.0
         target_release:
           kind: monthly30_day
-          values: [230.0, 240.0, 220.0]
+          values: [185.0, 210.0, 175.0]
       hydropower:
         minimum_daily_energy:
           kind: constant
-          value: 110.0
+          value: 95.0
         target_daily_energy:
           kind: constant
-          value: 145.0
+          value: 130.0
         max_turbine_flow:
           kind: constant
           value: 220.0
         energy_per_unit_water: 0.68
+    - id: roseires
+      name: Roseires Dam
+      kind: reservoir
+      local_inflow:
+        kind: constant
+        value: 8.0
+      reservoir:
+        capacity: 420.0
+        min_storage: 120.0
+        initial_storage: 260.0
+        target_release:
+          kind: monthly30_day
+          values: [175.0, 190.0, 165.0]
+      hydropower:
+        minimum_daily_energy:
+          kind: constant
+          value: 35.0
+        target_daily_energy:
+          kind: constant
+          value: 55.0
+        max_turbine_flow:
+          kind: constant
+          value: 150.0
+        energy_per_unit_water: 0.31
+    - id: gezira_irrigation
+      name: Gezira Irrigation Scheme
+      kind: river
+      local_inflow:
+        kind: constant
+        value: 0.0
+      irrigation:
+        minimum_daily_delivery:
+          kind: constant
+          value: 38.0
+        target_daily_delivery:
+          kind: monthly30_day
+          values: [62.0, 58.0, 45.0]
+        food_per_unit_water: 1.2
     - id: khartoum
       name: Khartoum Confluence
       kind: river
       local_inflow:
         kind: constant
-        value: 20.0
+        value: 12.0
       drinking_water:
         minimum_daily_delivery:
           kind: constant
@@ -62,11 +112,47 @@ network:
       irrigation:
         minimum_daily_delivery:
           kind: constant
-          value: 35.0
+          value: 12.0
         target_daily_delivery:
           kind: constant
-          value: 55.0
-        food_per_unit_water: 2.1
+          value: 20.0
+        food_per_unit_water: 1.1
+    - id: atbara_headwaters
+      name: Atbara Headwaters
+      kind: river
+      local_inflow:
+        kind: monthly30_day
+        values: [70.0, 95.0, 45.0]
+    - id: atbara_confluence
+      name: Atbara Confluence
+      kind: river
+      local_inflow:
+        kind: constant
+        value: 3.0
+    - id: merowe
+      name: Merowe Dam
+      kind: reservoir
+      local_inflow:
+        kind: constant
+        value: 2.0
+      reservoir:
+        capacity: 720.0
+        min_storage: 180.0
+        initial_storage: 420.0
+        target_release:
+          kind: monthly30_day
+          values: [260.0, 270.0, 235.0]
+      hydropower:
+        minimum_daily_energy:
+          kind: constant
+          value: 70.0
+        target_daily_energy:
+          kind: constant
+          value: 92.0
+        max_turbine_flow:
+          kind: constant
+          value: 240.0
+        energy_per_unit_water: 0.38
     - id: aswan
       name: High Aswan
       kind: reservoir
@@ -80,13 +166,6 @@ network:
         target_release:
           kind: monthly30_day
           values: [330.0, 315.0, 300.0]
-      drinking_water:
-        minimum_daily_delivery:
-          kind: constant
-          value: 20.0
-        target_daily_delivery:
-          kind: constant
-          value: 28.0
       hydropower:
         minimum_daily_energy:
           kind: constant
@@ -98,6 +177,33 @@ network:
           kind: constant
           value: 290.0
         energy_per_unit_water: 0.59
+    - id: cairo_municipal
+      name: Cairo Municipal Demand
+      kind: river
+      local_inflow:
+        kind: constant
+        value: 0.0
+      drinking_water:
+        minimum_daily_delivery:
+          kind: constant
+          value: 45.0
+        target_daily_delivery:
+          kind: constant
+          value: 62.0
+    - id: egypt_agriculture
+      name: Egypt Agriculture
+      kind: river
+      local_inflow:
+        kind: constant
+        value: 0.0
+      irrigation:
+        minimum_daily_delivery:
+          kind: constant
+          value: 95.0
+        target_daily_delivery:
+          kind: monthly30_day
+          values: [135.0, 150.0, 115.0]
+        food_per_unit_water: 1.5
     - id: nile_delta
       name: Nile Delta
       kind: river
@@ -107,41 +213,86 @@ network:
       drinking_water:
         minimum_daily_delivery:
           kind: constant
-          value: 35.0
+          value: 20.0
         target_daily_delivery:
           kind: constant
-          value: 48.0
+          value: 28.0
       irrigation:
         minimum_daily_delivery:
           kind: constant
-          value: 80.0
+          value: 45.0
         target_daily_delivery:
-          kind: constant
-          value: 120.0
+          kind: monthly30_day
+          values: [70.0, 80.0, 60.0]
         food_per_unit_water: 1.8
   edges:
-    - id: white_to_khartoum
-      from: white_nile_headwaters
+    - id: lake_victoria_to_sudd
+      from: lake_victoria_outlet
+      to: sudd_wetland
+      flow_share: 1.0
+      loss_fraction: 0.04
+    - id: sudd_to_malakal
+      from: sudd_wetland
+      to: malakal
+      flow_share: 1.0
+      loss_fraction: 0.45
+    - id: malakal_to_khartoum
+      from: malakal
       to: khartoum
       flow_share: 1.0
       loss_fraction: 0.02
-    - id: blue_to_gerd
-      from: blue_nile_headwaters
+    - id: lake_tana_to_gerd
+      from: lake_tana_outlet
       to: gerd
       flow_share: 1.0
       loss_fraction: 0.01
-    - id: gerd_to_khartoum
+    - id: gerd_to_roseires
       from: gerd
-      to: khartoum
+      to: roseires
       flow_share: 1.0
       loss_fraction: 0.015
-    - id: khartoum_to_aswan
+    - id: roseires_to_gezira
+      from: roseires
+      to: gezira_irrigation
+      flow_share: 1.0
+      loss_fraction: 0.01
+    - id: gezira_to_khartoum
+      from: gezira_irrigation
+      to: khartoum
+      flow_share: 1.0
+      loss_fraction: 0.01
+    - id: atbara_to_confluence
+      from: atbara_headwaters
+      to: atbara_confluence
+      flow_share: 1.0
+      loss_fraction: 0.03
+    - id: khartoum_to_atbara_confluence
       from: khartoum
+      to: atbara_confluence
+      flow_share: 1.0
+      loss_fraction: 0.02
+    - id: atbara_confluence_to_merowe
+      from: atbara_confluence
+      to: merowe
+      flow_share: 1.0
+      loss_fraction: 0.02
+    - id: merowe_to_aswan
+      from: merowe
       to: aswan
       flow_share: 1.0
       loss_fraction: 0.025
-    - id: aswan_to_delta
+    - id: aswan_to_cairo
       from: aswan
+      to: cairo_municipal
+      flow_share: 1.0
+      loss_fraction: 0.015
+    - id: cairo_to_egypt_agriculture
+      from: cairo_municipal
+      to: egypt_agriculture
+      flow_share: 1.0
+      loss_fraction: 0.01
+    - id: egypt_agriculture_to_delta
+      from: egypt_agriculture
       to: nile_delta
       flow_share: 1.0
-      loss_fraction: 0.03
+      loss_fraction: 0.015
