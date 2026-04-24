@@ -1,0 +1,82 @@
+# Three-node cascade example
+#
+# Topology:
+#   headwater ──(1-day delay)──► midstream ──(2-day delay)──► lowland
+#
+# headwater  – large alpine reservoir; seasonal CSV inflow; all release
+#              and spill routes downstream.
+# midstream  – mid-valley reservoir; blends headwater inflow with a
+#              moderate local catchment; split routing: 90 % onward,
+#              10 % lost.
+# lowland    – terminal reservoir at the valley floor; constant baseflow;
+#              no outgoing connections (water leaves the system).
+
+settings:
+  timestep_days: 1.0
+
+nodes:
+  - id: headwater
+    reservoir:
+      initial_level: 8000.0    # m³
+      max_capacity:  20000.0   # m³
+    max_production: 600.0      # m³/day
+    catchment_inflow:
+      type: csv
+      filepath: data/headwater_inflow.csv
+    connections:
+      - node_id:  midstream
+        fraction: 1.0
+        delay:    1
+    modules:
+      evaporation:
+        rate: 30.0             # m³/day
+      drink_water:
+        daily_demand: 50.0     # m³/day
+      food_production:
+        water_coefficient: 1.2 # m³ per food unit
+        max_food_units:    80.0
+      energy:
+        price_per_unit: 0.18   # currency/m³
+
+  - id: midstream
+    reservoir:
+      initial_level: 3000.0   # m³
+      max_capacity:  8000.0   # m³
+    max_production: 300.0     # m³/day
+    catchment_inflow:
+      type: constant
+      rate: 120.0             # m³/day
+    connections:
+      - node_id:  lowland
+        fraction: 0.9
+        delay:    2
+    modules:
+      evaporation:
+        rate: 20.0            # m³/day
+      drink_water:
+        daily_demand: 80.0    # m³/day
+      food_production:
+        water_coefficient: 0.9
+        max_food_units:    100.0
+      energy:
+        price_per_unit: 0.14  # currency/m³
+
+  - id: lowland
+    reservoir:
+      initial_level: 1000.0  # m³
+      max_capacity:  4000.0  # m³
+    max_production: 150.0    # m³/day
+    catchment_inflow:
+      type: constant
+      rate: 50.0             # m³/day
+    connections: []
+    modules:
+      evaporation:
+        rate: 10.0           # m³/day
+      drink_water:
+        daily_demand: 120.0  # m³/day
+      food_production:
+        water_coefficient: 0.7
+        max_food_units:    60.0
+      energy:
+        price_per_unit: 0.10 # currency/m³
