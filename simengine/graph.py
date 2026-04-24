@@ -35,10 +35,12 @@ def load_graph(config_path: Path, topology_path: Path | None = None,
     # Importing here avoids a circular import at module load time
     try:
         import simengine.nodes  # noqa: F401 -- triggers @register_node_class decorators
-    except ImportError:
-        # simengine.nodes doesn't exist yet (task 3 creates it) -- continue
-        # so the unknown-node-type test still works via the empty registry.
-        pass
+    except ModuleNotFoundError as e:
+        # Tolerate simengine.nodes not existing yet (Task 2 runs before Task 3).
+        # Re-raise if the missing module is anything else -- e.g. a typo in a
+        # node submodule's own imports -- so we don't mask real bugs.
+        if e.name != "simengine.nodes":
+            raise
 
     cfg = yaml.safe_load(Path(config_path).read_text())
     nodes_cfg = cfg["nodes"]
