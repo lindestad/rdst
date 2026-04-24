@@ -3,6 +3,7 @@ nodes:
   - id: victoria
     latitude: -1.0      # degrees
     longitude: 33.0     # degrees
+    area: 238900        # km² — Lake Victoria drainage basin
 
     reservoir:
       initial_level: 2.8e11   # m³
@@ -32,6 +33,7 @@ nodes:
   - id: southwest
     latitude: 8.5
     longitude: 29.5
+    area: 580000        # km² — Sudd / White Nile catchment
 
     reservoir:
       initial_level: 6.0e9
@@ -61,6 +63,7 @@ nodes:
   - id: karthoum
     latitude: 15.6
     longitude: 32.6
+    area: 45000         # km² — local catchment around Khartoum confluence
 
     reservoir:
       initial_level: 8.0e9
@@ -90,6 +93,7 @@ nodes:
   - id: merowe
     latitude: 18.7
     longitude: 32.0
+    area: 85000         # km² — Nubian Nile reach (largely arid)
 
     reservoir:
       initial_level: 1.2e10
@@ -119,6 +123,7 @@ nodes:
   - id: aswand
     latitude: 24.0
     longitude: 32.9
+    area: 145000        # km² — Lake Nasser / Aswan reservoir basin
 
     reservoir:
       initial_level: 1.4e11
@@ -148,6 +153,7 @@ nodes:
   - id: cairo
     latitude: 30.8
     longitude: 31.0
+    area: 22000         # km² — Nile Delta and lower Egypt reach
 
     reservoir:
       initial_level: 4.0e10
@@ -174,6 +180,7 @@ nodes:
   - id: singa
     latitude: 13.2
     longitude: 34.0
+    area: 75000         # km² — Blue Nile middle reaches (Sudan)
 
     reservoir:
       initial_level: 9.0e9
@@ -203,6 +210,7 @@ nodes:
   - id: roseires
     latitude: 11.9
     longitude: 34.4
+    area: 82000         # km² — Blue Nile upper reach / Roseires dam basin
 
     reservoir:
       initial_level: 7.0e9
@@ -232,6 +240,7 @@ nodes:
   - id: gerd
     latitude: 11.2
     longitude: 35.1
+    area: 172000        # km² — Ethiopian Blue Nile catchment (GERD basin)
 
     reservoir:
       initial_level: 4.5e10
@@ -261,6 +270,7 @@ nodes:
   - id: tana
     latitude: 12.0
     longitude: 37.3
+    area: 16000         # km² — Lake Tana drainage basin
 
     reservoir:
       initial_level: 2.0e10
@@ -290,6 +300,7 @@ nodes:
   - id: kashm
     latitude: 14.9
     longitude: 35.9
+    area: 68000         # km² — Atbara / Kashm el-Girba basin
 
     reservoir:
       initial_level: 2.5e9
@@ -319,6 +330,7 @@ nodes:
   - id: tsengh
     latitude: 14.0
     longitude: 36.5
+    area: 31000         # km² — Tekeze tributary sub-basin
 
     reservoir:
       initial_level: 1.5e9
@@ -348,6 +360,7 @@ nodes:
   - id: ozentari
     latitude: 13.5
     longitude: 37.2
+    area: 19000         # km² — headwater tributary catchment
 
     reservoir:
       initial_level: 1.0e9
