@@ -1,4 +1,4 @@
-export type VisualizerId = "bundle-network" | "source-coverage";
+export type VisualizerId = "bundle-network" | "source-coverage" | "time-series";
 
 export type VisualizerDefinition = {
   id: VisualizerId;
@@ -79,6 +79,33 @@ export const visualizers: VisualizerDefinition[] = [
         { d: "M101 42 V154", width: 2 },
         { d: "M155 42 V154", width: 2 },
         { d: "M209 42 V154", width: 2 },
+      ],
+    },
+  },
+  {
+    id: "time-series",
+    name: "Time-Series Explorer",
+    eyebrow: "Metric Trends",
+    summary: "Inspects interval values by metric and entity, with raw rows, QA flags, unit checks, and simple gap awareness.",
+    dataset: "time_series.csv intervals",
+    status: "ready",
+    stats: [
+      { label: "Mode", value: "Trend" },
+      { label: "Focus", value: "Entity" },
+      { label: "Checks", value: "Gaps" },
+    ],
+    preview: {
+      nodes: [
+        { x: 56, y: 124, r: 5 },
+        { x: 104, y: 92, r: 5 },
+        { x: 152, y: 112, r: 5 },
+        { x: 200, y: 68, r: 5 },
+        { x: 248, y: 86, r: 5 },
+      ],
+      edges: [
+        { d: "M56 124 C82 100 84 100 104 92 C130 78 132 116 152 112 C178 108 176 76 200 68 C226 58 226 84 248 86", width: 6 },
+        { d: "M44 145 H272", width: 2 },
+        { d: "M44 42 V145", width: 2 },
       ],
     },
   },

@@ -46,6 +46,10 @@ function App() {
     return <SourceCoverageVisualizer onBack={() => setActiveVisualizerId(null)} visualizer={activeVisualizer} />;
   }
 
+  if (activeVisualizer.id === "time-series") {
+    return <TimeSeriesVisualizer onBack={() => setActiveVisualizerId(null)} visualizer={activeVisualizer} />;
+  }
+
   return <BundleVisualizer onBack={() => setActiveVisualizerId(null)} visualizer={activeVisualizer} />;
 }
 
@@ -505,6 +509,216 @@ function SourceCoverageVisualizer({ onBack, visualizer }: { onBack: () => void; 
   );
 }
 
+function TimeSeriesVisualizer({ onBack, visualizer }: { onBack: () => void; visualizer: VisualizerDefinition }) {
+  const [bundle, setBundle] = useState<DataloaderBundle>(sampleBundle);
+  const [loadError, setLoadError] = useState("");
+  const [selectedMetric, setSelectedMetric] = useState("");
+  const [selectedEntity, setSelectedEntity] = useState("");
+
+  const model = useMemo(() => buildTimeSeriesModel(bundle, selectedMetric, selectedEntity), [bundle, selectedEntity, selectedMetric]);
+  const activeMetric = model.metric;
+  const activeEntity = model.entityKey;
+
+  async function handleFiles(event: ChangeEvent<HTMLInputElement>) {
+    const files = event.target.files;
+    if (!files?.length) {
+      return;
+    }
+
+    try {
+      const csvBundle = await readCsvBundleFromFiles(files);
+      const nextBundle = parseBundle("Uploaded CSV bundle", csvBundle);
+      setBundle(nextBundle);
+      setLoadError("");
+      setSelectedMetric("");
+      setSelectedEntity("");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Could not load the CSV bundle.");
+    } finally {
+      event.target.value = "";
+    }
+  }
+
+  return (
+    <main className="app-shell">
+      <header className="topbar">
+        <div className="title-row">
+          <button className="icon-shell" onClick={onBack} title="Back to visualizers" type="button">
+            <ArrowLeft size={18} />
+          </button>
+          <div className="title-block">
+            <p>{visualizer.eyebrow}</p>
+            <h1>{visualizer.name}</h1>
+          </div>
+        </div>
+        <div className="top-actions">
+          <label className="upload-button" title="Load nodes.csv, edges.csv, and time_series.csv">
+            <FileUp size={18} />
+            <span>Load CSVs</span>
+            <input accept=".csv,text/csv" multiple onChange={handleFiles} type="file" />
+          </label>
+          <button className="ghost-button" onClick={() => setBundle(sampleBundle)} title="Reload sample bundle" type="button">
+            <RefreshCcw size={17} />
+            <span>Sample</span>
+          </button>
+        </div>
+      </header>
+
+      {loadError ? (
+        <div className="error-strip">
+          <AlertTriangle size={16} />
+          <span>{loadError}</span>
+        </div>
+      ) : null}
+
+      <section className="timeseries-workspace">
+        <aside className="timeseries-sidebar" aria-label="Time-series filters">
+          <section className="panel">
+            <PanelHeading icon={<BarChart3 size={17} />} label="Series" />
+            <div className="stat-grid">
+              <Stat label="Metrics" value={model.metrics.length.toString()} />
+              <Stat label="Entities" value={model.entities.length.toString()} />
+              <Stat label="Rows" value={model.rows.length.toString()} />
+              <Stat label="Flags" value={model.flaggedRows.toString()} />
+            </div>
+          </section>
+
+          <section className="panel">
+            <PanelHeading icon={<Layers3 size={17} />} label="Lens" />
+            <label className="field">
+              <span>Metric</span>
+              <select onChange={(event) => setSelectedMetric(event.target.value)} value={activeMetric}>
+                {model.metrics.map((metric) => (
+                  <option key={metric} value={metric}>
+                    {metric}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>Entity</span>
+              <select onChange={(event) => setSelectedEntity(event.target.value)} value={activeEntity}>
+                {model.entities.map((entity) => (
+                  <option key={entity.key} value={entity.key}>
+                    {entity.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </section>
+
+          <section className="panel">
+            <PanelHeading icon={<Database size={17} />} label="Entities" />
+            <div className="entity-list">
+              {model.entities.slice(0, 24).map((entity) => (
+                <button
+                  className={entity.key === activeEntity ? "entity-button active" : "entity-button"}
+                  key={entity.key}
+                  onClick={() => setSelectedEntity(entity.key)}
+                  type="button"
+                >
+                  <span>{entity.label}</span>
+                  <strong>{entity.rows}</strong>
+                </button>
+              ))}
+            </div>
+          </section>
+        </aside>
+
+        <section className="timeseries-main" aria-label="Time-series chart">
+          <div className="timeseries-title">
+            <div>
+              <p>{bundle.sourceLabel}</p>
+              <h2>{activeMetric || "No metric selected"}</h2>
+            </div>
+            <div className="toolbar-summary">
+              <span>{activeEntity || "No entity"}</span>
+              <strong>{model.units.join(", ") || "unit unknown"}</strong>
+            </div>
+          </div>
+
+          <div className="chart-panel">
+            <svg className="trend-chart" viewBox="0 0 980 420" role="img" aria-label="Selected metric trend">
+              <g className="chart-grid">
+                {[0, 1, 2, 3].map((line) => (
+                  <line key={line} x1="54" x2="930" y1={66 + line * 86} y2={66 + line * 86} />
+                ))}
+              </g>
+              <polyline className="trend-line" points={model.polyline} />
+              {model.points.map((point) => (
+                <g className={point.flagged ? "trend-point flagged" : "trend-point"} key={`${point.window}-${point.value}`} transform={`translate(${point.x} ${point.y})`}>
+                  <line className="trend-stem" x1="0" x2="0" y1="0" y2={356 - point.y} />
+                  <circle r="8" />
+                  <text y="-15">{formatNumber(point.value)}</text>
+                </g>
+              ))}
+              <g className="chart-axis">
+                {model.points.map((point) => (
+                  <text key={point.window} x={point.x} y="388">
+                    {point.label}
+                  </text>
+                ))}
+              </g>
+            </svg>
+          </div>
+
+          <div className="timeseries-summary-grid">
+            <SummaryTile label="Min" value={formatNumber(model.min)} />
+            <SummaryTile label="Max" value={formatNumber(model.max)} />
+            <SummaryTile label="Average" value={formatNumber(model.average)} />
+            <SummaryTile label="Gaps" value={model.gaps.toString()} tone={model.gaps > 0 ? "warn" : "ok"} />
+          </div>
+        </section>
+
+        <aside className="timeseries-detail" aria-label="Time-series detail">
+          <section className="panel inspector">
+            <PanelHeading icon={<CheckCircle2 size={17} />} label="Checks" />
+            <div className="diagnostic-list">
+              <div className={model.units.length > 1 ? "diagnostic warn" : "diagnostic ok"}>
+                <strong>Units</strong>
+                <span>{model.units.length > 1 ? `${model.units.length} units in this series` : model.units[0] || "No unit declared"}</span>
+              </div>
+              <div className={model.gaps > 0 ? "diagnostic warn" : "diagnostic ok"}>
+                <strong>Intervals</strong>
+                <span>{model.gaps > 0 ? `${model.gaps} interval gap${model.gaps === 1 ? "" : "s"}` : "Intervals are contiguous"}</span>
+              </div>
+              <div className={model.flaggedRows > 0 ? "diagnostic warn" : "diagnostic ok"}>
+                <strong>QA flags</strong>
+                <span>{model.flaggedRows > 0 ? `${model.flaggedRows} row${model.flaggedRows === 1 ? "" : "s"} flagged` : "No rows flagged"}</span>
+              </div>
+            </div>
+          </section>
+
+          <section className="panel">
+            <PanelHeading icon={<GitBranch size={17} />} label="Sources" />
+            <div className="source-breakdown">
+              {model.sources.map((source) => (
+                <div key={source.source}>
+                  <span>{source.source}</span>
+                  <strong>{source.rows}</strong>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="panel">
+            <PanelHeading icon={<TableProperties size={17} />} label="Rows" />
+            <div className="row-table compact-table">
+              {model.rows.map((row, index) => (
+                <button className="series-row" key={`${row.entity_id}-${row.metric}-${row.interval_start}-${index}`} type="button">
+                  <span>{row.interval_start}</span>
+                  <strong>{formatNumber(toNumber(row.value))}</strong>
+                  <em>{row.source_name || "unknown source"} / {row.quality_flag || "unflagged"}</em>
+                </button>
+              ))}
+            </div>
+          </section>
+        </aside>
+      </section>
+    </main>
+  );
+}
+
 function CoverageMatrixRow({
   activeMetric,
   activeSource,
@@ -606,6 +820,38 @@ function VisualizerCard({ onOpen, visualizer }: { onOpen: (id: VisualizerId) => 
 }
 
 function VisualizerPreview({ visualizer }: { visualizer: VisualizerDefinition }) {
+  if (visualizer.id === "time-series") {
+    return (
+      <svg className="visualizer-preview timeseries-preview" viewBox="0 0 320 180" role="img" aria-label={`${visualizer.name} preview`}>
+        <defs>
+          <linearGradient id="timePreviewLine" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0%" stopColor="#6aa9d8" />
+            <stop offset="100%" stopColor="#71c586" />
+          </linearGradient>
+        </defs>
+        <rect className="preview-backdrop" x="0" y="0" width="320" height="180" rx="8" />
+        <g className="time-preview-grid">
+          <line x1="38" x2="286" y1="48" y2="48" />
+          <line x1="38" x2="286" y1="84" y2="84" />
+          <line x1="38" x2="286" y1="120" y2="120" />
+          <line x1="38" x2="286" y1="150" y2="150" />
+        </g>
+        <path className="time-preview-area" d="M46 130 C82 86 98 108 122 96 C154 80 154 48 188 62 C218 76 226 104 274 54 L274 150 L46 150 Z" />
+        <path className="time-preview-line" d="M46 130 C82 86 98 108 122 96 C154 80 154 48 188 62 C218 76 226 104 274 54" />
+        <g className="time-preview-points">
+          <circle cx="46" cy="130" r="5" />
+          <circle cx="122" cy="96" r="5" />
+          <circle cx="188" cy="62" r="7" className="warn" />
+          <circle cx="274" cy="54" r="5" />
+        </g>
+        <g className="preview-metrics">
+          <rect x="34" y="24" width="64" height="7" rx="4" />
+          <rect x="218" y="132" width="54" height="7" rx="4" />
+        </g>
+      </svg>
+    );
+  }
+
   if (visualizer.id === "source-coverage") {
     return (
       <svg className="visualizer-preview source-preview" viewBox="0 0 320 180" role="img" aria-label={`${visualizer.name} preview`}>
@@ -688,6 +934,15 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
+function SummaryTile({ label, value, tone }: { label: string; value: string; tone?: "ok" | "warn" }) {
+  return (
+    <div className={tone ? `summary-tile ${tone}` : "summary-tile"}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
 function EntityInspector({ entity, metric }: { entity: GraphNode | GraphEdge; metric: string }) {
   const id = "node_id" in entity ? entity.node_id : entity.edge_id;
   const label = "node_id" in entity ? entity.name || entity.node_id : `${entity.from_node_id} -> ${entity.to_node_id}`;
@@ -735,6 +990,69 @@ type CoverageCell = {
   units: string[];
 };
 
+function buildTimeSeriesModel(bundle: DataloaderBundle, metricPreference: string, entityPreference: string) {
+  const metrics = unique(bundle.timeSeries.map((row) => row.metric).filter(Boolean)).sort((a, b) => a.localeCompare(b));
+  const metric = metricPreference || metrics[0] || "";
+  const metricRows = bundle.timeSeries.filter((row) => row.metric === metric);
+  const entities = unique(metricRows.map((row) => `${row.entity_type}:${row.entity_id}`))
+    .sort((a, b) => a.localeCompare(b))
+    .map((key) => {
+      const rows = metricRows.filter((row) => `${row.entity_type}:${row.entity_id}` === key);
+      return {
+        key,
+        label: key,
+        rows: rows.length,
+      };
+    });
+  const entityKey = entityPreference && entities.some((entity) => entity.key === entityPreference) ? entityPreference : entities[0]?.key || "";
+  const rows = metricRows
+    .filter((row) => `${row.entity_type}:${row.entity_id}` === entityKey)
+    .slice()
+    .sort((a, b) => a.interval_start.localeCompare(b.interval_start));
+  const values = rows.map((row) => toNumber(row.value)).filter((value) => Number.isFinite(value));
+  const min = values.length ? Math.min(...values) : Number.NaN;
+  const max = values.length ? Math.max(...values) : Number.NaN;
+  const average = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : Number.NaN;
+  const extent = Math.max(1, Math.abs(max), Math.abs(min));
+  const chartLeft = 74;
+  const chartRight = 890;
+  const chartTop = 54;
+  const chartBottom = 340;
+  const span = Math.max(1, rows.length - 1);
+  const points = rows.map((row, index) => {
+    const value = toNumber(row.value);
+    const ratio = Number.isFinite(value) ? Math.max(0, Math.min(1, value / extent)) : 0;
+    return {
+      flagged: isReviewRow(row),
+      label: `T${index + 1}`,
+      value,
+      window: rowWindow(row),
+      x: chartLeft + (index / span) * (chartRight - chartLeft),
+      y: chartBottom - ratio * (chartBottom - chartTop),
+    };
+  });
+
+  return {
+    average,
+    entities,
+    entityKey,
+    flaggedRows: rows.filter(isReviewRow).length,
+    gaps: countIntervalGaps(rows),
+    max,
+    metric,
+    metrics,
+    min,
+    points,
+    polyline: points.map((point) => `${point.x},${point.y}`).join(" "),
+    rows,
+    sources: unique(rows.map(sourceName)).map((source) => ({
+      source,
+      rows: rows.filter((row) => sourceName(row) === source).length,
+    })),
+    units: unique(rows.map((row) => row.unit).filter(Boolean)),
+  };
+}
+
 function buildCoverageModel(bundle: DataloaderBundle) {
   const sources = unique(bundle.timeSeries.map(sourceName)).sort((a, b) => a.localeCompare(b));
   const metrics = unique(bundle.timeSeries.map((row) => row.metric).filter(Boolean)).sort((a, b) => a.localeCompare(b));
@@ -775,6 +1093,16 @@ function buildCoverageModel(bundle: DataloaderBundle) {
     }),
     units,
   };
+}
+
+function countIntervalGaps(rows: TimeSeriesRow[]) {
+  return rows.reduce((count, row, index) => {
+    const next = rows[index + 1];
+    if (!next || !row.interval_end || !next.interval_start) {
+      return count;
+    }
+    return row.interval_end === next.interval_start ? count : count + 1;
+  }, 0);
 }
 
 function buildModel(bundle: DataloaderBundle, metricPreference: string, windowPreference: string) {
