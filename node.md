@@ -33,6 +33,16 @@ one column for each scenario.
 
 Natural water arriving from the local catchment into the reservoir, m^3/day.
 
+### Evaporation
+
+Water lost from the reservoir surface. Evaporation is deducted first, before
+any other withdrawal or release.
+
+```
+evaporation = min(evaporation_rate(t, dt), available)
+available  -= evaporation
+```
+
 ### Drinking-Water Demand
 
 Volume of water that must be withdrawn from the reservoir for human consumption.
@@ -91,23 +101,27 @@ Steps are executed in this fixed priority order:
 1. **Inflow accumulation**  
    `available = reservoir_level + catchment_inflow(t, dt) + upstream_inflow`
 
-2. **Drinking-water withdrawal**  
+2. **Evaporation**  
+   `evaporation = min(evaporation_rate(t, dt), available)`  
+   `available -= evaporation`
+
+3. **Drinking-water withdrawal**  
    `drink_water_met = min(drink_water_demand(t, dt), available)`  
    `available -= drink_water_met`
 
-3. **Food-production water allocation**  
+4. **Food-production water allocation**  
    `food_produced, water_consumed = food_production.produce(available, dt)`  
    `available -= water_consumed`
 
-4. **Hydropower production release** 
+5. **Hydropower production release**  
    `production_release = min(action × max_production × dt, available)`  
    `available -= production_release`
 
-5. **Reservoir update and spill**  
+6. **Reservoir update and spill**  
    `spill = max(0, available − max_capacity)`  
    `reservoir_level = clamp(available, 0, max_capacity)`
 
-6. **Downstream routing**  
+7. **Downstream routing**  
    For each connection:  
    `routed = (production_release + spill) × fraction`  
    — arrives at the downstream node immediately if `delay == 0`, otherwise
@@ -124,6 +138,7 @@ After each timestep the node returns the following values:
 | `reservoir_level` | m³ | Reservoir volume at end of timestep |
 | `production_release` | m³ | Water released for hydropower |
 | `energy_value` | currency | `production_release × energy_price` |
+| `evaporation` | m³ | Water lost to evaporation this timestep |
 | `food_produced` | food units | Food units produced this timestep |
 | `drink_water_met` | m³ | Actual drinking-water withdrawn (may be < demand) |
 | `unmet_drink_water` | m³ | Unmet drinking-water demand = `demand − drink_water_met` |
@@ -181,6 +196,10 @@ nodes:
                               # fractions across all connections must sum to ≤ 1
 
     modules:
+      evaporation:
+        rate: <float>               # m³/day (constant)
+        # or: type: csv, filepath: <path>
+
       drink_water:
         daily_demand: <float>       # m³/day (constant)
         # or: type: csv, filepath: <path>
