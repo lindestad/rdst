@@ -1,10 +1,18 @@
 use serde::{Deserialize, Serialize};
 
+pub const SUPPORTED_SCHEMA_VERSION: &str = "0.1.0";
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Scenario {
+    #[serde(default = "default_schema_version")]
+    pub schema_version: String,
     pub metadata: ScenarioMetadata,
     pub simulation: SimulationConfig,
     pub network: NetworkConfig,
+}
+
+fn default_schema_version() -> String {
+    SUPPORTED_SCHEMA_VERSION.to_string()
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -131,6 +139,7 @@ impl TimeSeries {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct SimulationResult {
+    pub schema_version: String,
     pub metadata: ScenarioMetadata,
     pub engine_time_step: EngineTimeStep,
     pub reporting: ReportingFrequency,

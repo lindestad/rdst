@@ -50,6 +50,7 @@ Suggested meaning:
 
 - `schema_version`
   - Version of the scenario contract, not the software build
+  - Current supported value: `0.1.0`
 - `metadata`
   - Human context such as name, description, author, source set, provenance
 - `simulation`
@@ -345,8 +346,12 @@ Avoid requiring the simulator to understand raw ingest structures.
 
 ## Validation Rules Worth Enforcing Early
 
-The canonical schema should validate at load time:
+The canonical schema should validate at load time. The current machine-readable
+contract lives at `contracts/scenario.schema.yaml`.
 
+Validation should cover:
+
+- supported `schema_version`
 - unique node ids
 - unique edge ids
 - all edge endpoints exist

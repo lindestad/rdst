@@ -15,6 +15,7 @@ workspace under `horizon/` so it can grow cleanly inside a larger monorepo.
 
 - `crates/nrsm-sim-core`: public simulation API and domain model
 - `crates/nrsm-cli`: command-line runner for YAML scenarios
+- `contracts/scenario.schema.yaml`: machine-readable scenario contract
 - `scenarios/nile-mvp`: small Nile-inspired demo scenario
 
 ## MVP Assumptions

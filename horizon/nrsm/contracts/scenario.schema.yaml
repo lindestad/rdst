@@ -1,0 +1,168 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://cassini.local/nrsm/scenario.schema.yaml
+title: NRSM Scenario
+description: Canonical YAML scenario contract consumed by the NRSM simulator.
+type: object
+additionalProperties: false
+required:
+  - schema_version
+  - metadata
+  - simulation
+  - network
+properties:
+  schema_version:
+    type: string
+    const: 0.1.0
+  metadata:
+    type: object
+    additionalProperties: false
+    required: [name]
+    properties:
+      name:
+        type: string
+        minLength: 1
+      description:
+        type: string
+  simulation:
+    type: object
+    additionalProperties: false
+    required: [horizon_days, reporting]
+    properties:
+      horizon_days:
+        type: integer
+        minimum: 1
+      reporting:
+        type: string
+        enum: [daily, monthly30_day]
+  network:
+    type: object
+    additionalProperties: false
+    required: [nodes, edges]
+    properties:
+      nodes:
+        type: array
+        minItems: 1
+        items:
+          $ref: "#/$defs/node"
+      edges:
+        type: array
+        items:
+          $ref: "#/$defs/edge"
+$defs:
+  node:
+    type: object
+    additionalProperties: false
+    required: [id, name, kind, local_inflow]
+    properties:
+      id:
+        $ref: "#/$defs/id"
+      name:
+        type: string
+        minLength: 1
+      kind:
+        type: string
+        enum: [river, reservoir]
+      local_inflow:
+        $ref: "#/$defs/time_series"
+      reservoir:
+        $ref: "#/$defs/reservoir"
+      drinking_water:
+        $ref: "#/$defs/drinking_water"
+      irrigation:
+        $ref: "#/$defs/irrigation"
+      hydropower:
+        $ref: "#/$defs/hydropower"
+  edge:
+    type: object
+    additionalProperties: false
+    required: [id, from, to, flow_share, loss_fraction]
+    properties:
+      id:
+        $ref: "#/$defs/id"
+      from:
+        $ref: "#/$defs/id"
+      to:
+        $ref: "#/$defs/id"
+      flow_share:
+        type: number
+        minimum: 0
+        maximum: 1
+      loss_fraction:
+        type: number
+        minimum: 0
+        maximum: 1
+  reservoir:
+    type: object
+    additionalProperties: false
+    required: [capacity, min_storage, initial_storage, target_release]
+    properties:
+      capacity:
+        type: number
+        minimum: 0
+      min_storage:
+        type: number
+        minimum: 0
+      initial_storage:
+        type: number
+        minimum: 0
+      target_release:
+        $ref: "#/$defs/time_series"
+  drinking_water:
+    type: object
+    additionalProperties: false
+    required: [target_daily_delivery]
+    properties:
+      minimum_daily_delivery:
+        $ref: "#/$defs/time_series"
+      target_daily_delivery:
+        $ref: "#/$defs/time_series"
+  irrigation:
+    type: object
+    additionalProperties: false
+    required: [target_daily_delivery, food_per_unit_water]
+    properties:
+      minimum_daily_delivery:
+        $ref: "#/$defs/time_series"
+      target_daily_delivery:
+        $ref: "#/$defs/time_series"
+      food_per_unit_water:
+        type: number
+        minimum: 0
+  hydropower:
+    type: object
+    additionalProperties: false
+    required: [max_turbine_flow, energy_per_unit_water]
+    properties:
+      minimum_daily_energy:
+        $ref: "#/$defs/time_series"
+      target_daily_energy:
+        $ref: "#/$defs/time_series"
+      max_turbine_flow:
+        $ref: "#/$defs/time_series"
+      energy_per_unit_water:
+        type: number
+        minimum: 0
+  time_series:
+    oneOf:
+      - type: object
+        additionalProperties: false
+        required: [kind, value]
+        properties:
+          kind:
+            const: constant
+          value:
+            type: number
+      - type: object
+        additionalProperties: false
+        required: [kind, values]
+        properties:
+          kind:
+            enum: [daily, monthly30_day]
+          values:
+            type: array
+            minItems: 1
+            items:
+              type: number
+  id:
+    type: string
+    pattern: "^[a-z][a-z0-9_]*$"
