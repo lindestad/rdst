@@ -125,23 +125,21 @@ pub fn write_seed_snapshot(
     fs::create_dir_all(&staging_dir)?;
 
     let nodes = seed_nodes();
-    let mut outputs = Vec::new();
-    outputs.push(CsvBundleWriter::write_csv(
-        staging_dir.join("source_catalog.csv"),
-        &seed_source_catalog(),
-    )?);
-    outputs.push(CsvBundleWriter::write_csv(
-        staging_dir.join("source_manifest.csv"),
-        &source_manifest(),
-    )?);
-    outputs.push(CsvBundleWriter::write_csv(
-        staging_dir.join("node_sources.csv"),
-        &node_source_records(&nodes),
-    )?);
-    outputs.push(CsvBundleWriter::write_csv(
-        staging_dir.join("galileo_gnss_archive_urls.csv"),
-        &galileo_archive_url_records(&dates),
-    )?);
+    let mut outputs = vec![
+        CsvBundleWriter::write_csv(
+            staging_dir.join("source_catalog.csv"),
+            &seed_source_catalog(),
+        )?,
+        CsvBundleWriter::write_csv(staging_dir.join("source_manifest.csv"), &source_manifest())?,
+        CsvBundleWriter::write_csv(
+            staging_dir.join("node_sources.csv"),
+            &node_source_records(&nodes),
+        )?,
+        CsvBundleWriter::write_csv(
+            staging_dir.join("galileo_gnss_archive_urls.csv"),
+            &galileo_archive_url_records(&dates),
+        )?,
+    ];
 
     for node in &nodes {
         outputs.push(write_module_csv(
@@ -329,8 +327,8 @@ fn render_config(nodes: &[GeneratedNode]) -> String {
         }
 
         yaml.push_str(&format!(
-            "    modules:\n      evaporation:\n        type: csv\n        filepath: modules/{}.evaporation.csv\n        column: scenario_1\n      drink_water:\n        type: csv\n        filepath: modules/{}.drink_water.csv\n        column: scenario_1\n      food_production:\n        water_coefficient: {:.6}\n        max_food_units:\n          type: csv\n          filepath: modules/{}.food_production.csv\n          column: scenario_1\n      energy:\n        type: csv\n        filepath: modules/{}.energy.csv\n        column: scenario_1\n",
-            node.id, node.id, node.food_water_coefficient, node.id, node.id
+            "    modules:\n      evaporation:\n        type: csv\n        filepath: modules/{}.evaporation.csv\n        column: scenario_1\n      drink_water:\n        type: csv\n        filepath: modules/{}.drink_water.csv\n        column: scenario_1\n      food_production:\n        type: csv\n        filepath: modules/{}.food_production.csv\n        column: scenario_1\n        water_coefficient: {:.6}\n      energy:\n        type: csv\n        filepath: modules/{}.energy.csv\n        column: scenario_1\n",
+            node.id, node.id, node.id, node.food_water_coefficient, node.id
         ));
     }
 
@@ -672,6 +670,7 @@ fn is_leap_year(year: i32) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{SnapshotOptions, write_seed_snapshot};
+    use nrsm_sim_core::{Scenario, simulate};
 
     #[test]
     fn writes_seed_snapshot_for_markdown_simulator_contract() {
@@ -709,6 +708,44 @@ mod tests {
             .expect("inflow csv should be readable");
         assert!(inflow.starts_with("date,scenario_1,scenario_2,scenario_3\n"));
         assert!(inflow.contains("2020-02-29"));
+
+        std::fs::remove_dir_all(&dir).expect("temporary directory should be removed");
+    }
+
+    #[test]
+    fn generated_seed_snapshot_simulates_without_manual_fixes() {
+        let unique = format!(
+            "nrsm-node-snapshot-sim-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system time should be after epoch")
+                .as_nanos()
+        );
+        let dir = std::env::temp_dir().join(unique);
+        write_seed_snapshot(
+            &dir,
+            &SnapshotOptions {
+                start_date: "2020-01-01".to_string(),
+                end_date: "2020-01-03".to_string(),
+                n_scenarios: 2,
+            },
+        )
+        .expect("snapshot should be written");
+
+        let config = std::fs::read_to_string(dir.join("config.yaml"))
+            .expect("generated config should be readable");
+        let mut scenario: Scenario =
+            serde_yaml::from_str(&config).expect("generated config should parse");
+        scenario
+            .load_module_csvs(&dir)
+            .expect("generated module CSVs should load");
+
+        let result = simulate(&scenario).expect("generated snapshot should simulate");
+
+        assert_eq!(result.periods.len(), 3);
+        assert_eq!(result.periods[0].node_results.len(), scenario.nodes.len());
+        assert!(result.summary.total_inflow > 0.0);
+        assert!(result.summary.total_production_release > 0.0);
 
         std::fs::remove_dir_all(&dir).expect("temporary directory should be removed");
     }

@@ -1,186 +1,159 @@
 $schema: https://json-schema.org/draft/2020-12/schema
 $id: https://cassini.local/nrsm/scenario.schema.yaml
 title: NRSM Scenario
-description: Canonical YAML scenario contract consumed by the NRSM simulator.
+description: YAML scenario contract consumed by the NRSM simulator, matching main/node.md and main/modules.md.
 type: object
 additionalProperties: false
 required:
-  - schema_version
-  - metadata
-  - simulation
-  - network
+  - nodes
 properties:
-  schema_version:
-    type: string
-    const: 0.1.0
-  metadata:
+  settings:
     type: object
     additionalProperties: false
-    required: [name]
     properties:
-      name:
-        type: string
-        minLength: 1
-      description:
-        type: string
-  simulation:
-    type: object
-    additionalProperties: false
-    required: [horizon_days, reporting]
-    properties:
+      timestep_days:
+        type: number
+        exclusiveMinimum: 0
+        default: 1.0
       horizon_days:
         type: integer
         minimum: 1
       reporting:
         type: string
         enum: [daily, monthly30_day]
-      allocation_order:
-        type: array
-        minItems: 2
-        maxItems: 2
-        uniqueItems: true
-        items:
-          type: string
-          enum: [drinking_water, irrigation]
-  network:
-    type: object
-    additionalProperties: false
-    required: [nodes, edges]
-    properties:
-      nodes:
-        type: array
-        minItems: 1
-        items:
-          $ref: "#/$defs/node"
-      edges:
-        type: array
-        items:
-          $ref: "#/$defs/edge"
+        default: daily
+      production_level_fraction:
+        type: number
+        minimum: 0
+        maximum: 1
+        default: 1.0
+  nodes:
+    type: array
+    minItems: 1
+    items:
+      $ref: "#/$defs/node"
 $defs:
   node:
     type: object
     additionalProperties: false
-    required: [id, name, kind, local_inflow]
+    required: [id, reservoir, max_production, catchment_inflow]
     properties:
       id:
         $ref: "#/$defs/id"
-      name:
-        type: string
-        minLength: 1
-      kind:
-        type: string
-        enum: [river, reservoir]
-      local_inflow:
-        $ref: "#/$defs/time_series"
       reservoir:
         $ref: "#/$defs/reservoir"
-      drinking_water:
-        $ref: "#/$defs/drinking_water"
-      irrigation:
-        $ref: "#/$defs/irrigation"
-      hydropower:
-        $ref: "#/$defs/hydropower"
-  edge:
-    type: object
-    additionalProperties: false
-    required: [id, from, to, flow_share, loss_fraction]
-    properties:
-      id:
-        $ref: "#/$defs/id"
-      from:
-        $ref: "#/$defs/id"
-      to:
-        $ref: "#/$defs/id"
-      flow_share:
+      max_production:
         type: number
         minimum: 0
-        maximum: 1
-      loss_fraction:
-        type: number
-        minimum: 0
-        maximum: 1
+      catchment_inflow:
+        $ref: "#/$defs/module_series"
+      connections:
+        type: array
+        items:
+          $ref: "#/$defs/connection"
+      modules:
+        type: object
+        additionalProperties: false
+        properties:
+          evaporation:
+            $ref: "#/$defs/rate_module"
+          drink_water:
+            $ref: "#/$defs/drink_water_module"
+          food_production:
+            $ref: "#/$defs/food_production_module"
+          energy:
+            $ref: "#/$defs/energy_module"
   reservoir:
     type: object
     additionalProperties: false
-    required: [capacity, min_storage, initial_storage, target_release]
+    required: [initial_level, max_capacity]
     properties:
-      capacity:
+      initial_level:
         type: number
         minimum: 0
-      min_storage:
+      max_capacity:
         type: number
         minimum: 0
-      initial_storage:
-        type: number
-        minimum: 0
-      target_release:
-        $ref: "#/$defs/time_series"
-  drinking_water:
+  connection:
     type: object
     additionalProperties: false
-    required: [target_daily_delivery]
+    required: [node_id, fraction]
     properties:
-      minimum_daily_delivery:
-        $ref: "#/$defs/time_series"
-      target_daily_delivery:
-        $ref: "#/$defs/time_series"
-  irrigation:
+      node_id:
+        $ref: "#/$defs/id"
+      fraction:
+        type: number
+        minimum: 0
+        maximum: 1
+      delay:
+        type: integer
+        minimum: 0
+        default: 0
+  rate_module:
+    oneOf:
+      - type: number
+      - $ref: "#/$defs/module_series"
+  drink_water_module:
+    oneOf:
+      - type: number
+      - $ref: "#/$defs/module_series"
+  food_production_module:
     type: object
     additionalProperties: false
-    required: [target_daily_delivery, production_model]
     properties:
-      minimum_daily_delivery:
-        $ref: "#/$defs/time_series"
-      target_daily_delivery:
-        $ref: "#/$defs/time_series"
-      production_model:
-        $ref: "#/$defs/food_production_model"
-  food_production_model:
+      type:
+        type: string
+        enum: [constant, csv]
+      water_coefficient:
+        type: number
+        exclusiveMinimum: 0
+        default: 1.0
+      max_food_units:
+        type: number
+        minimum: 0
+      filepath:
+        type: string
+      column:
+        type: string
+        default: scenario_1
+  energy_module:
+    oneOf:
+      - type: number
+      - $ref: "#/$defs/module_series"
+  module_series:
     oneOf:
       - type: object
         additionalProperties: false
-        required: [kind, food_per_unit_water]
         properties:
-          kind:
-            const: linear
-          food_per_unit_water:
-            type: number
-            minimum: 0
-  hydropower:
-    type: object
-    additionalProperties: false
-    required: [max_turbine_flow, energy_per_unit_water]
-    properties:
-      minimum_daily_energy:
-        $ref: "#/$defs/time_series"
-      target_daily_energy:
-        $ref: "#/$defs/time_series"
-      max_turbine_flow:
-        $ref: "#/$defs/time_series"
-      energy_per_unit_water:
-        type: number
-        minimum: 0
-  time_series:
-    oneOf:
-      - type: object
-        additionalProperties: false
-        required: [kind, value]
-        properties:
-          kind:
+          type:
             const: constant
           value:
             type: number
+          rate:
+            type: number
+          daily_demand:
+            type: number
+          max_food_units:
+            type: number
+          price_per_unit:
+            type: number
+        anyOf:
+          - required: [value]
+          - required: [rate]
+          - required: [daily_demand]
+          - required: [max_food_units]
+          - required: [price_per_unit]
       - type: object
         additionalProperties: false
-        required: [kind, values]
+        required: [type, filepath]
         properties:
-          kind:
-            enum: [daily, monthly30_day]
-          values:
-            type: array
-            minItems: 1
-            items:
-              type: number
+          type:
+            const: csv
+          filepath:
+            type: string
+          column:
+            type: string
+            default: scenario_1
   id:
     type: string
     pattern: "^[a-z][a-z0-9_]*$"
