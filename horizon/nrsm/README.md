@@ -18,8 +18,10 @@ workspace under `horizon/` so it can grow cleanly inside a larger monorepo.
 
 - `crates/nrsm-sim-core`: public simulation API and domain model
 - `crates/nrsm-cli`: command-line runner for YAML scenarios
+- `crates/nrsm-dataloader`: normalized data bundle schema and CSV exporter for hackathon ingestion
 - `contracts/scenario.schema.yaml`: machine-readable scenario contract
 - `scenarios/nile-mvp`: small Nile-inspired demo scenario
+- `docs/nile-dataloader-plan.md`: dataset research and visual loading plan
 
 ## MVP Assumptions
 
@@ -36,6 +38,7 @@ Those choices keep the first implementation compact while leaving room for:
 - crop and region-specific agriculture modules
 - explicit optimization layers on top of the simulator
 - Python bindings and training workflows
+- richer data loading and scenario assembly from Copernicus and supplemental datasets
 
 ## Run The Demo
 
