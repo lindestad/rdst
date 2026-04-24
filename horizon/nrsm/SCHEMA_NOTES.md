@@ -34,17 +34,16 @@ state. It should emit the canonical scenario model.
 
 ## Recommended Top-Level Schema
 
-The canonical scenario should have a stable top-level envelope like this:
+The canonical scenario should be YAML and have a stable top-level envelope like
+this:
 
-```json
-{
-  "schema_version": "0.1.0",
-  "metadata": {},
-  "simulation": {},
-  "network": {},
-  "policies": {},
-  "extensions": {}
-}
+```yaml
+schema_version: 0.1.0
+metadata: {}
+simulation: {}
+network: {}
+policies: {}
+extensions: {}
 ```
 
 Suggested meaning:
@@ -126,23 +125,18 @@ Each node should have:
 
 Suggested shape:
 
-```json
-{
-  "id": "aswan",
-  "name": "High Aswan",
-  "kind": "reservoir",
-  "local_inflow": {},
-  "state": {
-    "storage": 900.0
-  },
-  "sectors": {
-    "drinking_water": {},
-    "hydropower": {}
-  },
-  "attributes": {
-    "country": "EGY"
-  }
-}
+```yaml
+id: aswan
+name: High Aswan
+kind: reservoir
+local_inflow: {}
+state:
+  storage: 900.0
+sectors:
+  drinking_water: {}
+  hydropower: {}
+attributes:
+  country: EGY
 ```
 
 Why I prefer `sectors` over flat optional fields:
@@ -162,16 +156,13 @@ Each edge should have:
 
 Suggested shape:
 
-```json
-{
-  "id": "aswan_to_delta",
-  "from": "aswan",
-  "to": "nile_delta",
-  "routing": {
-    "flow_share": 1.0,
-    "loss_fraction": 0.03
-  }
-}
+```yaml
+id: aswan_to_delta
+from: aswan
+to: nile_delta
+routing:
+  flow_share: 1.0
+  loss_fraction: 0.03
 ```
 
 Later this can expand to:
@@ -187,24 +178,19 @@ I recommend sector configs be namespaced and intentionally small in v1.
 
 ### Drinking Water
 
-```json
-{
-  "minimum_delivery": {},
-  "target_delivery": {}
-}
+```yaml
+minimum_delivery: {}
+target_delivery: {}
 ```
 
 ### Irrigation
 
-```json
-{
-  "minimum_delivery": {},
-  "target_delivery": {},
-  "production_model": {
-    "kind": "linear",
-    "food_per_unit_water": 1.8
-  }
-}
+```yaml
+minimum_delivery: {}
+target_delivery: {}
+production_model:
+  kind: linear
+  food_per_unit_water: 1.8
 ```
 
 This is better than storing `food_per_unit_water` directly at the node because it
@@ -217,16 +203,13 @@ creates an obvious place to later swap in:
 
 ### Hydropower
 
-```json
-{
-  "minimum_energy": {},
-  "target_energy": {},
-  "generation_model": {
-    "kind": "linear",
-    "energy_per_unit_water": 0.59,
-    "max_turbine_flow": {}
-  }
-}
+```yaml
+minimum_energy: {}
+target_energy: {}
+generation_model:
+  kind: linear
+  energy_per_unit_water: 0.59
+  max_turbine_flow: {}
 ```
 
 That makes the v2 upgrade path clearer:
@@ -238,17 +221,13 @@ That makes the v2 upgrade path clearer:
 
 Reservoirs should be explicit and separate from generic node fields:
 
-```json
-{
-  "storage_model": {
-    "capacity": 1600.0,
-    "min_storage": 500.0,
-    "initial_storage": 900.0
-  },
-  "operating_policy": {
-    "target_release": {}
-  }
-}
+```yaml
+storage_model:
+  capacity: 1600.0
+  min_storage: 500.0
+  initial_storage: 900.0
+operating_policy:
+  target_release: {}
 ```
 
 Why separate storage model from operating policy:
@@ -264,25 +243,19 @@ This is the part most worth standardizing early.
 
 I recommend a tagged union with explicit semantics:
 
-```json
-{
-  "kind": "constant",
-  "value": 25.0
-}
+```yaml
+kind: constant
+value: 25.0
 ```
 
-```json
-{
-  "kind": "daily",
-  "values": [ ... ]
-}
+```yaml
+kind: daily
+values: [...]
 ```
 
-```json
-{
-  "kind": "monthly30_day",
-  "values": [ ... ]
-}
+```yaml
+kind: monthly30_day
+values: [...]
 ```
 
 Later additions could be:
@@ -403,7 +376,7 @@ responsibility split:
 - normalize IDs and references
 - build canonical nodes/edges/time-series objects
 - run schema validation
-- output canonical scenario JSON
+- output canonical scenario YAML
 
 And let NRSM own:
 
@@ -417,7 +390,7 @@ And let NRSM own:
 
 If we want to scale well, the best long-term shape is:
 
-- canonical scenario schema with explicit versioning
+- canonical YAML scenario schema with explicit versioning
 - nested sector configs
 - explicit tagged time series
 - separate physical system config from operating policy
