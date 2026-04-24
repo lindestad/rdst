@@ -19,16 +19,33 @@ export default function App() {
   }, [setNodes, setSaved]);
 
   return (
-    <div className="h-screen flex flex-col bg-slate-900 text-slate-100 overflow-hidden">
+    <div
+      className="bg-slate-900 text-slate-100"
+      style={{
+        height: "100vh",
+        display: "grid",
+        gridTemplateRows: "auto 1fr auto",
+        gridTemplateColumns: "100%",
+      }}
+    >
       <Header />
       {compareMode ? (
-        <div className="flex-1 min-h-0">
+        <div style={{ minHeight: 0 }}>
           <CompareView />
         </div>
       ) : (
-        <div className="flex-1 min-h-0 grid grid-cols-[340px_1fr_320px]">
+        <div
+          style={{
+            minHeight: 0,
+            display: "grid",
+            gridTemplateColumns: "340px 1fr 320px",
+            gridTemplateRows: "100%",
+          }}
+        >
           <LeftRail />
-          <div className="relative overflow-hidden">
+          <div
+            style={{ position: "relative", overflow: "hidden", minHeight: 0 }}
+          >
             <NileMap />
             <MonthScrubber />
           </div>
