@@ -541,16 +541,17 @@ def _forcings(pet_mm=100.0, months=3):
 
 
 def test_mass_conservation_one_step():
+    # Capacity large enough that no spill occurs — exercises the pure
+    # mass-balance path, not the clamp path.
     r = Reservoir(id="r", upstream=["u"], downstream=["d"],
-                  storage_capacity_mcm=1000, storage_min_mcm=100,
+                  storage_capacity_mcm=10000, storage_min_mcm=100,
                   surface_area_km2_at_full=10, initial_storage_mcm=500,
                   hep={"nameplate_mw": 100, "head_m": 50, "efficiency": 0.9})
     r.load_forcings(_forcings(pet_mm=0.0))
-    # 1000 m³/s inflow for Jan (31 days) → 2678.4 mcm; no release set → default = inflow
+    # 1000 m³/s inflow for Jan (31 days) → 2678.4 mcm; 500 m³/s release → 1339.2 mcm
     state = {"u": {"outflow_m3s": 1000.0}}
     r.step(0, state, policy={"mode": "manual", "release_m3s_by_month": {"2020-01": 500.0}})
     s = state["r"]
-    # Inflow in mcm
     inflow_mcm = 1000 * 31 * 86400 / 1e6
     release_mcm = 500 * 31 * 86400 / 1e6
     # Storage change should equal inflow - release - evap (evap=0 because pet=0)
@@ -572,9 +573,11 @@ def test_storage_clamped_to_capacity():
 
 
 def test_energy_generation():
+    # Initial storage big enough that the 500 m³/s × 31d ≈ 1339 mcm release
+    # is not clamped by the min-storage guard.
     r = Reservoir(id="r", upstream=["u"], downstream=["d"],
-                  storage_capacity_mcm=1000, storage_min_mcm=100,
-                  surface_area_km2_at_full=10, initial_storage_mcm=500,
+                  storage_capacity_mcm=10000, storage_min_mcm=100,
+                  surface_area_km2_at_full=10, initial_storage_mcm=2000,
                   hep={"nameplate_mw": 100, "head_m": 50, "efficiency": 0.9})
     r.load_forcings(_forcings(pet_mm=0.0))
     state = {"u": {"outflow_m3s": 0.0}}
