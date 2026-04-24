@@ -310,6 +310,9 @@ This hits the EWDS `cems-glofas-historical` dataset with a one-day GloFAS v4
 request and writes the raw GRIB2 file under `horizon/nrsm/data/raw/glofas/`.
 Before `--submit`, manually accept the GloFAS dataset Terms of Use on the EWDS
 dataset page while logged in with the same account that owns the API token.
+If EWDS returns "user didn't accept all required site policies", accept the CEMS
+terms here:
+`https://ewds.climate.copernicus.eu/licences/terms-of-use-cems`.
 
 ## Validation
 

@@ -92,7 +92,17 @@ def main() -> int:
     import cdsapi
 
     client = cdsapi.Client(url=url, key=key)
-    result = client.retrieve(DEFAULT_DATASET, request)
+    try:
+        result = client.retrieve(DEFAULT_DATASET, request)
+    except Exception as error:
+        message = str(error)
+        if "didn't accept all required site policies" in message or "Missing policies" in message:
+            print()
+            print("EWDS rejected the request because the account has not accepted required policies.")
+            print("Open this while logged in with the API-key account, accept the terms, then rerun:")
+            print("  https://ewds.climate.copernicus.eu/licences/terms-of-use-cems")
+            raise SystemExit(3) from None
+        raise
     if hasattr(result, "download"):
         result.download(str(target))
     else:
