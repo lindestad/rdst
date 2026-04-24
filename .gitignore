@@ -1,6 +1,9 @@
 # Project-specific
 herss/
 .superpowers/
+.env
+.env.*
+!.env.example
 horizon/nrsm/data/
 !horizon/nrsm/data/.gitkeep
 
