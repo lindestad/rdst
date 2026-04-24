@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::{
     error::SimulationError,
@@ -6,7 +6,7 @@ use crate::{
         DeliveryResult, EdgeConfig, EdgeResult, EngineTimeStep, HydropowerPlant, HydropowerResult,
         IrrigationDemand, IrrigationResult, NetworkConfig, NodeConfig, NodeKind, NodeResult,
         PeriodResult, ReportingFrequency, ReservoirConfig, SUPPORTED_SCHEMA_VERSION, Scenario,
-        SimulationResult, SimulationSummary,
+        SimulationResult, SimulationSummary, WaterUse,
     },
 };
 
@@ -62,10 +62,13 @@ fn simulate_daily_periods(scenario: &Scenario, compiled: &CompiledNetwork) -> Ve
             let starting_storage = storage[node_index];
             let available_water = incoming_flow + local_inflow + starting_storage;
 
-            let (drinking_result, remaining_after_drinking) =
-                simulate_drinking(node.drinking_water.as_ref(), day, available_water);
-            let (irrigation_result, remaining_after_irrigation) =
-                simulate_irrigation(node.irrigation.as_ref(), day, remaining_after_drinking);
+            let (drinking_result, irrigation_result, remaining_after_irrigation) =
+                simulate_consumptive_uses(
+                    node,
+                    &scenario.simulation.allocation_order,
+                    day,
+                    available_water,
+                );
 
             let (downstream_outflow, ending_storage) =
                 route_node_outflow(node.reservoir.as_ref(), day, remaining_after_irrigation);
@@ -268,16 +271,7 @@ fn simulate_drinking(
     let actual = available_water.min(target);
     let remaining = available_water - actual;
 
-    (
-        Some(DeliveryResult {
-            actual_delivery: actual,
-            total_target: target,
-            total_minimum_target: minimum,
-            shortfall_to_target: (target - actual).max(0.0),
-            shortfall_to_minimum: (minimum - actual).max(0.0),
-        }),
-        remaining,
-    )
+    (Some(delivery_result(actual, target, minimum)), remaining)
 }
 
 fn simulate_irrigation(
@@ -300,17 +294,41 @@ fn simulate_irrigation(
 
     (
         Some(IrrigationResult {
-            water: DeliveryResult {
-                actual_delivery: actual,
-                total_target: target,
-                total_minimum_target: minimum,
-                shortfall_to_target: (target - actual).max(0.0),
-                shortfall_to_minimum: (minimum - actual).max(0.0),
-            },
-            food_produced: actual * demand.food_per_unit_water,
+            water: delivery_result(actual, target, minimum),
+            food_produced: demand.production_model.produce(actual),
         }),
         remaining,
     )
+}
+
+fn simulate_consumptive_uses(
+    node: &NodeConfig,
+    allocation_order: &[WaterUse],
+    day: usize,
+    available_water: f64,
+) -> (Option<DeliveryResult>, Option<IrrigationResult>, f64) {
+    let mut remaining = available_water;
+    let mut drinking_result = None;
+    let mut irrigation_result = None;
+
+    for use_type in allocation_order {
+        match use_type {
+            WaterUse::DrinkingWater => {
+                let (result, next_remaining) =
+                    simulate_drinking(node.drinking_water.as_ref(), day, remaining);
+                drinking_result = result;
+                remaining = next_remaining;
+            }
+            WaterUse::Irrigation => {
+                let (result, next_remaining) =
+                    simulate_irrigation(node.irrigation.as_ref(), day, remaining);
+                irrigation_result = result;
+                remaining = next_remaining;
+            }
+        }
+    }
+
+    (drinking_result, irrigation_result, remaining)
 }
 
 fn simulate_hydropower(
@@ -363,15 +381,44 @@ fn route_node_outflow(
     (release, ending_storage)
 }
 
+fn delivery_result(actual: f64, target: f64, minimum: f64) -> DeliveryResult {
+    DeliveryResult {
+        actual_delivery: actual,
+        total_target: target,
+        total_minimum_target: minimum,
+        shortfall_to_target: (target - actual).max(0.0),
+        shortfall_to_minimum: (minimum - actual).max(0.0),
+        reliability_to_target: capped_ratio(actual, target),
+        reliability_to_minimum: capped_ratio(actual, minimum),
+    }
+}
+
+fn capped_ratio(actual: f64, expected: f64) -> f64 {
+    if expected <= 0.0 {
+        1.0
+    } else {
+        (actual / expected).clamp(0.0, 1.0)
+    }
+}
+
+fn recompute_delivery_reliability(delivery: &mut DeliveryResult) {
+    delivery.reliability_to_target = capped_ratio(delivery.actual_delivery, delivery.total_target);
+    delivery.reliability_to_minimum =
+        capped_ratio(delivery.actual_delivery, delivery.total_minimum_target);
+}
+
+fn merge_delivery_result(target: &mut DeliveryResult, source: &DeliveryResult) {
+    target.actual_delivery += source.actual_delivery;
+    target.total_target += source.total_target;
+    target.total_minimum_target += source.total_minimum_target;
+    target.shortfall_to_target += source.shortfall_to_target;
+    target.shortfall_to_minimum += source.shortfall_to_minimum;
+    recompute_delivery_reliability(target);
+}
+
 fn merge_delivery(target: &mut Option<DeliveryResult>, source: &Option<DeliveryResult>) {
     match (target.as_mut(), source) {
-        (Some(target), Some(source)) => {
-            target.actual_delivery += source.actual_delivery;
-            target.total_target += source.total_target;
-            target.total_minimum_target += source.total_minimum_target;
-            target.shortfall_to_target += source.shortfall_to_target;
-            target.shortfall_to_minimum += source.shortfall_to_minimum;
-        }
+        (Some(target), Some(source)) => merge_delivery_result(target, source),
         (None, Some(source)) => *target = Some(source.clone()),
         _ => {}
     }
@@ -381,11 +428,7 @@ fn merge_irrigation(target: &mut Option<IrrigationResult>, source: &Option<Irrig
     match (target.as_mut(), source) {
         (Some(target), Some(source)) => {
             target.food_produced += source.food_produced;
-            target.water.actual_delivery += source.water.actual_delivery;
-            target.water.total_target += source.water.total_target;
-            target.water.total_minimum_target += source.water.total_minimum_target;
-            target.water.shortfall_to_target += source.water.shortfall_to_target;
-            target.water.shortfall_to_minimum += source.water.shortfall_to_minimum;
+            merge_delivery_result(&mut target.water, &source.water);
         }
         (None, Some(source)) => *target = Some(source.clone()),
         _ => {}
@@ -420,6 +463,8 @@ fn validate_scenario(scenario: &Scenario) -> Result<(), SimulationError> {
             "simulation horizon must be at least one day".to_string(),
         ));
     }
+
+    validate_allocation_order(&scenario.simulation.allocation_order)?;
 
     let mut node_ids = HashMap::<&str, usize>::new();
     for (index, node) in scenario.network.nodes.iter().enumerate() {
@@ -460,12 +505,10 @@ fn validate_scenario(scenario: &Scenario) -> Result<(), SimulationError> {
         }
 
         if let Some(irrigation) = &node.irrigation {
-            if irrigation.food_per_unit_water < 0.0 {
-                return Err(SimulationError::Validation(format!(
-                    "node `{}` irrigation food_per_unit_water must be non-negative",
-                    node.id
-                )));
-            }
+            irrigation
+                .production_model
+                .validate(&format!("node `{}` irrigation production_model", node.id))
+                .map_err(SimulationError::Validation)?;
 
             validate_timeseries_pair(
                 irrigation.minimum_daily_delivery.as_ref(),
@@ -559,6 +602,19 @@ fn validate_scenario(scenario: &Scenario) -> Result<(), SimulationError> {
     }
 
     CompiledNetwork::build(&scenario.network)?;
+
+    Ok(())
+}
+
+fn validate_allocation_order(allocation_order: &[WaterUse]) -> Result<(), SimulationError> {
+    let required = HashSet::from([WaterUse::DrinkingWater, WaterUse::Irrigation]);
+    let actual = allocation_order.iter().copied().collect::<HashSet<_>>();
+
+    if allocation_order.len() != required.len() || actual != required {
+        return Err(SimulationError::Validation(
+            "allocation_order must contain drinking_water and irrigation exactly once".to_string(),
+        ));
+    }
 
     Ok(())
 }
@@ -694,8 +750,9 @@ impl CompiledNetwork {
 mod tests {
     use crate::{
         model::{
-            NetworkConfig, NodeConfig, NodeKind, ReportingFrequency, SUPPORTED_SCHEMA_VERSION,
-            Scenario, ScenarioMetadata, SimulationConfig, TimeSeries,
+            DrinkingWaterDemand, FoodProductionModel, NetworkConfig, NodeConfig, NodeKind,
+            ReportingFrequency, SUPPORTED_SCHEMA_VERSION, Scenario, ScenarioMetadata,
+            SimulationConfig, TimeSeries, WaterUse,
         },
         simulate,
     };
@@ -713,6 +770,7 @@ mod tests {
             simulation: SimulationConfig {
                 horizon_days: 31,
                 reporting: ReportingFrequency::Monthly30Day,
+                allocation_order: vec![WaterUse::DrinkingWater, WaterUse::Irrigation],
             },
             network: NetworkConfig {
                 nodes: vec![
@@ -741,7 +799,9 @@ mod tests {
                         irrigation: Some(IrrigationDemand {
                             minimum_daily_delivery: Some(TimeSeries::Constant { value: 10.0 }),
                             target_daily_delivery: TimeSeries::Constant { value: 20.0 },
-                            food_per_unit_water: 2.0,
+                            production_model: FoodProductionModel::Linear {
+                                food_per_unit_water: 2.0,
+                            },
                         }),
                         hydropower: Some(HydropowerPlant {
                             minimum_daily_energy: Some(TimeSeries::Constant { value: 20.0 }),
@@ -783,6 +843,7 @@ mod tests {
             simulation: SimulationConfig {
                 horizon_days: 1,
                 reporting: ReportingFrequency::Daily,
+                allocation_order: vec![WaterUse::DrinkingWater, WaterUse::Irrigation],
             },
             network: NetworkConfig {
                 nodes: vec![
@@ -828,5 +889,98 @@ mod tests {
 
         let error = simulate(&scenario).expect_err("cycle should be rejected");
         assert!(error.to_string().contains("acyclic"));
+    }
+
+    #[test]
+    fn allocation_order_controls_soft_shortfalls() {
+        let scenario = Scenario {
+            schema_version: SUPPORTED_SCHEMA_VERSION.to_string(),
+            metadata: ScenarioMetadata {
+                name: "allocation".to_string(),
+                description: None,
+            },
+            simulation: SimulationConfig {
+                horizon_days: 1,
+                reporting: ReportingFrequency::Daily,
+                allocation_order: vec![WaterUse::Irrigation, WaterUse::DrinkingWater],
+            },
+            network: NetworkConfig {
+                nodes: vec![NodeConfig {
+                    id: "demand".to_string(),
+                    name: "Demand".to_string(),
+                    kind: NodeKind::River,
+                    local_inflow: TimeSeries::Constant { value: 100.0 },
+                    reservoir: None,
+                    drinking_water: Some(DrinkingWaterDemand {
+                        minimum_daily_delivery: Some(TimeSeries::Constant { value: 80.0 }),
+                        target_daily_delivery: TimeSeries::Constant { value: 80.0 },
+                    }),
+                    irrigation: Some(IrrigationDemand {
+                        minimum_daily_delivery: Some(TimeSeries::Constant { value: 80.0 }),
+                        target_daily_delivery: TimeSeries::Constant { value: 80.0 },
+                        production_model: FoodProductionModel::Linear {
+                            food_per_unit_water: 1.0,
+                        },
+                    }),
+                    hydropower: None,
+                }],
+                edges: vec![],
+            },
+        };
+
+        let result = simulate(&scenario).expect("simulation should succeed");
+        let node = &result.periods[0].node_results[0];
+        let drinking = node.drinking_water.as_ref().expect("drinking result");
+        let irrigation = node.irrigation.as_ref().expect("irrigation result");
+
+        assert_eq!(irrigation.water.actual_delivery, 80.0);
+        assert_eq!(drinking.actual_delivery, 20.0);
+        assert_eq!(drinking.shortfall_to_minimum, 60.0);
+        assert_eq!(drinking.reliability_to_minimum, 0.25);
+    }
+
+    #[test]
+    fn linear_food_production_uses_delivered_irrigation_water() {
+        let scenario = Scenario {
+            schema_version: SUPPORTED_SCHEMA_VERSION.to_string(),
+            metadata: ScenarioMetadata {
+                name: "food".to_string(),
+                description: None,
+            },
+            simulation: SimulationConfig {
+                horizon_days: 1,
+                reporting: ReportingFrequency::Daily,
+                allocation_order: vec![WaterUse::DrinkingWater, WaterUse::Irrigation],
+            },
+            network: NetworkConfig {
+                nodes: vec![NodeConfig {
+                    id: "farm".to_string(),
+                    name: "Farm".to_string(),
+                    kind: NodeKind::River,
+                    local_inflow: TimeSeries::Constant { value: 25.0 },
+                    reservoir: None,
+                    drinking_water: None,
+                    irrigation: Some(IrrigationDemand {
+                        minimum_daily_delivery: None,
+                        target_daily_delivery: TimeSeries::Constant { value: 50.0 },
+                        production_model: FoodProductionModel::Linear {
+                            food_per_unit_water: 1.5,
+                        },
+                    }),
+                    hydropower: None,
+                }],
+                edges: vec![],
+            },
+        };
+
+        let result = simulate(&scenario).expect("simulation should succeed");
+        let irrigation = result.periods[0].node_results[0]
+            .irrigation
+            .as_ref()
+            .expect("irrigation result");
+
+        assert_eq!(irrigation.water.actual_delivery, 25.0);
+        assert_eq!(irrigation.water.reliability_to_target, 0.5);
+        assert_eq!(irrigation.food_produced, 37.5);
     }
 }

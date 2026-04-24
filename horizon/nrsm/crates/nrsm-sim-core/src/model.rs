@@ -26,6 +26,12 @@ pub struct ScenarioMetadata {
 pub struct SimulationConfig {
     pub horizon_days: usize,
     pub reporting: ReportingFrequency,
+    #[serde(default = "default_allocation_order")]
+    pub allocation_order: Vec<WaterUse>,
+}
+
+fn default_allocation_order() -> Vec<WaterUse> {
+    vec![WaterUse::DrinkingWater, WaterUse::Irrigation]
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -33,6 +39,13 @@ pub struct SimulationConfig {
 pub enum ReportingFrequency {
     Daily,
     Monthly30Day,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum WaterUse {
+    DrinkingWater,
+    Irrigation,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -93,7 +106,39 @@ pub struct IrrigationDemand {
     #[serde(default)]
     pub minimum_daily_delivery: Option<TimeSeries>,
     pub target_daily_delivery: TimeSeries,
-    pub food_per_unit_water: f64,
+    pub production_model: FoodProductionModel,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum FoodProductionModel {
+    Linear { food_per_unit_water: f64 },
+}
+
+impl FoodProductionModel {
+    pub fn produce(&self, delivered_water: f64) -> f64 {
+        match self {
+            Self::Linear {
+                food_per_unit_water,
+            } => delivered_water * food_per_unit_water,
+        }
+    }
+
+    pub fn validate(&self, label: &str) -> Result<(), String> {
+        match self {
+            Self::Linear {
+                food_per_unit_water,
+            } => {
+                if *food_per_unit_water < 0.0 {
+                    return Err(format!(
+                        "{label} linear food_per_unit_water must be non-negative"
+                    ));
+                }
+
+                Ok(())
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -215,6 +260,8 @@ pub struct DeliveryResult {
     pub total_minimum_target: f64,
     pub shortfall_to_target: f64,
     pub shortfall_to_minimum: f64,
+    pub reliability_to_target: f64,
+    pub reliability_to_minimum: f64,
 }
 
 #[derive(Clone, Debug, Default, Serialize)]

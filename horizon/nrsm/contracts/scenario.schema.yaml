@@ -34,6 +34,14 @@ properties:
       reporting:
         type: string
         enum: [daily, monthly30_day]
+      allocation_order:
+        type: array
+        minItems: 2
+        maxItems: 2
+        uniqueItems: true
+        items:
+          type: string
+          enum: [drinking_water, irrigation]
   network:
     type: object
     additionalProperties: false
@@ -119,15 +127,25 @@ $defs:
   irrigation:
     type: object
     additionalProperties: false
-    required: [target_daily_delivery, food_per_unit_water]
+    required: [target_daily_delivery, production_model]
     properties:
       minimum_daily_delivery:
         $ref: "#/$defs/time_series"
       target_daily_delivery:
         $ref: "#/$defs/time_series"
-      food_per_unit_water:
-        type: number
-        minimum: 0
+      production_model:
+        $ref: "#/$defs/food_production_model"
+  food_production_model:
+    oneOf:
+      - type: object
+        additionalProperties: false
+        required: [kind, food_per_unit_water]
+        properties:
+          kind:
+            const: linear
+          food_per_unit_water:
+            type: number
+            minimum: 0
   hydropower:
     type: object
     additionalProperties: false

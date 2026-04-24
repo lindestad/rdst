@@ -87,6 +87,9 @@ Recommended fields:
 - `horizon_days`
 - `reporting`
   - `daily`, `monthly30_day`, later calendar-month support if needed
+- `allocation_order`
+  - Consumptive-use priority for soft constraints; currently supports
+    `drinking_water` and `irrigation`
 - `start_date`
   - Optional in v1, but useful if real calendars matter later
 
@@ -202,6 +205,9 @@ creates an obvious place to later swap in:
 - yield saturation models
 - economic valuation models
 
+The current machine-readable contract uses this `production_model` shape already,
+with `kind: linear` as the only implemented variant.
+
 ### Hydropower
 
 ```yaml
@@ -302,6 +308,7 @@ Node-level outputs should include:
 - available water
 - storage start/end
 - deliveries by sector
+- delivery reliability against target and minimum constraints
 - production outcomes
 - downstream outflow
 - exit flow
