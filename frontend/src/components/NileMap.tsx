@@ -45,10 +45,13 @@ export function NileMap() {
       // Retry on next styledata event if the style isn't ready yet —
       // avoids the `once("load")` footgun where the load has already fired.
       if (!map.isStyleLoaded()) {
+        console.debug("[NileMap] style not loaded; retrying on styledata");
         map.once("styledata", apply);
         return;
       }
       const enriched = enrichNodesWithResults(nodes, runningResults);
+      console.debug("[NileMap] applying node layer",
+        enriched.features.length, "features");
       const src = map.getSource("nodes") as maplibregl.GeoJSONSource | undefined;
       if (src) {
         src.setData(enriched);
