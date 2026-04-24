@@ -24,7 +24,14 @@ export function setNdviOverlay(
     const existing = map.getSource(sid) as maplibregl.RasterTileSource | undefined;
     if (!existing) {
       map.addSource(sid, {
-        type: "raster", tiles: [url], tileSize: 256, bounds: z.bbox,
+        type: "raster",
+        tiles: [url],
+        tileSize: 256,
+        bounds: z.bbox,
+        // Dataloader currently pre-renders only z=7 tiles. Clamp requests to
+        // that zoom so MapLibre doesn't spam 404s at lower zoom levels.
+        minzoom: 7,
+        maxzoom: 7,
       });
       map.addLayer({
         id: lid, type: "raster", source: sid,
