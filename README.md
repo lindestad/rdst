@@ -9,6 +9,7 @@ RDST is a compact digital-twin prototype for exploring water-policy tradeoffs ac
 | Area | Path | Purpose |
 | --- | --- | --- |
 | Simulator | `horizon/nrsm` | Rust workspace for the Nile River Systems Model MVP. |
+| Dataloader | `horizon/nrsm/crates/nrsm-dataloader` | Standalone generator for sourced simulator configs, module CSVs, and staging metadata. |
 | Scenario contract | `horizon/nrsm/contracts/scenario.schema.yaml` | Machine-readable YAML schema for scenario files. |
 | Demo scenario | `horizon/nrsm/scenarios/nile-mvp/scenario.yaml` | Small Nile-inspired network used by the CLI and visualizer. |
 | Visualizer | `nile-visualizer-app` | Vite + React app for inspecting simulator output. |
@@ -22,6 +23,7 @@ RDST
 |-- horizon/nrsm/              Rust simulator, CLI, contracts, scenarios
 |   |-- crates/nrsm-sim-core   Daily engine, graph model, aggregation
 |   |-- crates/nrsm-cli        YAML scenario runner
+|   |-- crates/nrsm-dataloader Standalone sourced-data generator
 |   |-- contracts/             Scenario schema
 |   `-- scenarios/nile-mvp/    Demo Nile scenario
 |-- nile-visualizer-app/       React dashboard
@@ -48,6 +50,13 @@ Run the simulator demo:
 ```powershell
 cd horizon\nrsm
 cargo run -p nrsm-cli -- scenarios\nile-mvp\scenario.yaml --json --pretty
+```
+
+Generate dataloader files:
+
+```powershell
+cd horizon\nrsm
+cargo run -p nrsm-dataloader -- seed --output data\generated --start-date 2020-01-01 --end-date 2020-01-31 --scenarios 3
 ```
 
 Run the visualizer:
