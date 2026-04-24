@@ -206,3 +206,16 @@ def _stub_nodes() -> list[dict[str, Any]]:
 
 def _stub_reaches() -> dict[str, dict[str, float]]:
     return {"stub_reach": {"travel_time_months": 1.0, "muskingum_k": 1.0, "muskingum_x": 0.2}}
+
+
+# NDVI irrigation-zone polygons (WGS84). GeoJSON lon,lat order.
+NDVI_ZONES: dict[str, dict] = {
+    "gezira": {
+        "polygon": [[32.5, 13.5], [33.6, 13.5], [33.6, 14.8], [32.5, 14.8], [32.5, 13.5]],
+        "node_id": "gezira_irr",
+    },
+    "egypt_delta": {
+        "polygon": [[30.0, 30.0], [32.2, 30.0], [32.2, 31.5], [30.0, 31.5], [30.0, 30.0]],
+        "node_id": "egypt_ag",
+    },
+}
