@@ -582,7 +582,7 @@ function VisualizerHome({ onOpen }: { onOpen: (id: VisualizerId) => void }) {
 
 function VisualizerCard({ onOpen, visualizer }: { onOpen: (id: VisualizerId) => void; visualizer: VisualizerDefinition }) {
   return (
-    <article className="visualizer-card">
+    <button className="visualizer-card" onClick={() => onOpen(visualizer.id)} type="button">
       <VisualizerPreview visualizer={visualizer} />
       <div className="visualizer-copy">
         <p>{visualizer.eyebrow}</p>
@@ -597,24 +597,75 @@ function VisualizerCard({ onOpen, visualizer }: { onOpen: (id: VisualizerId) => 
           </div>
         ))}
       </div>
-      <button className="open-visualizer" onClick={() => onOpen(visualizer.id)} type="button">
+      <div className="open-visualizer">
         <span>Open</span>
         <ChevronRight size={17} />
-      </button>
-    </article>
+      </div>
+    </button>
   );
 }
 
 function VisualizerPreview({ visualizer }: { visualizer: VisualizerDefinition }) {
+  if (visualizer.id === "source-coverage") {
+    return (
+      <svg className="visualizer-preview source-preview" viewBox="0 0 320 180" role="img" aria-label={`${visualizer.name} preview`}>
+        <defs>
+          <linearGradient id="sourcePreviewHeat" x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0%" stopColor="#47c7bd" />
+            <stop offset="100%" stopColor="#d7a84b" />
+          </linearGradient>
+        </defs>
+        <rect className="preview-backdrop" x="0" y="0" width="320" height="180" rx="8" />
+        <rect className="preview-panel" x="18" y="20" width="284" height="138" rx="7" />
+        <g className="preview-labels">
+          <rect x="35" y="42" width="56" height="7" rx="3" />
+          <rect x="35" y="75" width="72" height="7" rx="3" />
+          <rect x="35" y="108" width="48" height="7" rx="3" />
+          <rect x="128" y="32" width="36" height="6" rx="3" />
+          <rect x="178" y="32" width="42" height="6" rx="3" />
+          <rect x="234" y="32" width="34" height="6" rx="3" />
+        </g>
+        <g className="preview-heatmap">
+          <rect x="128" y="52" width="34" height="24" rx="5" />
+          <rect x="178" y="52" width="34" height="24" rx="5" />
+          <rect x="234" y="52" width="34" height="24" rx="5" className="soft" />
+          <rect x="128" y="85" width="34" height="24" rx="5" className="warn" />
+          <rect x="178" y="85" width="34" height="24" rx="5" className="soft" />
+          <rect x="234" y="85" width="34" height="24" rx="5" />
+          <rect x="128" y="118" width="34" height="24" rx="5" className="empty" />
+          <rect x="178" y="118" width="34" height="24" rx="5" />
+          <rect x="234" y="118" width="34" height="24" rx="5" className="warn" />
+        </g>
+      </svg>
+    );
+  }
+
   return (
-    <svg className="visualizer-preview" viewBox="0 0 320 180" role="img" aria-label={`${visualizer.name} preview`}>
-      <rect className="preview-grid" x="0" y="0" width="320" height="180" rx="8" />
-      {visualizer.preview.edges.map((edge) => (
-        <path className="preview-edge" d={edge.d} key={edge.d} strokeWidth={edge.width} />
-      ))}
-      {visualizer.preview.nodes.map((node) => (
-        <circle className="preview-node" cx={node.x} cy={node.y} key={`${node.x}-${node.y}`} r={node.r} />
-      ))}
+    <svg className="visualizer-preview network-preview" viewBox="0 0 320 180" role="img" aria-label={`${visualizer.name} preview`}>
+      <defs>
+        <linearGradient id="networkPreviewFlow" x1="0" x2="1" y1="0" y2="0">
+          <stop offset="0%" stopColor="#6aa9d8" />
+          <stop offset="55%" stopColor="#47c7bd" />
+          <stop offset="100%" stopColor="#71c586" />
+        </linearGradient>
+      </defs>
+      <rect className="preview-backdrop" x="0" y="0" width="320" height="180" rx="8" />
+      <path className="preview-basin" d="M35 134 C92 98 122 118 165 78 C206 40 255 58 288 86" />
+      <path className="preview-edge wide" d="M50 128 C84 106 100 110 122 92" />
+      <path className="preview-edge" d="M122 92 C148 78 162 80 184 102" />
+      <path className="preview-edge wide" d="M184 102 C214 124 242 96 270 84" />
+      <g className="preview-node-cluster">
+        <circle cx="50" cy="128" r="12" />
+        <circle cx="122" cy="92" r="16" className="reservoir" />
+        <circle cx="184" cy="102" r="11" />
+        <circle cx="270" cy="84" r="15" className="reservoir" />
+      </g>
+      <g className="preview-metrics">
+        <rect x="28" y="24" width="58" height="8" rx="4" />
+        <rect x="28" y="40" width="38" height="8" rx="4" />
+        <rect x="222" y="134" width="62" height="8" rx="4" />
+        <rect x="242" y="150" width="42" height="8" rx="4" />
+      </g>
     </svg>
   );
 }
