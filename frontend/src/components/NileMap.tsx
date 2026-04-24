@@ -35,31 +35,30 @@ export function NileMap() {
     return () => { map.remove(); mapRef.current = null; };
   }, []);
 
-  // Node layer
+  // Node layer — wait for the map's `load` event, since isStyleLoaded() can
+  // stay false past load. We skip the text-label layer on purpose: symbol
+  // layers with text-field require a `glyphs` URL in the style, which our
+  // minimal OSM-raster style doesn't include.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !nodes) return;
     let cancelled = false;
+
     const apply = () => {
-      if (cancelled) return;
-      // Retry on next styledata event if the style isn't ready yet —
-      // avoids the `once("load")` footgun where the load has already fired.
-      if (!map.isStyleLoaded()) {
-        console.debug("[NileMap] style not loaded; retrying on styledata");
-        map.once("styledata", apply);
-        return;
-      }
+      if (cancelled || !mapRef.current) return;
+      const m = mapRef.current;
       const enriched = enrichNodesWithResults(nodes, runningResults);
-      console.debug("[NileMap] applying node layer",
-        enriched.features.length, "features");
-      const src = map.getSource("nodes") as maplibregl.GeoJSONSource | undefined;
+      console.debug("[NileMap] applying", enriched.features.length, "node features");
+      const src = m.getSource("nodes") as maplibregl.GeoJSONSource | undefined;
       if (src) {
         src.setData(enriched);
         return;
       }
-      map.addSource("nodes", { type: "geojson", data: enriched });
-      map.addLayer({
-        id: "node-circle", type: "circle", source: "nodes",
+      m.addSource("nodes", { type: "geojson", data: enriched });
+      m.addLayer({
+        id: "node-circle",
+        type: "circle",
+        source: "nodes",
         paint: {
           "circle-radius": ["interpolate", ["linear"], ["get", "radius_px"], 0, 3, 30, 22],
           "circle-color": [
@@ -75,21 +74,13 @@ export function NileMap() {
           "circle-stroke-width": 1.5,
         },
       });
-      map.addLayer({
-        id: "node-label", type: "symbol", source: "nodes",
-        layout: {
-          "text-field": ["get", "name"],
-          "text-offset": [0, 1.2],
-          "text-size": 11,
-        },
-        paint: {
-          "text-color": "#0f172a",
-          "text-halo-color": "#f8fafc",
-          "text-halo-width": 1,
-        },
-      });
     };
-    apply();
+
+    if (map.loaded()) apply();
+    else {
+      const onLoad = () => apply();
+      map.once("load", onLoad);
+    }
     return () => { cancelled = true; };
   }, [nodes, runningResults]);
 
@@ -99,14 +90,15 @@ export function NileMap() {
     if (!map) return;
     let cancelled = false;
     const apply = () => {
-      if (cancelled) return;
-      if (!map.isStyleLoaded()) {
-        map.once("styledata", apply);
-        return;
-      }
-      setNdviOverlay(map, scrubMonth ?? lastMonth(runningResults), overlays.ndvi);
+      if (cancelled || !mapRef.current) return;
+      setNdviOverlay(
+        mapRef.current,
+        scrubMonth ?? lastMonth(runningResults),
+        overlays.ndvi,
+      );
     };
-    apply();
+    if (map.loaded()) apply();
+    else map.once("load", apply);
     return () => { cancelled = true; };
   }, [overlays.ndvi, scrubMonth, runningResults]);
 
