@@ -9,6 +9,8 @@ workspace under `horizon/` so it can grow cleanly inside a larger monorepo.
 - Directed acyclic river graph with edge losses
 - Explicit reservoir nodes with minimal storage and release behavior
 - Soft constraints for drinking water, irrigation, and hydropower
+- Linear tagged food-production model for irrigated agriculture
+- Delivery reliability metrics for drinking water and irrigation targets
 - Stable serializable scenario and result types for future Python and ML usage
 - Configurable consumptive-use allocation order for policy experiments
 
@@ -24,6 +26,7 @@ workspace under `horizon/` so it can grow cleanly inside a larger monorepo.
 - The execution time step is always daily
 - Monthly support is handled through 30-day aggregation and optional monthly input series
 - Drinking water and irrigation are treated as consumptive uses in v1
+- Food production is currently linear by delivered irrigation water
 - Hydropower is modeled as a non-consumptive linear conversion on routed outflow
 - Default sector allocation priority is drinking water first, then irrigation
 

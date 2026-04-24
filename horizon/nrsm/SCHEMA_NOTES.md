@@ -205,6 +205,9 @@ creates an obvious place to later swap in:
 - yield saturation models
 - economic valuation models
 
+The current machine-readable contract uses this `production_model` shape already,
+with `kind: linear` as the only implemented variant.
+
 ### Hydropower
 
 ```yaml
@@ -305,6 +308,7 @@ Node-level outputs should include:
 - available water
 - storage start/end
 - deliveries by sector
+- delivery reliability against target and minimum constraints
 - production outcomes
 - downstream outflow
 - exit flow

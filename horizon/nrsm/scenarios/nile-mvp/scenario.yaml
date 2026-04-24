@@ -95,7 +95,9 @@ network:
         target_daily_delivery:
           kind: monthly30_day
           values: [62.0, 58.0, 45.0]
-        food_per_unit_water: 1.2
+        production_model:
+          kind: linear
+          food_per_unit_water: 1.2
     - id: khartoum
       name: Khartoum Confluence
       kind: river
@@ -116,7 +118,9 @@ network:
         target_daily_delivery:
           kind: constant
           value: 20.0
-        food_per_unit_water: 1.1
+        production_model:
+          kind: linear
+          food_per_unit_water: 1.1
     - id: atbara_headwaters
       name: Atbara Headwaters
       kind: river
@@ -203,7 +207,9 @@ network:
         target_daily_delivery:
           kind: monthly30_day
           values: [135.0, 150.0, 115.0]
-        food_per_unit_water: 1.5
+        production_model:
+          kind: linear
+          food_per_unit_water: 1.5
     - id: nile_delta
       name: Nile Delta
       kind: river
@@ -224,7 +230,9 @@ network:
         target_daily_delivery:
           kind: monthly30_day
           values: [70.0, 80.0, 60.0]
-        food_per_unit_water: 1.8
+        production_model:
+          kind: linear
+          food_per_unit_water: 1.8
   edges:
     - id: lake_victoria_to_sudd
       from: lake_victoria_outlet
