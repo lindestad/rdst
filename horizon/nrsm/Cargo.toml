@@ -1,0 +1,21 @@
+[workspace]
+members = [
+    "crates/nrsm-cli",
+    "crates/nrsm-sim-core",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+license = "MIT"
+version = "0.1.0"
+
+[workspace.dependencies]
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
+
+[profile.dev]
+debug = 0
+
+[profile.test]
+debug = 0
