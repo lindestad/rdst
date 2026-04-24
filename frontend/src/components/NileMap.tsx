@@ -39,57 +39,72 @@ export function NileMap() {
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !nodes) return;
+    let cancelled = false;
     const apply = () => {
+      if (cancelled) return;
+      // Retry on next styledata event if the style isn't ready yet —
+      // avoids the `once("load")` footgun where the load has already fired.
+      if (!map.isStyleLoaded()) {
+        map.once("styledata", apply);
+        return;
+      }
       const enriched = enrichNodesWithResults(nodes, runningResults);
       const src = map.getSource("nodes") as maplibregl.GeoJSONSource | undefined;
       if (src) {
         src.setData(enriched);
-      } else {
-        map.addSource("nodes", { type: "geojson", data: enriched });
-        map.addLayer({
-          id: "node-circle", type: "circle", source: "nodes",
-          paint: {
-            "circle-radius": ["interpolate", ["linear"], ["get", "radius_px"], 0, 3, 30, 22],
-            "circle-color": [
-              "case",
-              ["==", ["get", "type"], "reservoir"], "#60a5fa",
-              ["==", ["get", "type"], "wetland"], "#10b981",
-              ["==", ["get", "type"], "demand_irrigation"], "#f59e0b",
-              ["==", ["get", "type"], "demand_municipal"], "#fb923c",
-              ["==", ["get", "type"], "sink"], "#6366f1",
-              "#3b82f6",
-            ],
-            "circle-stroke-color": "#0b1220",
-            "circle-stroke-width": 1.5,
-          },
-        });
-        map.addLayer({
-          id: "node-label", type: "symbol", source: "nodes",
-          layout: {
-            "text-field": ["get", "name"],
-            "text-offset": [0, 1.2],
-            "text-size": 11,
-          },
-          paint: {
-            "text-color": "#0f172a",
-            "text-halo-color": "#f8fafc",
-            "text-halo-width": 1,
-          },
-        });
+        return;
       }
+      map.addSource("nodes", { type: "geojson", data: enriched });
+      map.addLayer({
+        id: "node-circle", type: "circle", source: "nodes",
+        paint: {
+          "circle-radius": ["interpolate", ["linear"], ["get", "radius_px"], 0, 3, 30, 22],
+          "circle-color": [
+            "case",
+            ["==", ["get", "type"], "reservoir"], "#60a5fa",
+            ["==", ["get", "type"], "wetland"], "#10b981",
+            ["==", ["get", "type"], "demand_irrigation"], "#f59e0b",
+            ["==", ["get", "type"], "demand_municipal"], "#fb923c",
+            ["==", ["get", "type"], "sink"], "#6366f1",
+            "#3b82f6",
+          ],
+          "circle-stroke-color": "#0b1220",
+          "circle-stroke-width": 1.5,
+        },
+      });
+      map.addLayer({
+        id: "node-label", type: "symbol", source: "nodes",
+        layout: {
+          "text-field": ["get", "name"],
+          "text-offset": [0, 1.2],
+          "text-size": 11,
+        },
+        paint: {
+          "text-color": "#0f172a",
+          "text-halo-color": "#f8fafc",
+          "text-halo-width": 1,
+        },
+      });
     };
-    if (map.isStyleLoaded()) apply();
-    else map.once("load", apply);
+    apply();
+    return () => { cancelled = true; };
   }, [nodes, runningResults]);
 
   // NDVI overlay
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const apply = () =>
+    let cancelled = false;
+    const apply = () => {
+      if (cancelled) return;
+      if (!map.isStyleLoaded()) {
+        map.once("styledata", apply);
+        return;
+      }
       setNdviOverlay(map, scrubMonth ?? lastMonth(runningResults), overlays.ndvi);
-    if (map.isStyleLoaded()) apply();
-    else map.once("load", apply);
+    };
+    apply();
+    return () => { cancelled = true; };
   }, [overlays.ndvi, scrubMonth, runningResults]);
 
   return (
