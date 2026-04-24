@@ -42,6 +42,10 @@ function App() {
     return <VisualizerHome onOpen={setActiveVisualizerId} />;
   }
 
+  if (activeVisualizer.id === "source-coverage") {
+    return <SourceCoverageVisualizer onBack={() => setActiveVisualizerId(null)} visualizer={activeVisualizer} />;
+  }
+
   return <BundleVisualizer onBack={() => setActiveVisualizerId(null)} visualizer={activeVisualizer} />;
 }
 
@@ -308,6 +312,234 @@ function BundleVisualizer({ onBack, visualizer }: { onBack: () => void; visualiz
   );
 }
 
+function SourceCoverageVisualizer({ onBack, visualizer }: { onBack: () => void; visualizer: VisualizerDefinition }) {
+  const [bundle, setBundle] = useState<DataloaderBundle>(sampleBundle);
+  const [loadError, setLoadError] = useState("");
+  const [selectedSource, setSelectedSource] = useState("");
+  const [selectedMetric, setSelectedMetric] = useState("");
+
+  const model = useMemo(() => buildCoverageModel(bundle), [bundle]);
+  const activeSource = selectedSource || model.sources[0] || "";
+  const activeMetric = selectedMetric || model.metrics[0] || "";
+  const activeCell = model.cells.get(coverageKey(activeSource, activeMetric));
+  const sourceRows = bundle.timeSeries.filter((row) => sourceName(row) === activeSource);
+
+  async function handleFiles(event: ChangeEvent<HTMLInputElement>) {
+    const files = event.target.files;
+    if (!files?.length) {
+      return;
+    }
+
+    try {
+      const csvBundle = await readCsvBundleFromFiles(files);
+      const nextBundle = parseBundle("Uploaded CSV bundle", csvBundle);
+      setBundle(nextBundle);
+      setLoadError("");
+      setSelectedSource("");
+      setSelectedMetric("");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Could not load the CSV bundle.");
+    } finally {
+      event.target.value = "";
+    }
+  }
+
+  return (
+    <main className="app-shell">
+      <header className="topbar">
+        <div className="title-row">
+          <button className="icon-shell" onClick={onBack} title="Back to visualizers" type="button">
+            <ArrowLeft size={18} />
+          </button>
+          <div className="title-block">
+            <p>{visualizer.eyebrow}</p>
+            <h1>{visualizer.name}</h1>
+          </div>
+        </div>
+        <div className="top-actions">
+          <label className="upload-button" title="Load nodes.csv, edges.csv, and time_series.csv">
+            <FileUp size={18} />
+            <span>Load CSVs</span>
+            <input accept=".csv,text/csv" multiple onChange={handleFiles} type="file" />
+          </label>
+          <button className="ghost-button" onClick={() => setBundle(sampleBundle)} title="Reload sample bundle" type="button">
+            <RefreshCcw size={17} />
+            <span>Sample</span>
+          </button>
+        </div>
+      </header>
+
+      {loadError ? (
+        <div className="error-strip">
+          <AlertTriangle size={16} />
+          <span>{loadError}</span>
+        </div>
+      ) : null}
+
+      <section className="coverage-workspace">
+        <aside className="coverage-sidebar" aria-label="Coverage filters">
+          <section className="panel">
+            <PanelHeading icon={<Database size={17} />} label="Coverage" />
+            <div className="stat-grid">
+              <Stat label="Sources" value={model.sources.length.toString()} />
+              <Stat label="Metrics" value={model.metrics.length.toString()} />
+              <Stat label="Flagged rows" value={model.flaggedRows.toString()} />
+              <Stat label="Units" value={model.units.length.toString()} />
+            </div>
+          </section>
+
+          <section className="panel">
+            <PanelHeading icon={<TableProperties size={17} />} label="Sources" />
+            <div className="source-list">
+              {model.sourceSummaries.map((summary) => (
+                <button
+                  className={summary.source === activeSource ? "source-button active" : "source-button"}
+                  key={summary.source}
+                  onClick={() => setSelectedSource(summary.source)}
+                  type="button"
+                >
+                  <span>{summary.source}</span>
+                  <strong>{summary.rows}</strong>
+                  <em>{summary.metrics} metrics / {summary.entities} entities</em>
+                </button>
+              ))}
+            </div>
+          </section>
+        </aside>
+
+        <section className="coverage-main" aria-label="Source coverage matrix">
+          <div className="coverage-title">
+            <div>
+              <p>{bundle.sourceLabel}</p>
+              <h2>Sources by normalized metric</h2>
+            </div>
+            <div className="coverage-legend">
+              <span className="legend-full">Covered</span>
+              <span className="legend-warn">QA review</span>
+              <span className="legend-empty">Missing</span>
+            </div>
+          </div>
+
+          <div className="matrix-scroll">
+            <div className="coverage-matrix" style={{ gridTemplateColumns: `220px repeat(${Math.max(1, model.metrics.length)}, minmax(132px, 1fr))` }}>
+              <div className="matrix-corner">Source</div>
+              {model.metrics.map((metric) => (
+                <button
+                  className={metric === activeMetric ? "matrix-heading active" : "matrix-heading"}
+                  key={metric}
+                  onClick={() => setSelectedMetric(metric)}
+                  title={metric}
+                  type="button"
+                >
+                  {metric}
+                </button>
+              ))}
+              {model.sources.map((source) => (
+                <CoverageMatrixRow
+                  activeMetric={activeMetric}
+                  activeSource={activeSource}
+                  cells={model.cells}
+                  key={source}
+                  metrics={model.metrics}
+                  onSelect={(nextSource, nextMetric) => {
+                    setSelectedSource(nextSource);
+                    setSelectedMetric(nextMetric);
+                  }}
+                  source={source}
+                />
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <aside className="coverage-detail" aria-label="Coverage detail">
+          <section className="panel inspector">
+            <PanelHeading icon={<Search size={17} />} label="Selected Cell" />
+            {activeCell ? (
+              <div className="entity-details">
+                <h2>{activeSource}</h2>
+                <dl className="detail-grid">
+                  <Detail label="Metric" value={activeMetric} />
+                  <Detail label="Rows" value={activeCell.rows.toString()} />
+                  <Detail label="Entities" value={activeCell.entities.toString()} />
+                  <Detail label="Flags" value={activeCell.flaggedRows.toString()} />
+                </dl>
+                <div className="unit-strip">
+                  {activeCell.units.map((unit) => (
+                    <span key={unit}>{unit}</span>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="empty-note">No rows for this source and metric.</p>
+            )}
+          </section>
+
+          <section className="panel">
+            <PanelHeading icon={<GitBranch size={17} />} label="Source Entities" />
+            <div className="entity-chip-list">
+              {unique(sourceRows.map((row) => `${row.entity_type}:${row.entity_id}`)).slice(0, 28).map((entity) => (
+                <span key={entity}>{entity}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className="panel">
+            <PanelHeading icon={<CheckCircle2 size={17} />} label="QA Rows" />
+            <div className="row-table compact-table">
+              {sourceRows
+                .filter((row) => row.quality_flag && !["ok", "pass", "valid"].includes(row.quality_flag.toLowerCase()))
+                .slice(0, 18)
+                .map((row, index) => (
+                  <button className="series-row" key={`${row.entity_id}-${row.metric}-${index}`} onClick={() => setSelectedMetric(row.metric)} type="button">
+                    <span>{row.metric}</span>
+                    <strong>{row.quality_flag}</strong>
+                    <em>{row.entity_id}</em>
+                  </button>
+                ))}
+            </div>
+          </section>
+        </aside>
+      </section>
+    </main>
+  );
+}
+
+function CoverageMatrixRow({
+  activeMetric,
+  activeSource,
+  cells,
+  metrics,
+  onSelect,
+  source,
+}: {
+  activeMetric: string;
+  activeSource: string;
+  cells: Map<string, CoverageCell>;
+  metrics: string[];
+  onSelect: (source: string, metric: string) => void;
+  source: string;
+}) {
+  return (
+    <>
+      <button className={source === activeSource ? "matrix-source active" : "matrix-source"} onClick={() => onSelect(source, activeMetric)} type="button">
+        {source}
+      </button>
+      {metrics.map((metric) => {
+        const cell = cells.get(coverageKey(source, metric));
+        const isActive = source === activeSource && metric === activeMetric;
+        const className = ["matrix-cell", cell ? "covered" : "empty", cell?.flaggedRows ? "warn" : "", isActive ? "active" : ""].filter(Boolean).join(" ");
+        return (
+          <button className={className} key={`${source}-${metric}`} onClick={() => onSelect(source, metric)} type="button">
+            <strong>{cell?.rows ?? 0}</strong>
+            <span>{cell ? `${cell.entities} entities` : "missing"}</span>
+          </button>
+        );
+      })}
+    </>
+  );
+}
+
 function VisualizerHome({ onOpen }: { onOpen: (id: VisualizerId) => void }) {
   return (
     <main className="home-shell">
@@ -443,6 +675,57 @@ function Detail({ label, value }: { label: string; value: string }) {
   );
 }
 
+type CoverageCell = {
+  source: string;
+  metric: string;
+  rows: number;
+  entities: number;
+  flaggedRows: number;
+  units: string[];
+};
+
+function buildCoverageModel(bundle: DataloaderBundle) {
+  const sources = unique(bundle.timeSeries.map(sourceName)).sort((a, b) => a.localeCompare(b));
+  const metrics = unique(bundle.timeSeries.map((row) => row.metric).filter(Boolean)).sort((a, b) => a.localeCompare(b));
+  const units = unique(bundle.timeSeries.map((row) => row.unit).filter(Boolean)).sort((a, b) => a.localeCompare(b));
+  const cells = new Map<string, CoverageCell>();
+
+  sources.forEach((source) => {
+    metrics.forEach((metric) => {
+      const rows = bundle.timeSeries.filter((row) => sourceName(row) === source && row.metric === metric);
+      if (!rows.length) {
+        return;
+      }
+
+      cells.set(coverageKey(source, metric), {
+        source,
+        metric,
+        rows: rows.length,
+        entities: unique(rows.map((row) => `${row.entity_type}:${row.entity_id}`)).length,
+        flaggedRows: rows.filter(isReviewRow).length,
+        units: unique(rows.map((row) => row.unit).filter(Boolean)),
+      });
+    });
+  });
+
+  return {
+    cells,
+    flaggedRows: bundle.timeSeries.filter(isReviewRow).length,
+    metrics,
+    sources,
+    sourceSummaries: sources.map((source) => {
+      const rows = bundle.timeSeries.filter((row) => sourceName(row) === source);
+      return {
+        source,
+        rows: rows.length,
+        metrics: unique(rows.map((row) => row.metric)).length,
+        entities: unique(rows.map((row) => `${row.entity_type}:${row.entity_id}`)).length,
+      };
+    }),
+    units,
+  };
+}
+
 function buildModel(bundle: DataloaderBundle, metricPreference: string, windowPreference: string) {
   const metricSummaries = summarizeMetrics(bundle.timeSeries);
   const metric = metricPreference || metricSummaries[0]?.metric || "";
@@ -488,6 +771,18 @@ function buildModel(bundle: DataloaderBundle, metricPreference: string, windowPr
     valueExtent,
     windows,
   };
+}
+
+function sourceName(row: TimeSeriesRow) {
+  return row.source_name || "Unknown source";
+}
+
+function coverageKey(source: string, metric: string) {
+  return `${source}::${metric}`;
+}
+
+function isReviewRow(row: TimeSeriesRow) {
+  return Boolean(row.quality_flag && !["ok", "pass", "valid"].includes(row.quality_flag.toLowerCase()));
 }
 
 function summarizeMetrics(rows: TimeSeriesRow[]): MetricSummary[] {
