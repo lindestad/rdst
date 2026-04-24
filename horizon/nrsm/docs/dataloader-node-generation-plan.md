@@ -2,7 +2,8 @@
 
 ## Goal
 
-Build the dataloader around the simulator's `node.md` / `module.md` contract:
+Build the dataloader around the simulator's `main/node.md` / `main/modules.md`
+contract:
 
 - generate node configuration from sourced topology, reservoirs, demand zones,
   and routing assumptions
@@ -57,7 +58,7 @@ horizon/nrsm/data/generated/
     station_sources.csv
 ```
 
-`config.yaml` should follow `node.md`:
+`config.yaml` should follow `main/node.md`:
 
 - `settings.timestep_days`
 - `nodes[].id`
@@ -227,7 +228,7 @@ Add dataloader structs for:
 - `ModuleRef`
 - `GeneratedConfig`
 
-Write tests that confirm a two-node generated config matches `node.md`.
+Write tests that confirm a two-node generated config matches `main/node.md`.
 
 ### Slice 2: Source Catalog
 
@@ -342,7 +343,7 @@ uv run horizon\nrsm\scripts\run_glofas_smoke_tests.py
 - Config YAML parses and has unique node ids.
 - Connection targets exist and outgoing fractions are `<= 1`.
 - Every CSV module has `date,scenario_1,scenario_2,scenario_3`.
-- Module units match `module.md`.
+- Module units match `main/modules.md`.
 - All generated values are non-negative.
 - Each generated value has a source id or an explicit `stub_assumption` note.
 
