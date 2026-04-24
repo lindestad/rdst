@@ -26,6 +26,12 @@ pub struct ScenarioMetadata {
 pub struct SimulationConfig {
     pub horizon_days: usize,
     pub reporting: ReportingFrequency,
+    #[serde(default = "default_allocation_order")]
+    pub allocation_order: Vec<WaterUse>,
+}
+
+fn default_allocation_order() -> Vec<WaterUse> {
+    vec![WaterUse::DrinkingWater, WaterUse::Irrigation]
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -33,6 +39,13 @@ pub struct SimulationConfig {
 pub enum ReportingFrequency {
     Daily,
     Monthly30Day,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum WaterUse {
+    DrinkingWater,
+    Irrigation,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

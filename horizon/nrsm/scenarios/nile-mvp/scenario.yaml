@@ -5,6 +5,9 @@ metadata:
 simulation:
   horizon_days: 90
   reporting: monthly30_day
+  allocation_order:
+    - drinking_water
+    - irrigation
 network:
   nodes:
     - id: white_nile_headwaters

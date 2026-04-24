@@ -34,6 +34,14 @@ properties:
       reporting:
         type: string
         enum: [daily, monthly30_day]
+      allocation_order:
+        type: array
+        minItems: 2
+        maxItems: 2
+        uniqueItems: true
+        items:
+          type: string
+          enum: [drinking_water, irrigation]
   network:
     type: object
     additionalProperties: false

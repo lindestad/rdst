@@ -87,6 +87,9 @@ Recommended fields:
 - `horizon_days`
 - `reporting`
   - `daily`, `monthly30_day`, later calendar-month support if needed
+- `allocation_order`
+  - Consumptive-use priority for soft constraints; currently supports
+    `drinking_water` and `irrigation`
 - `start_date`
   - Optional in v1, but useful if real calendars matter later
 
