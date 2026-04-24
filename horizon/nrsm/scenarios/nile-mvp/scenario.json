@@ -1,0 +1,205 @@
+{
+  "metadata": {
+    "name": "Nile MVP Demo",
+    "description": "Small Nile-inspired network used to validate the simulator MVP."
+  },
+  "simulation": {
+    "horizon_days": 90,
+    "reporting": "monthly30_day"
+  },
+  "network": {
+    "nodes": [
+      {
+        "id": "white_nile_headwaters",
+        "name": "White Nile Headwaters",
+        "kind": "river",
+        "local_inflow": {
+          "kind": "monthly30_day",
+          "values": [280.0, 255.0, 235.0]
+        }
+      },
+      {
+        "id": "blue_nile_headwaters",
+        "name": "Blue Nile Headwaters",
+        "kind": "river",
+        "local_inflow": {
+          "kind": "monthly30_day",
+          "values": [220.0, 260.0, 210.0]
+        }
+      },
+      {
+        "id": "gerd",
+        "name": "GERD",
+        "kind": "reservoir",
+        "local_inflow": {
+          "kind": "constant",
+          "value": 0.0
+        },
+        "reservoir": {
+          "capacity": 950.0,
+          "min_storage": 250.0,
+          "initial_storage": 500.0,
+          "target_release": {
+            "kind": "monthly30_day",
+            "values": [230.0, 240.0, 220.0]
+          }
+        },
+        "hydropower": {
+          "minimum_daily_energy": {
+            "kind": "constant",
+            "value": 110.0
+          },
+          "target_daily_energy": {
+            "kind": "constant",
+            "value": 145.0
+          },
+          "max_turbine_flow": {
+            "kind": "constant",
+            "value": 220.0
+          },
+          "energy_per_unit_water": 0.68
+        }
+      },
+      {
+        "id": "khartoum",
+        "name": "Khartoum Confluence",
+        "kind": "river",
+        "local_inflow": {
+          "kind": "constant",
+          "value": 20.0
+        },
+        "drinking_water": {
+          "minimum_daily_delivery": {
+            "kind": "constant",
+            "value": 18.0
+          },
+          "target_daily_delivery": {
+            "kind": "constant",
+            "value": 25.0
+          }
+        },
+        "irrigation": {
+          "minimum_daily_delivery": {
+            "kind": "constant",
+            "value": 35.0
+          },
+          "target_daily_delivery": {
+            "kind": "constant",
+            "value": 55.0
+          },
+          "food_per_unit_water": 2.1
+        }
+      },
+      {
+        "id": "aswan",
+        "name": "High Aswan",
+        "kind": "reservoir",
+        "local_inflow": {
+          "kind": "constant",
+          "value": 5.0
+        },
+        "reservoir": {
+          "capacity": 1600.0,
+          "min_storage": 500.0,
+          "initial_storage": 900.0,
+          "target_release": {
+            "kind": "monthly30_day",
+            "values": [330.0, 315.0, 300.0]
+          }
+        },
+        "drinking_water": {
+          "minimum_daily_delivery": {
+            "kind": "constant",
+            "value": 20.0
+          },
+          "target_daily_delivery": {
+            "kind": "constant",
+            "value": 28.0
+          }
+        },
+        "hydropower": {
+          "minimum_daily_energy": {
+            "kind": "constant",
+            "value": 130.0
+          },
+          "target_daily_energy": {
+            "kind": "constant",
+            "value": 170.0
+          },
+          "max_turbine_flow": {
+            "kind": "constant",
+            "value": 290.0
+          },
+          "energy_per_unit_water": 0.59
+        }
+      },
+      {
+        "id": "nile_delta",
+        "name": "Nile Delta",
+        "kind": "river",
+        "local_inflow": {
+          "kind": "constant",
+          "value": 0.0
+        },
+        "drinking_water": {
+          "minimum_daily_delivery": {
+            "kind": "constant",
+            "value": 35.0
+          },
+          "target_daily_delivery": {
+            "kind": "constant",
+            "value": 48.0
+          }
+        },
+        "irrigation": {
+          "minimum_daily_delivery": {
+            "kind": "constant",
+            "value": 80.0
+          },
+          "target_daily_delivery": {
+            "kind": "constant",
+            "value": 120.0
+          },
+          "food_per_unit_water": 1.8
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "white_to_khartoum",
+        "from": "white_nile_headwaters",
+        "to": "khartoum",
+        "flow_share": 1.0,
+        "loss_fraction": 0.02
+      },
+      {
+        "id": "blue_to_gerd",
+        "from": "blue_nile_headwaters",
+        "to": "gerd",
+        "flow_share": 1.0,
+        "loss_fraction": 0.01
+      },
+      {
+        "id": "gerd_to_khartoum",
+        "from": "gerd",
+        "to": "khartoum",
+        "flow_share": 1.0,
+        "loss_fraction": 0.015
+      },
+      {
+        "id": "khartoum_to_aswan",
+        "from": "khartoum",
+        "to": "aswan",
+        "flow_share": 1.0,
+        "loss_fraction": 0.025
+      },
+      {
+        "id": "aswan_to_delta",
+        "from": "aswan",
+        "to": "nile_delta",
+        "flow_share": 1.0,
+        "loss_fraction": 0.03
+      }
+    ]
+  }
+}
