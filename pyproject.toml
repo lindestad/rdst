@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["simengine*", "dataloader*"]
+include = ["simengine*", "dataloader*", "api*"]
 
 [project]
 name = "nile-digital-twin"
@@ -18,6 +18,9 @@ dependencies = [
   "pyarrow>=15",
   "xarray>=2024.2",
   "pillow>=10",
+  "fastapi>=0.110",
+  "uvicorn[standard]>=0.29",
+  "httpx>=0.27",
   # netcdf4 / h5netcdf are NOT required for stub-mode or tests (we use
   # in-memory xarray Datasets). Add one of them when wiring real CDS fetches.
 ]
