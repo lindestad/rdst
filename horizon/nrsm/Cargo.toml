@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/nrsm-cli",
+    "crates/nrsm-dataloader",
     "crates/nrsm-sim-core",
 ]
 resolver = "2"
