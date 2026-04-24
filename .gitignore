@@ -1,6 +1,8 @@
 # Project-specific
 herss/
 .superpowers/
+horizon/nrsm/data/
+!horizon/nrsm/data/.gitkeep
 
 # Rust
 target/
