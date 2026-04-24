@@ -180,6 +180,7 @@ pub fn seed_source_catalog() -> Vec<SourceRecord> {
     ]
 }
 
+#[allow(clippy::too_many_arguments)]
 fn source(
     source_id: &str,
     source_family: &str,

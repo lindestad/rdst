@@ -1,12 +1,10 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, VecDeque};
 
 use crate::{
     error::SimulationError,
     model::{
-        DeliveryResult, EdgeConfig, EdgeResult, EngineTimeStep, HydropowerPlant, HydropowerResult,
-        IrrigationDemand, IrrigationResult, NetworkConfig, NodeConfig, NodeKind, NodeResult,
-        PeriodResult, ReportingFrequency, ReservoirConfig, SUPPORTED_SCHEMA_VERSION, Scenario,
-        SimulationResult, SimulationSummary, WaterUse,
+        EngineTimeStep, NodeConfig, NodeResult, PeriodResult, ReportingFrequency, Scenario,
+        SimulationResult, SimulationSummary,
     },
 };
 
@@ -14,112 +12,100 @@ const FLOAT_TOLERANCE: f64 = 1e-9;
 
 pub fn simulate(scenario: &Scenario) -> Result<SimulationResult, SimulationError> {
     validate_scenario(scenario)?;
-    let compiled = CompiledNetwork::build(&scenario.network)?;
-
+    let compiled = CompiledNetwork::build(&scenario.nodes)?;
     let daily_periods = simulate_daily_periods(scenario, &compiled);
-    let periods = aggregate_periods(&daily_periods, scenario.simulation.reporting);
+    let periods = aggregate_periods(&daily_periods, scenario.settings.reporting);
     let summary = summarize(&periods);
 
     Ok(SimulationResult {
-        schema_version: scenario.schema_version.clone(),
-        metadata: scenario.metadata.clone(),
         engine_time_step: EngineTimeStep::Daily,
-        reporting: scenario.simulation.reporting,
+        timestep_days: scenario.settings.timestep_days,
+        reporting: scenario.settings.reporting,
         summary,
         periods,
     })
 }
 
 fn simulate_daily_periods(scenario: &Scenario, compiled: &CompiledNetwork) -> Vec<PeriodResult> {
-    let node_count = scenario.network.nodes.len();
-    let mut storage: Vec<f64> = scenario
-        .network
+    let node_count = scenario.nodes.len();
+    let horizon_days = scenario.horizon_days();
+    let max_delay = compiled.max_delay;
+    let dt_days = scenario.settings.timestep_days;
+    let action_fraction = scenario.settings.production_level_fraction.clamp(0.0, 1.0);
+    let mut reservoir_levels = scenario
         .nodes
         .iter()
-        .map(|node| {
-            node.reservoir
-                .as_ref()
-                .map(|reservoir| reservoir.initial_storage)
-                .unwrap_or_default()
-        })
-        .collect();
+        .map(|node| node.reservoir.initial_level)
+        .collect::<Vec<_>>();
+    let mut scheduled_arrivals = vec![vec![0.0; node_count]; horizon_days + max_delay + 1];
+    let mut periods = Vec::with_capacity(horizon_days);
 
-    let mut periods = Vec::with_capacity(scenario.simulation.horizon_days);
-
-    for day in 0..scenario.simulation.horizon_days {
-        let mut arrivals = vec![0.0; node_count];
+    for day in 0..horizon_days {
+        let mut arrivals = scheduled_arrivals[day].clone();
         let mut node_results = Vec::with_capacity(node_count);
-        let mut edge_results = Vec::new();
-        let mut basin_exit_flow = 0.0;
-        let mut total_incoming_flow = 0.0;
-        let mut total_local_inflow = 0.0;
-        let mut total_edge_loss = 0.0;
 
         for &node_index in &compiled.topological_order {
-            let node = &scenario.network.nodes[node_index];
-            let incoming_flow = arrivals[node_index];
-            let local_inflow = node.local_inflow.value_at(day);
-            let starting_storage = storage[node_index];
-            let available_water = incoming_flow + local_inflow + starting_storage;
+            let node = &scenario.nodes[node_index];
+            let upstream_inflow = arrivals[node_index];
+            let catchment_inflow = node.catchment_inflow.value_at(day) * dt_days;
+            let total_inflow = catchment_inflow + upstream_inflow;
+            let mut available = reservoir_levels[node_index] + total_inflow;
 
-            let (drinking_result, irrigation_result, remaining_after_irrigation) =
-                simulate_consumptive_uses(
-                    node,
-                    &scenario.simulation.allocation_order,
-                    day,
-                    available_water,
-                );
+            let evaporation = (node.modules.evaporation.rate.value_at(day) * dt_days)
+                .max(0.0)
+                .min(available);
+            available -= evaporation;
 
-            let (downstream_outflow, ending_storage) =
-                route_node_outflow(node.reservoir.as_ref(), day, remaining_after_irrigation);
-            storage[node_index] = ending_storage;
+            let drink_water_demand =
+                (node.modules.drink_water.daily_demand.value_at(day) * dt_days).max(0.0);
+            let drink_water_met = drink_water_demand.min(available);
+            let unmet_drink_water = drink_water_demand - drink_water_met;
+            available -= drink_water_met;
 
-            let hydropower_result =
-                simulate_hydropower(node.hydropower.as_ref(), day, downstream_outflow);
+            let (food_produced, food_water_consumed) = node
+                .modules
+                .food_production
+                .produce(available, day, dt_days);
+            available -= food_water_consumed;
 
-            let outgoing_edges = &compiled.outgoing_edges[node_index];
-            let mut routed_total = 0.0;
+            let max_release = (node.max_production * dt_days * action_fraction).max(0.0);
+            let production_release = max_release.min(available);
+            available -= production_release;
 
-            for &edge_index in outgoing_edges {
-                let edge = &scenario.network.edges[edge_index];
-                let routed_flow = downstream_outflow * edge.flow_share;
-                let lost_flow = routed_flow * edge.loss_fraction;
-                let received_flow = routed_flow - lost_flow;
-                let destination_index = compiled.node_index[&edge.to];
+            let spill = (available - node.reservoir.max_capacity).max(0.0);
+            let reservoir_level = available.clamp(0.0, node.reservoir.max_capacity);
+            reservoir_levels[node_index] = reservoir_level;
 
-                arrivals[destination_index] += received_flow;
-                routed_total += routed_flow;
-                total_edge_loss += lost_flow;
+            let release_for_routing = production_release + spill;
+            let mut downstream_release = 0.0;
 
-                edge_results.push(EdgeResult {
-                    edge_id: edge.id.clone(),
-                    from_node: edge.from.clone(),
-                    to_node: edge.to.clone(),
-                    total_routed_flow: routed_flow,
-                    total_lost_flow: lost_flow,
-                    total_received_flow: received_flow,
-                });
+            for &connection_index in &compiled.outgoing_connections[node_index] {
+                let connection = &compiled.connections[connection_index];
+                let routed = release_for_routing * connection.fraction;
+                downstream_release += routed;
+
+                if connection.delay == 0 {
+                    arrivals[connection.to_index] += routed;
+                } else {
+                    scheduled_arrivals[day + connection.delay][connection.to_index] += routed;
+                }
             }
 
-            let node_basin_exit = (downstream_outflow - routed_total).max(0.0);
-            basin_exit_flow += node_basin_exit;
-            total_incoming_flow += incoming_flow;
-            total_local_inflow += local_inflow;
+            let energy_value =
+                production_release * node.modules.energy.price_per_unit.value_at(day);
 
             node_results.push(NodeResult {
                 node_id: node.id.clone(),
-                node_name: node.name.clone(),
-                node_kind: node.kind,
-                total_incoming_flow: incoming_flow,
-                total_local_inflow: local_inflow,
-                starting_storage,
-                ending_storage,
-                total_available_water: available_water,
-                total_downstream_outflow: downstream_outflow,
-                total_basin_exit_outflow: node_basin_exit,
-                drinking_water: drinking_result,
-                irrigation: irrigation_result,
-                hydropower: hydropower_result,
+                reservoir_level,
+                production_release,
+                energy_value,
+                evaporation,
+                food_produced,
+                drink_water_met,
+                unmet_drink_water,
+                spill,
+                downstream_release,
+                total_inflow,
             });
         }
 
@@ -127,12 +113,7 @@ fn simulate_daily_periods(scenario: &Scenario, compiled: &CompiledNetwork) -> Ve
             period_index: day,
             start_day: day,
             end_day_exclusive: day + 1,
-            total_incoming_flow,
-            total_local_inflow,
-            total_edge_loss,
-            total_basin_exit_flow: basin_exit_flow,
             node_results,
-            edge_results,
         });
     }
 
@@ -155,45 +136,28 @@ fn aggregate_periods(
 
 fn aggregate_chunk(period_index: usize, chunk: &[PeriodResult]) -> PeriodResult {
     let mut node_positions = HashMap::<String, usize>::new();
-    let mut edge_positions = HashMap::<String, usize>::new();
     let mut node_results = Vec::<NodeResult>::new();
-    let mut edge_results = Vec::<EdgeResult>::new();
 
     for period in chunk {
         for node in &period.node_results {
             match node_positions.get(&node.node_id).copied() {
                 Some(position) => {
                     let aggregate = &mut node_results[position];
-                    aggregate.total_incoming_flow += node.total_incoming_flow;
-                    aggregate.total_local_inflow += node.total_local_inflow;
-                    aggregate.total_available_water += node.total_available_water;
-                    aggregate.total_downstream_outflow += node.total_downstream_outflow;
-                    aggregate.total_basin_exit_outflow += node.total_basin_exit_outflow;
-                    aggregate.ending_storage = node.ending_storage;
-                    merge_delivery(&mut aggregate.drinking_water, &node.drinking_water);
-                    merge_irrigation(&mut aggregate.irrigation, &node.irrigation);
-                    merge_hydropower(&mut aggregate.hydropower, &node.hydropower);
+                    aggregate.reservoir_level = node.reservoir_level;
+                    aggregate.production_release += node.production_release;
+                    aggregate.energy_value += node.energy_value;
+                    aggregate.evaporation += node.evaporation;
+                    aggregate.food_produced += node.food_produced;
+                    aggregate.drink_water_met += node.drink_water_met;
+                    aggregate.unmet_drink_water += node.unmet_drink_water;
+                    aggregate.spill += node.spill;
+                    aggregate.downstream_release += node.downstream_release;
+                    aggregate.total_inflow += node.total_inflow;
                 }
                 None => {
                     let position = node_results.len();
                     node_positions.insert(node.node_id.clone(), position);
                     node_results.push(node.clone());
-                }
-            }
-        }
-
-        for edge in &period.edge_results {
-            match edge_positions.get(&edge.edge_id).copied() {
-                Some(position) => {
-                    let aggregate = &mut edge_results[position];
-                    aggregate.total_routed_flow += edge.total_routed_flow;
-                    aggregate.total_lost_flow += edge.total_lost_flow;
-                    aggregate.total_received_flow += edge.total_received_flow;
-                }
-                None => {
-                    let position = edge_results.len();
-                    edge_positions.insert(edge.edge_id.clone(), position);
-                    edge_results.push(edge.clone());
                 }
             }
         }
@@ -209,15 +173,7 @@ fn aggregate_chunk(period_index: usize, chunk: &[PeriodResult]) -> PeriodResult 
             .last()
             .map(|period| period.end_day_exclusive)
             .unwrap_or_default(),
-        total_incoming_flow: chunk.iter().map(|period| period.total_incoming_flow).sum(),
-        total_local_inflow: chunk.iter().map(|period| period.total_local_inflow).sum(),
-        total_edge_loss: chunk.iter().map(|period| period.total_edge_loss).sum(),
-        total_basin_exit_flow: chunk
-            .iter()
-            .map(|period| period.total_basin_exit_flow)
-            .sum(),
         node_results,
-        edge_results,
     }
 }
 
@@ -225,666 +181,471 @@ fn summarize(periods: &[PeriodResult]) -> SimulationSummary {
     let mut summary = SimulationSummary::default();
 
     for period in periods {
-        summary.total_incoming_flow += period.total_incoming_flow;
-        summary.total_local_inflow += period.total_local_inflow;
-        summary.total_edge_loss += period.total_edge_loss;
-        summary.total_basin_exit_flow += period.total_basin_exit_flow;
-
         for node in &period.node_results {
-            if let Some(drinking) = &node.drinking_water {
-                summary.total_drinking_water_delivered += drinking.actual_delivery;
-                summary.total_drinking_shortfall_to_minimum += drinking.shortfall_to_minimum;
-            }
+            summary.total_inflow += node.total_inflow;
+            summary.total_evaporation += node.evaporation;
+            summary.total_drink_water_met += node.drink_water_met;
+            summary.total_unmet_drink_water += node.unmet_drink_water;
+            summary.total_food_produced += node.food_produced;
+            summary.total_production_release += node.production_release;
+            summary.total_energy_value += node.energy_value;
+            summary.total_spill += node.spill;
+            summary.total_downstream_release += node.downstream_release;
 
-            if let Some(irrigation) = &node.irrigation {
-                summary.total_irrigation_water_delivered += irrigation.water.actual_delivery;
-                summary.total_food_produced += irrigation.food_produced;
-                summary.total_irrigation_shortfall_to_minimum +=
-                    irrigation.water.shortfall_to_minimum;
-            }
-
-            if let Some(hydropower) = &node.hydropower {
-                summary.total_energy_generated += hydropower.energy_generated;
-                summary.total_energy_shortfall_to_minimum += hydropower.shortfall_to_minimum;
-            }
+            let routed_source = node.production_release + node.spill;
+            summary.total_routing_loss += (routed_source - node.downstream_release).max(0.0);
         }
     }
 
     summary
 }
 
-fn simulate_drinking(
-    demand: Option<&crate::model::DrinkingWaterDemand>,
-    day: usize,
-    available_water: f64,
-) -> (Option<DeliveryResult>, f64) {
-    let Some(demand) = demand else {
-        return (None, available_water);
-    };
-
-    let target = demand.target_daily_delivery.value_at(day);
-    let minimum = demand
-        .minimum_daily_delivery
-        .as_ref()
-        .map(|series| series.value_at(day))
-        .unwrap_or(target);
-    let actual = available_water.min(target);
-    let remaining = available_water - actual;
-
-    (Some(delivery_result(actual, target, minimum)), remaining)
-}
-
-fn simulate_irrigation(
-    demand: Option<&IrrigationDemand>,
-    day: usize,
-    available_water: f64,
-) -> (Option<IrrigationResult>, f64) {
-    let Some(demand) = demand else {
-        return (None, available_water);
-    };
-
-    let target = demand.target_daily_delivery.value_at(day);
-    let minimum = demand
-        .minimum_daily_delivery
-        .as_ref()
-        .map(|series| series.value_at(day))
-        .unwrap_or(target);
-    let actual = available_water.min(target);
-    let remaining = available_water - actual;
-
-    (
-        Some(IrrigationResult {
-            water: delivery_result(actual, target, minimum),
-            food_produced: demand.production_model.produce(actual),
-        }),
-        remaining,
-    )
-}
-
-fn simulate_consumptive_uses(
-    node: &NodeConfig,
-    allocation_order: &[WaterUse],
-    day: usize,
-    available_water: f64,
-) -> (Option<DeliveryResult>, Option<IrrigationResult>, f64) {
-    let mut remaining = available_water;
-    let mut drinking_result = None;
-    let mut irrigation_result = None;
-
-    for use_type in allocation_order {
-        match use_type {
-            WaterUse::DrinkingWater => {
-                let (result, next_remaining) =
-                    simulate_drinking(node.drinking_water.as_ref(), day, remaining);
-                drinking_result = result;
-                remaining = next_remaining;
-            }
-            WaterUse::Irrigation => {
-                let (result, next_remaining) =
-                    simulate_irrigation(node.irrigation.as_ref(), day, remaining);
-                irrigation_result = result;
-                remaining = next_remaining;
-            }
-        }
-    }
-
-    (drinking_result, irrigation_result, remaining)
-}
-
-fn simulate_hydropower(
-    plant: Option<&HydropowerPlant>,
-    day: usize,
-    downstream_outflow: f64,
-) -> Option<HydropowerResult> {
-    let plant = plant?;
-    let turbine_capacity = plant.max_turbine_flow.value_at(day);
-    let turbine_flow = downstream_outflow.min(turbine_capacity);
-    let energy_generated = turbine_flow * plant.energy_per_unit_water;
-    let minimum_energy = plant
-        .minimum_daily_energy
-        .as_ref()
-        .map(|series| series.value_at(day))
-        .unwrap_or_default();
-    let target_energy = plant
-        .target_daily_energy
-        .as_ref()
-        .map(|series| series.value_at(day))
-        .unwrap_or(minimum_energy);
-
-    Some(HydropowerResult {
-        turbine_flow,
-        energy_generated,
-        total_target_energy: target_energy,
-        total_minimum_energy: minimum_energy,
-        shortfall_to_target: (target_energy - energy_generated).max(0.0),
-        shortfall_to_minimum: (minimum_energy - energy_generated).max(0.0),
-    })
-}
-
-fn route_node_outflow(
-    reservoir: Option<&ReservoirConfig>,
-    day: usize,
-    water_after_uses: f64,
-) -> (f64, f64) {
-    let Some(reservoir) = reservoir else {
-        return (water_after_uses, 0.0);
-    };
-
-    let desired_release = reservoir.target_release.value_at(day);
-    let required_release_for_capacity = (water_after_uses - reservoir.capacity).max(0.0);
-    let max_release_preserving_min = (water_after_uses - reservoir.min_storage).max(0.0);
-    let release = required_release_for_capacity
-        .max(desired_release.min(max_release_preserving_min))
-        .min(water_after_uses);
-    let ending_storage = (water_after_uses - release).clamp(0.0, reservoir.capacity);
-
-    (release, ending_storage)
-}
-
-fn delivery_result(actual: f64, target: f64, minimum: f64) -> DeliveryResult {
-    DeliveryResult {
-        actual_delivery: actual,
-        total_target: target,
-        total_minimum_target: minimum,
-        shortfall_to_target: (target - actual).max(0.0),
-        shortfall_to_minimum: (minimum - actual).max(0.0),
-        reliability_to_target: capped_ratio(actual, target),
-        reliability_to_minimum: capped_ratio(actual, minimum),
-    }
-}
-
-fn capped_ratio(actual: f64, expected: f64) -> f64 {
-    if expected <= 0.0 {
-        1.0
-    } else {
-        (actual / expected).clamp(0.0, 1.0)
-    }
-}
-
-fn recompute_delivery_reliability(delivery: &mut DeliveryResult) {
-    delivery.reliability_to_target = capped_ratio(delivery.actual_delivery, delivery.total_target);
-    delivery.reliability_to_minimum =
-        capped_ratio(delivery.actual_delivery, delivery.total_minimum_target);
-}
-
-fn merge_delivery_result(target: &mut DeliveryResult, source: &DeliveryResult) {
-    target.actual_delivery += source.actual_delivery;
-    target.total_target += source.total_target;
-    target.total_minimum_target += source.total_minimum_target;
-    target.shortfall_to_target += source.shortfall_to_target;
-    target.shortfall_to_minimum += source.shortfall_to_minimum;
-    recompute_delivery_reliability(target);
-}
-
-fn merge_delivery(target: &mut Option<DeliveryResult>, source: &Option<DeliveryResult>) {
-    match (target.as_mut(), source) {
-        (Some(target), Some(source)) => merge_delivery_result(target, source),
-        (None, Some(source)) => *target = Some(source.clone()),
-        _ => {}
-    }
-}
-
-fn merge_irrigation(target: &mut Option<IrrigationResult>, source: &Option<IrrigationResult>) {
-    match (target.as_mut(), source) {
-        (Some(target), Some(source)) => {
-            target.food_produced += source.food_produced;
-            merge_delivery_result(&mut target.water, &source.water);
-        }
-        (None, Some(source)) => *target = Some(source.clone()),
-        _ => {}
-    }
-}
-
-fn merge_hydropower(target: &mut Option<HydropowerResult>, source: &Option<HydropowerResult>) {
-    match (target.as_mut(), source) {
-        (Some(target), Some(source)) => {
-            target.turbine_flow += source.turbine_flow;
-            target.energy_generated += source.energy_generated;
-            target.total_target_energy += source.total_target_energy;
-            target.total_minimum_energy += source.total_minimum_energy;
-            target.shortfall_to_target += source.shortfall_to_target;
-            target.shortfall_to_minimum += source.shortfall_to_minimum;
-        }
-        (None, Some(source)) => *target = Some(source.clone()),
-        _ => {}
-    }
-}
-
 fn validate_scenario(scenario: &Scenario) -> Result<(), SimulationError> {
-    if scenario.schema_version != SUPPORTED_SCHEMA_VERSION {
-        return Err(SimulationError::Validation(format!(
-            "unsupported schema_version `{}`, expected `{SUPPORTED_SCHEMA_VERSION}`",
-            scenario.schema_version
-        )));
-    }
-
-    if scenario.simulation.horizon_days == 0 {
+    if scenario.nodes.is_empty() {
         return Err(SimulationError::Validation(
-            "simulation horizon must be at least one day".to_string(),
+            "scenario must contain at least one node".to_string(),
         ));
     }
 
-    validate_allocation_order(&scenario.simulation.allocation_order)?;
+    if scenario.settings.timestep_days <= 0.0 {
+        return Err(SimulationError::Validation(
+            "settings.timestep_days must be greater than zero".to_string(),
+        ));
+    }
+
+    if let Some(horizon_days) = scenario.settings.horizon_days
+        && horizon_days == 0
+    {
+        return Err(SimulationError::Validation(
+            "settings.horizon_days must be at least one day".to_string(),
+        ));
+    }
 
     let mut node_ids = HashMap::<&str, usize>::new();
-    for (index, node) in scenario.network.nodes.iter().enumerate() {
-        if node_ids.insert(node.id.as_str(), index).is_some() {
+    for (node_index, node) in scenario.nodes.iter().enumerate() {
+        if node_ids.insert(node.id.as_str(), node_index).is_some() {
             return Err(SimulationError::Validation(format!(
                 "duplicate node id `{}`",
                 node.id
             )));
         }
 
-        node.local_inflow
-            .validate(&format!("node `{}` local inflow", node.id))
-            .map_err(SimulationError::Validation)?;
-
-        match (&node.kind, &node.reservoir) {
-            (NodeKind::Reservoir, Some(reservoir)) => validate_reservoir(node, reservoir)?,
-            (NodeKind::Reservoir, None) => {
-                return Err(SimulationError::Validation(format!(
-                    "reservoir node `{}` is missing a reservoir configuration",
-                    node.id
-                )));
-            }
-            (NodeKind::River, Some(_)) => {
-                return Err(SimulationError::Validation(format!(
-                    "river node `{}` cannot define a reservoir configuration",
-                    node.id
-                )));
-            }
-            (NodeKind::River, None) => {}
-        }
-
-        if let Some(drinking_water) = &node.drinking_water {
-            validate_timeseries_pair(
-                drinking_water.minimum_daily_delivery.as_ref(),
-                &drinking_water.target_daily_delivery,
-                &format!("node `{}` drinking water", node.id),
-            )?;
-        }
-
-        if let Some(irrigation) = &node.irrigation {
-            irrigation
-                .production_model
-                .validate(&format!("node `{}` irrigation production_model", node.id))
-                .map_err(SimulationError::Validation)?;
-
-            validate_timeseries_pair(
-                irrigation.minimum_daily_delivery.as_ref(),
-                &irrigation.target_daily_delivery,
-                &format!("node `{}` irrigation", node.id),
-            )?;
-        }
-
-        if let Some(hydropower) = &node.hydropower {
-            if hydropower.energy_per_unit_water < 0.0 {
-                return Err(SimulationError::Validation(format!(
-                    "node `{}` hydropower energy_per_unit_water must be non-negative",
-                    node.id
-                )));
-            }
-
-            hydropower
-                .max_turbine_flow
-                .validate(&format!("node `{}` hydropower max_turbine_flow", node.id))
-                .map_err(SimulationError::Validation)?;
-
-            if let Some(minimum) = &hydropower.minimum_daily_energy {
-                minimum
-                    .validate(&format!("node `{}` hydropower minimum energy", node.id))
-                    .map_err(SimulationError::Validation)?;
-            }
-
-            if let Some(target) = &hydropower.target_daily_energy {
-                target
-                    .validate(&format!("node `{}` hydropower target energy", node.id))
-                    .map_err(SimulationError::Validation)?;
-            }
-        }
+        validate_node(node)?;
     }
 
-    let mut edge_ids = HashMap::<&str, usize>::new();
-    let mut outgoing_share_by_node = vec![0.0; scenario.network.nodes.len()];
+    for node in &scenario.nodes {
+        let mut fraction_sum = 0.0;
+        for connection in &node.connections {
+            if !node_ids.contains_key(connection.node_id.as_str()) {
+                return Err(SimulationError::Validation(format!(
+                    "node `{}` connection references unknown node `{}`",
+                    node.id, connection.node_id
+                )));
+            }
 
-    for (index, edge) in scenario.network.edges.iter().enumerate() {
-        if edge_ids.insert(edge.id.as_str(), index).is_some() {
-            return Err(SimulationError::Validation(format!(
-                "duplicate edge id `{}`",
-                edge.id
-            )));
+            if !(0.0..=1.0).contains(&connection.fraction) {
+                return Err(SimulationError::Validation(format!(
+                    "node `{}` connection to `{}` fraction must be between 0 and 1",
+                    node.id, connection.node_id
+                )));
+            }
+
+            fraction_sum += connection.fraction;
         }
 
-        if !(0.0..=1.0).contains(&edge.flow_share) {
+        if fraction_sum > 1.0 + FLOAT_TOLERANCE {
             return Err(SimulationError::Validation(format!(
-                "edge `{}` flow_share must be between 0 and 1",
-                edge.id
-            )));
-        }
-
-        if !(0.0..=1.0).contains(&edge.loss_fraction) {
-            return Err(SimulationError::Validation(format!(
-                "edge `{}` loss_fraction must be between 0 and 1",
-                edge.id
-            )));
-        }
-
-        let Some(from_index) = node_ids.get(edge.from.as_str()).copied() else {
-            return Err(SimulationError::Validation(format!(
-                "edge `{}` references unknown from node `{}`",
-                edge.id, edge.from
-            )));
-        };
-
-        if !node_ids.contains_key(edge.to.as_str()) {
-            return Err(SimulationError::Validation(format!(
-                "edge `{}` references unknown to node `{}`",
-                edge.id, edge.to
-            )));
-        }
-
-        outgoing_share_by_node[from_index] += edge.flow_share;
-    }
-
-    for (node_index, share_sum) in outgoing_share_by_node.iter().copied().enumerate() {
-        let has_outgoing = scenario
-            .network
-            .edges
-            .iter()
-            .any(|edge| edge.from == scenario.network.nodes[node_index].id);
-
-        if has_outgoing && (share_sum - 1.0).abs() > FLOAT_TOLERANCE {
-            return Err(SimulationError::Validation(format!(
-                "outgoing edge flow shares for node `{}` must sum to 1.0, found {share_sum}",
-                scenario.network.nodes[node_index].id
+                "node `{}` connection fractions must sum to <= 1.0, found {fraction_sum}",
+                node.id
             )));
         }
     }
 
-    CompiledNetwork::build(&scenario.network)?;
+    CompiledNetwork::build(&scenario.nodes)?;
 
     Ok(())
 }
 
-fn validate_allocation_order(allocation_order: &[WaterUse]) -> Result<(), SimulationError> {
-    let required = HashSet::from([WaterUse::DrinkingWater, WaterUse::Irrigation]);
-    let actual = allocation_order.iter().copied().collect::<HashSet<_>>();
-
-    if allocation_order.len() != required.len() || actual != required {
-        return Err(SimulationError::Validation(
-            "allocation_order must contain drinking_water and irrigation exactly once".to_string(),
-        ));
-    }
-
-    Ok(())
-}
-
-fn validate_reservoir(
-    node: &NodeConfig,
-    reservoir: &ReservoirConfig,
-) -> Result<(), SimulationError> {
-    if reservoir.capacity < 0.0 {
+fn validate_node(node: &NodeConfig) -> Result<(), SimulationError> {
+    if node.reservoir.initial_level < 0.0 {
         return Err(SimulationError::Validation(format!(
-            "node `{}` reservoir capacity must be non-negative",
+            "node `{}` reservoir.initial_level must be non-negative",
             node.id
         )));
     }
 
-    if reservoir.min_storage < 0.0 {
+    if node.reservoir.max_capacity < 0.0 {
         return Err(SimulationError::Validation(format!(
-            "node `{}` reservoir min_storage must be non-negative",
+            "node `{}` reservoir.max_capacity must be non-negative",
             node.id
         )));
     }
 
-    if reservoir.initial_storage < 0.0 {
+    if node.reservoir.initial_level > node.reservoir.max_capacity {
         return Err(SimulationError::Validation(format!(
-            "node `{}` reservoir initial_storage must be non-negative",
+            "node `{}` reservoir.initial_level cannot exceed max_capacity",
             node.id
         )));
     }
 
-    if reservoir.min_storage > reservoir.capacity {
+    if node.max_production < 0.0 {
         return Err(SimulationError::Validation(format!(
-            "node `{}` reservoir min_storage cannot exceed capacity",
+            "node `{}` max_production must be non-negative",
             node.id
         )));
     }
 
-    if reservoir.initial_storage > reservoir.capacity {
+    if node.modules.food_production.water_coefficient <= 0.0 {
         return Err(SimulationError::Validation(format!(
-            "node `{}` reservoir initial_storage cannot exceed capacity",
+            "node `{}` food_production.water_coefficient must be greater than zero",
             node.id
         )));
     }
 
-    reservoir
-        .target_release
-        .validate(&format!("node `{}` reservoir target_release", node.id))
+    node.catchment_inflow
+        .validate(&format!("node `{}` catchment_inflow", node.id))
+        .map_err(SimulationError::Validation)?;
+    node.modules
+        .evaporation
+        .rate
+        .validate(&format!("node `{}` evaporation", node.id))
+        .map_err(SimulationError::Validation)?;
+    node.modules
+        .drink_water
+        .daily_demand
+        .validate(&format!("node `{}` drink_water", node.id))
+        .map_err(SimulationError::Validation)?;
+    node.modules
+        .food_production
+        .max_food_units
+        .validate(&format!("node `{}` food_production", node.id))
+        .map_err(SimulationError::Validation)?;
+    node.modules
+        .energy
+        .price_per_unit
+        .validate(&format!("node `{}` energy", node.id))
         .map_err(SimulationError::Validation)?;
 
     Ok(())
 }
 
-fn validate_timeseries_pair(
-    minimum: Option<&crate::model::TimeSeries>,
-    target: &crate::model::TimeSeries,
-    label: &str,
-) -> Result<(), SimulationError> {
-    if let Some(minimum) = minimum {
-        minimum
-            .validate(&format!("{label} minimum"))
-            .map_err(SimulationError::Validation)?;
-    }
-
-    target
-        .validate(&format!("{label} target"))
-        .map_err(SimulationError::Validation)?;
-
-    Ok(())
+#[derive(Clone, Debug)]
+struct CompiledConnection {
+    to_index: usize,
+    fraction: f64,
+    delay: usize,
 }
 
 struct CompiledNetwork {
-    node_index: HashMap<String, usize>,
     topological_order: Vec<usize>,
-    outgoing_edges: Vec<Vec<usize>>,
+    outgoing_connections: Vec<Vec<usize>>,
+    connections: Vec<CompiledConnection>,
+    max_delay: usize,
 }
 
 impl CompiledNetwork {
-    fn build(network: &NetworkConfig) -> Result<Self, SimulationError> {
-        let node_index = network
-            .nodes
+    fn build(nodes: &[NodeConfig]) -> Result<Self, SimulationError> {
+        let node_index = nodes
             .iter()
             .enumerate()
             .map(|(index, node)| (node.id.clone(), index))
             .collect::<HashMap<_, _>>();
-        let mut indegree = vec![0usize; network.nodes.len()];
-        let mut outgoing_edges = vec![Vec::<usize>::new(); network.nodes.len()];
+        let mut indegree = vec![0usize; nodes.len()];
+        let mut outgoing_connections = vec![Vec::<usize>::new(); nodes.len()];
+        let mut connections = Vec::<CompiledConnection>::new();
+        let mut max_delay = 0;
 
-        for (edge_index, edge) in network.edges.iter().enumerate() {
-            let from_index = node_index[&edge.from];
-            let to_index = node_index[&edge.to];
-            indegree[to_index] += 1;
-            outgoing_edges[from_index].push(edge_index);
-        }
+        for (from_index, node) in nodes.iter().enumerate() {
+            for connection in &node.connections {
+                let Some(&to_index) = node_index.get(&connection.node_id) else {
+                    return Err(SimulationError::Validation(format!(
+                        "node `{}` connection references unknown node `{}`",
+                        node.id, connection.node_id
+                    )));
+                };
 
-        let mut queue = VecDeque::new();
-        for (node_index, &incoming_edges) in indegree.iter().enumerate() {
-            if incoming_edges == 0 {
-                queue.push_back(node_index);
+                indegree[to_index] += 1;
+                max_delay = max_delay.max(connection.delay);
+                outgoing_connections[from_index].push(connections.len());
+                connections.push(CompiledConnection {
+                    to_index,
+                    fraction: connection.fraction,
+                    delay: connection.delay,
+                });
             }
         }
 
-        let mut topological_order = Vec::with_capacity(network.nodes.len());
-        let mut indegree_mut = indegree;
-
-        while let Some(current_node_index) = queue.pop_front() {
-            topological_order.push(current_node_index);
-
-            for &edge_index in &outgoing_edges[current_node_index] {
-                let edge: &EdgeConfig = &network.edges[edge_index];
-                let next_index = node_index[&edge.to];
-                indegree_mut[next_index] -= 1;
-
-                if indegree_mut[next_index] == 0 {
-                    queue.push_back(next_index);
-                }
-            }
-        }
-
-        if topological_order.len() != network.nodes.len() {
-            return Err(SimulationError::Validation(
-                "river graph must be acyclic for the MVP simulator".to_string(),
-            ));
-        }
+        let topological_order = topological_order(&outgoing_connections, &connections, indegree)?;
 
         Ok(Self {
-            node_index,
             topological_order,
-            outgoing_edges,
+            outgoing_connections,
+            connections,
+            max_delay,
         })
     }
+}
+
+fn topological_order(
+    outgoing_connections: &[Vec<usize>],
+    connections: &[CompiledConnection],
+    indegree: Vec<usize>,
+) -> Result<Vec<usize>, SimulationError> {
+    let mut queue = VecDeque::new();
+    for (node_index, &incoming_edges) in indegree.iter().enumerate() {
+        if incoming_edges == 0 {
+            queue.push_back(node_index);
+        }
+    }
+
+    let mut order = Vec::with_capacity(indegree.len());
+    let mut indegree_mut = indegree;
+
+    while let Some(current_node_index) = queue.pop_front() {
+        order.push(current_node_index);
+
+        for &connection_index in &outgoing_connections[current_node_index] {
+            let next_index = connections[connection_index].to_index;
+            indegree_mut[next_index] -= 1;
+
+            if indegree_mut[next_index] == 0 {
+                queue.push_back(next_index);
+            }
+        }
+    }
+
+    if order.len() != outgoing_connections.len() {
+        return Err(SimulationError::Validation(
+            "node graph must be acyclic".to_string(),
+        ));
+    }
+
+    Ok(order)
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{
         model::{
-            DrinkingWaterDemand, FoodProductionModel, NetworkConfig, NodeConfig, NodeKind,
-            ReportingFrequency, SUPPORTED_SCHEMA_VERSION, Scenario, ScenarioMetadata,
-            SimulationConfig, TimeSeries, WaterUse,
+            ConnectionConfig, DrinkWaterModule, EnergyModule, EvaporationModule,
+            FoodProductionModule, ModuleSeries, NodeConfig, NodeModules, ReportingFrequency,
+            ReservoirConfig, Scenario, SimulationSettings,
         },
         simulate,
     };
 
-    use super::{EdgeConfig, HydropowerPlant, IrrigationDemand, ReservoirConfig};
+    fn node(id: &str, inflow: f64, connections: Vec<ConnectionConfig>) -> NodeConfig {
+        NodeConfig {
+            id: id.to_string(),
+            reservoir: ReservoirConfig {
+                initial_level: 0.0,
+                max_capacity: 1_000.0,
+            },
+            max_production: 1_000.0,
+            catchment_inflow: ModuleSeries::constant(inflow),
+            connections,
+            modules: NodeModules::default(),
+        }
+    }
 
     #[test]
-    fn daily_engine_supports_monthly_reporting() {
+    fn applies_documented_water_balance_priority() {
         let scenario = Scenario {
-            schema_version: SUPPORTED_SCHEMA_VERSION.to_string(),
-            metadata: ScenarioMetadata {
-                name: "test".to_string(),
-                description: None,
+            settings: SimulationSettings {
+                horizon_days: Some(1),
+                ..SimulationSettings::default()
             },
-            simulation: SimulationConfig {
-                horizon_days: 31,
+            nodes: vec![NodeConfig {
+                id: "reservoir".to_string(),
+                reservoir: ReservoirConfig {
+                    initial_level: 50.0,
+                    max_capacity: 100.0,
+                },
+                max_production: 10.0,
+                catchment_inflow: ModuleSeries::constant(20.0),
+                connections: vec![],
+                modules: NodeModules {
+                    evaporation: EvaporationModule {
+                        rate: ModuleSeries::constant(5.0),
+                    },
+                    drink_water: DrinkWaterModule {
+                        daily_demand: ModuleSeries::constant(15.0),
+                    },
+                    food_production: FoodProductionModule {
+                        water_coefficient: 2.0,
+                        max_food_units: ModuleSeries::constant(8.0),
+                    },
+                    energy: EnergyModule {
+                        price_per_unit: ModuleSeries::constant(3.0),
+                    },
+                },
+            }],
+        };
+
+        let result = simulate(&scenario).expect("simulation should succeed");
+        let node = &result.periods[0].node_results[0];
+
+        assert_eq!(node.evaporation, 5.0);
+        assert_eq!(node.drink_water_met, 15.0);
+        assert_eq!(node.food_produced, 8.0);
+        assert_eq!(node.production_release, 10.0);
+        assert_eq!(node.energy_value, 30.0);
+        assert_eq!(node.reservoir_level, 24.0);
+    }
+
+    #[test]
+    fn preserves_per_node_mass_balance_with_spill() {
+        let water_coefficient = 2.0;
+        let scenario = Scenario {
+            settings: SimulationSettings {
+                horizon_days: Some(1),
+                ..SimulationSettings::default()
+            },
+            nodes: vec![NodeConfig {
+                id: "reservoir".to_string(),
+                reservoir: ReservoirConfig {
+                    initial_level: 30.0,
+                    max_capacity: 40.0,
+                },
+                max_production: 25.0,
+                catchment_inflow: ModuleSeries::constant(100.0),
+                connections: vec![],
+                modules: NodeModules {
+                    evaporation: EvaporationModule {
+                        rate: ModuleSeries::constant(10.0),
+                    },
+                    drink_water: DrinkWaterModule {
+                        daily_demand: ModuleSeries::constant(20.0),
+                    },
+                    food_production: FoodProductionModule {
+                        water_coefficient,
+                        max_food_units: ModuleSeries::constant(15.0),
+                    },
+                    energy: EnergyModule::default(),
+                },
+            }],
+        };
+
+        let result = simulate(&scenario).expect("simulation should succeed");
+        let node = &result.periods[0].node_results[0];
+        let starting_storage = scenario.nodes[0].reservoir.initial_level;
+        let food_water_consumed = node.food_produced * water_coefficient;
+        let water_in = starting_storage + node.total_inflow;
+        let water_out = node.evaporation
+            + node.drink_water_met
+            + food_water_consumed
+            + node.production_release
+            + node.spill
+            + node.reservoir_level;
+
+        assert_approx_eq(water_in, water_out);
+        assert_eq!(node.spill, 5.0);
+        assert_eq!(node.reservoir_level, 40.0);
+    }
+
+    #[test]
+    fn routes_zero_delay_release_in_same_timestep() {
+        let scenario = Scenario {
+            settings: SimulationSettings {
+                horizon_days: Some(1),
+                ..SimulationSettings::default()
+            },
+            nodes: vec![
+                node(
+                    "upper",
+                    100.0,
+                    vec![ConnectionConfig {
+                        node_id: "lower".to_string(),
+                        fraction: 1.0,
+                        delay: 0,
+                    }],
+                ),
+                node("lower", 0.0, vec![]),
+            ],
+        };
+
+        let result = simulate(&scenario).expect("simulation should succeed");
+        let upper = &result.periods[0].node_results[0];
+        let lower = &result.periods[0].node_results[1];
+
+        assert_eq!(upper.production_release, 100.0);
+        assert_eq!(lower.total_inflow, 100.0);
+    }
+
+    #[test]
+    fn routes_delayed_release_to_future_timestep() {
+        let scenario = Scenario {
+            settings: SimulationSettings {
+                horizon_days: Some(2),
+                ..SimulationSettings::default()
+            },
+            nodes: vec![
+                node(
+                    "upper",
+                    100.0,
+                    vec![ConnectionConfig {
+                        node_id: "lower".to_string(),
+                        fraction: 1.0,
+                        delay: 1,
+                    }],
+                ),
+                node("lower", 0.0, vec![]),
+            ],
+        };
+
+        let result = simulate(&scenario).expect("simulation should succeed");
+        let day_0_lower = &result.periods[0].node_results[1];
+        let day_1_lower = &result.periods[1].node_results[1];
+
+        assert_eq!(day_0_lower.total_inflow, 0.0);
+        assert_eq!(day_1_lower.total_inflow, 100.0);
+    }
+
+    #[test]
+    fn monthly_reporting_sums_step_outputs() {
+        let scenario = Scenario {
+            settings: SimulationSettings {
+                horizon_days: Some(31),
                 reporting: ReportingFrequency::Monthly30Day,
-                allocation_order: vec![WaterUse::DrinkingWater, WaterUse::Irrigation],
+                ..SimulationSettings::default()
             },
-            network: NetworkConfig {
-                nodes: vec![
-                    NodeConfig {
-                        id: "source".to_string(),
-                        name: "Source".to_string(),
-                        kind: NodeKind::River,
-                        local_inflow: TimeSeries::Constant { value: 100.0 },
-                        reservoir: None,
-                        drinking_water: None,
-                        irrigation: None,
-                        hydropower: None,
-                    },
-                    NodeConfig {
-                        id: "reservoir".to_string(),
-                        name: "Reservoir".to_string(),
-                        kind: NodeKind::Reservoir,
-                        local_inflow: TimeSeries::Constant { value: 0.0 },
-                        reservoir: Some(ReservoirConfig {
-                            capacity: 500.0,
-                            min_storage: 100.0,
-                            initial_storage: 200.0,
-                            target_release: TimeSeries::Constant { value: 80.0 },
-                        }),
-                        drinking_water: None,
-                        irrigation: Some(IrrigationDemand {
-                            minimum_daily_delivery: Some(TimeSeries::Constant { value: 10.0 }),
-                            target_daily_delivery: TimeSeries::Constant { value: 20.0 },
-                            production_model: FoodProductionModel::Linear {
-                                food_per_unit_water: 2.0,
-                            },
-                        }),
-                        hydropower: Some(HydropowerPlant {
-                            minimum_daily_energy: Some(TimeSeries::Constant { value: 20.0 }),
-                            target_daily_energy: None,
-                            max_turbine_flow: TimeSeries::Constant { value: 50.0 },
-                            energy_per_unit_water: 0.5,
-                        }),
-                    },
-                ],
-                edges: vec![EdgeConfig {
-                    id: "source_to_reservoir".to_string(),
-                    from: "source".to_string(),
-                    to: "reservoir".to_string(),
-                    flow_share: 1.0,
-                    loss_fraction: 0.1,
-                }],
-            },
+            nodes: vec![node("source", 10.0, vec![])],
         };
 
         let result = simulate(&scenario).expect("simulation should succeed");
 
         assert_eq!(result.periods.len(), 2);
-        assert_eq!(result.periods[0].start_day, 0);
-        assert_eq!(result.periods[0].end_day_exclusive, 30);
-        assert_eq!(result.periods[1].start_day, 30);
-        assert_eq!(result.periods[1].end_day_exclusive, 31);
-        assert!(result.summary.total_food_produced > 0.0);
-        assert!(result.summary.total_energy_generated > 0.0);
+        assert_eq!(result.periods[0].node_results[0].total_inflow, 300.0);
+        assert_eq!(result.periods[1].node_results[0].total_inflow, 10.0);
     }
 
     #[test]
-    fn detects_cycles() {
+    fn rejects_cycles() {
         let scenario = Scenario {
-            schema_version: SUPPORTED_SCHEMA_VERSION.to_string(),
-            metadata: ScenarioMetadata {
-                name: "cyclic".to_string(),
-                description: None,
+            settings: SimulationSettings {
+                horizon_days: Some(1),
+                ..SimulationSettings::default()
             },
-            simulation: SimulationConfig {
-                horizon_days: 1,
-                reporting: ReportingFrequency::Daily,
-                allocation_order: vec![WaterUse::DrinkingWater, WaterUse::Irrigation],
-            },
-            network: NetworkConfig {
-                nodes: vec![
-                    NodeConfig {
-                        id: "a".to_string(),
-                        name: "A".to_string(),
-                        kind: NodeKind::River,
-                        local_inflow: TimeSeries::Constant { value: 1.0 },
-                        reservoir: None,
-                        drinking_water: None,
-                        irrigation: None,
-                        hydropower: None,
-                    },
-                    NodeConfig {
-                        id: "b".to_string(),
-                        name: "B".to_string(),
-                        kind: NodeKind::River,
-                        local_inflow: TimeSeries::Constant { value: 0.0 },
-                        reservoir: None,
-                        drinking_water: None,
-                        irrigation: None,
-                        hydropower: None,
-                    },
-                ],
-                edges: vec![
-                    EdgeConfig {
-                        id: "a_to_b".to_string(),
-                        from: "a".to_string(),
-                        to: "b".to_string(),
-                        flow_share: 1.0,
-                        loss_fraction: 0.0,
-                    },
-                    EdgeConfig {
-                        id: "b_to_a".to_string(),
-                        from: "b".to_string(),
-                        to: "a".to_string(),
-                        flow_share: 1.0,
-                        loss_fraction: 0.0,
-                    },
-                ],
-            },
+            nodes: vec![
+                node(
+                    "a",
+                    1.0,
+                    vec![ConnectionConfig {
+                        node_id: "b".to_string(),
+                        fraction: 1.0,
+                        delay: 0,
+                    }],
+                ),
+                node(
+                    "b",
+                    0.0,
+                    vec![ConnectionConfig {
+                        node_id: "a".to_string(),
+                        fraction: 1.0,
+                        delay: 0,
+                    }],
+                ),
+            ],
         };
 
         let error = simulate(&scenario).expect_err("cycle should be rejected");
@@ -892,95 +653,60 @@ mod tests {
     }
 
     #[test]
-    fn allocation_order_controls_soft_shortfalls() {
+    fn clamps_production_level_fraction_to_action_bounds() {
         let scenario = Scenario {
-            schema_version: SUPPORTED_SCHEMA_VERSION.to_string(),
-            metadata: ScenarioMetadata {
-                name: "allocation".to_string(),
-                description: None,
+            settings: SimulationSettings {
+                horizon_days: Some(1),
+                production_level_fraction: 2.0,
+                ..SimulationSettings::default()
             },
-            simulation: SimulationConfig {
-                horizon_days: 1,
-                reporting: ReportingFrequency::Daily,
-                allocation_order: vec![WaterUse::Irrigation, WaterUse::DrinkingWater],
-            },
-            network: NetworkConfig {
-                nodes: vec![NodeConfig {
-                    id: "demand".to_string(),
-                    name: "Demand".to_string(),
-                    kind: NodeKind::River,
-                    local_inflow: TimeSeries::Constant { value: 100.0 },
-                    reservoir: None,
-                    drinking_water: Some(DrinkingWaterDemand {
-                        minimum_daily_delivery: Some(TimeSeries::Constant { value: 80.0 }),
-                        target_daily_delivery: TimeSeries::Constant { value: 80.0 },
-                    }),
-                    irrigation: Some(IrrigationDemand {
-                        minimum_daily_delivery: Some(TimeSeries::Constant { value: 80.0 }),
-                        target_daily_delivery: TimeSeries::Constant { value: 80.0 },
-                        production_model: FoodProductionModel::Linear {
-                            food_per_unit_water: 1.0,
-                        },
-                    }),
-                    hydropower: None,
-                }],
-                edges: vec![],
-            },
+            nodes: vec![node("source", 100.0, vec![])],
         };
 
-        let result = simulate(&scenario).expect("simulation should succeed");
-        let node = &result.periods[0].node_results[0];
-        let drinking = node.drinking_water.as_ref().expect("drinking result");
-        let irrigation = node.irrigation.as_ref().expect("irrigation result");
+        let result = simulate(&scenario).expect("out-of-range action should be clamped");
+        let source = &result.periods[0].node_results[0];
 
-        assert_eq!(irrigation.water.actual_delivery, 80.0);
-        assert_eq!(drinking.actual_delivery, 20.0);
-        assert_eq!(drinking.shortfall_to_minimum, 60.0);
-        assert_eq!(drinking.reliability_to_minimum, 0.25);
+        assert_eq!(source.production_release, 100.0);
     }
 
     #[test]
-    fn linear_food_production_uses_delivered_irrigation_water() {
+    fn rejects_connection_fraction_sum_above_one() {
         let scenario = Scenario {
-            schema_version: SUPPORTED_SCHEMA_VERSION.to_string(),
-            metadata: ScenarioMetadata {
-                name: "food".to_string(),
-                description: None,
+            settings: SimulationSettings {
+                horizon_days: Some(1),
+                ..SimulationSettings::default()
             },
-            simulation: SimulationConfig {
-                horizon_days: 1,
-                reporting: ReportingFrequency::Daily,
-                allocation_order: vec![WaterUse::DrinkingWater, WaterUse::Irrigation],
-            },
-            network: NetworkConfig {
-                nodes: vec![NodeConfig {
-                    id: "farm".to_string(),
-                    name: "Farm".to_string(),
-                    kind: NodeKind::River,
-                    local_inflow: TimeSeries::Constant { value: 25.0 },
-                    reservoir: None,
-                    drinking_water: None,
-                    irrigation: Some(IrrigationDemand {
-                        minimum_daily_delivery: None,
-                        target_daily_delivery: TimeSeries::Constant { value: 50.0 },
-                        production_model: FoodProductionModel::Linear {
-                            food_per_unit_water: 1.5,
+            nodes: vec![
+                node(
+                    "source",
+                    100.0,
+                    vec![
+                        ConnectionConfig {
+                            node_id: "left".to_string(),
+                            fraction: 0.7,
+                            delay: 0,
                         },
-                    }),
-                    hydropower: None,
-                }],
-                edges: vec![],
-            },
+                        ConnectionConfig {
+                            node_id: "right".to_string(),
+                            fraction: 0.4,
+                            delay: 0,
+                        },
+                    ],
+                ),
+                node("left", 0.0, vec![]),
+                node("right", 0.0, vec![]),
+            ],
         };
 
-        let result = simulate(&scenario).expect("simulation should succeed");
-        let irrigation = result.periods[0].node_results[0]
-            .irrigation
-            .as_ref()
-            .expect("irrigation result");
+        let error = simulate(&scenario).expect_err("oversubscribed routing should be rejected");
 
-        assert_eq!(irrigation.water.actual_delivery, 25.0);
-        assert_eq!(irrigation.water.reliability_to_target, 0.5);
-        assert_eq!(irrigation.food_produced, 37.5);
+        assert!(error.to_string().contains("fractions must sum to <= 1.0"));
+    }
+
+    fn assert_approx_eq(left: f64, right: f64) {
+        assert!(
+            (left - right).abs() < 1e-9,
+            "expected {left} to approximately equal {right}"
+        );
     }
 }

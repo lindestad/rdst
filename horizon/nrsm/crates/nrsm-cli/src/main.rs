@@ -26,7 +26,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         unreachable!("all commands should be handled above");
     };
     let scenario_contents = fs::read_to_string(&run.scenario_path)?;
-    let scenario: Scenario = serde_yaml::from_str(&scenario_contents)?;
+    let mut scenario: Scenario = serde_yaml::from_str(&scenario_contents)?;
+    let base_dir = run
+        .scenario_path
+        .parent()
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."));
+    scenario.load_module_csvs(base_dir)?;
     let result = simulate(&scenario)?;
 
     match run.output {
