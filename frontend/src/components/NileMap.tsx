@@ -107,11 +107,7 @@ export function NileMap() {
 
   return (
     <>
-      <div
-        ref={ref}
-        className="absolute inset-0 bg-slate-700"
-        style={{ minHeight: 200 }}
-      />
+      <div ref={ref} className="absolute inset-0 bg-slate-700" />
       {selectedId && (
         <NodeInspector nodeId={selectedId} onClose={() => setSelectedId(null)} />
       )}

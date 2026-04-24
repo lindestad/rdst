@@ -19,14 +19,16 @@ export default function App() {
   }, [setNodes, setSaved]);
 
   return (
-    <div className="h-full grid grid-rows-[auto_1fr_auto] bg-slate-900 text-slate-100">
+    <div className="h-screen flex flex-col bg-slate-900 text-slate-100 overflow-hidden">
       <Header />
       {compareMode ? (
-        <CompareView />
+        <div className="flex-1 min-h-0">
+          <CompareView />
+        </div>
       ) : (
-        <div className="grid grid-cols-[340px_1fr_320px] min-h-0 h-full">
+        <div className="flex-1 min-h-0 grid grid-cols-[340px_1fr_320px]">
           <LeftRail />
-          <div className="relative h-full w-full overflow-hidden">
+          <div className="relative overflow-hidden">
             <NileMap />
             <MonthScrubber />
           </div>
