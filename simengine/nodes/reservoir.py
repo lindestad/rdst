@@ -49,18 +49,20 @@ class Reservoir(Node):
             release_mcm = max(0.0, release_mcm - deficit)
             new_storage = self.min
 
-        release_mcm += spilled_mcm
-        outflow_m3s = mcm_to_m3s_month(release_mcm, days)
+        # Turbined volume = controlled release AFTER min-guard, BEFORE adding spill.
+        # Spillways bypass the turbines, so spilled water produces no energy.
+        turbine_mcm = release_mcm
+        total_out_mcm = turbine_mcm + spilled_mcm
+        outflow_m3s = mcm_to_m3s_month(total_out_mcm, days)
 
         energy_gwh = 0.0
         if self.hep:
-            # Use release_mcm converted to m³ (spilled water doesn't always turbine, but
-            # hackathon simplification: everything released goes through turbines when
-            # the spill flag is off — fine for pitch).
-            release_m3 = release_mcm * 1e6
+            # Energy comes from the turbined (controlled) release only.
+            # Spilled water exits via the spillway and bypasses the turbines.
+            turbine_m3 = turbine_mcm * 1e6
             head = float(self.hep["head_m"])
             eff = float(self.hep["efficiency"])
-            energy_j = release_m3 * head * eff * RHO * G
+            energy_j = turbine_m3 * head * eff * RHO * G
             energy_gwh = energy_j / 3.6e12
 
         self.storage = new_storage
@@ -68,7 +70,8 @@ class Reservoir(Node):
             "outflow_m3s": outflow_m3s,
             "inflow_m3s": inflow_m3s,
             "storage_mcm": new_storage,
-            "release_m3s": mcm_to_m3s_month(release_mcm, days),
+            "release_m3s": mcm_to_m3s_month(turbine_mcm, days),
+            "spill_m3s": mcm_to_m3s_month(spilled_mcm, days),
             "evap_mcm": evap_mcm,
             "energy_gwh": energy_gwh,
         }
