@@ -5,7 +5,6 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-nrsm-dataloader = { path = "../nrsm-dataloader" }
 nrsm-sim-core = { path = "../nrsm-sim-core" }
 serde_json.workspace = true
 serde_yaml.workspace = true

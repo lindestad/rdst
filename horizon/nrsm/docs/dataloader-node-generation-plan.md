@@ -14,6 +14,16 @@ Build the dataloader around the simulator's `node.md` / `module.md` contract:
 
 The loader should produce a simulator-ready snapshot, not a generic data lake.
 
+The long-term shape is a separate dataloader executable:
+
+```powershell
+cargo run -p nrsm-dataloader -- seed --output data\generated --start-date 2020-01-01 --end-date 2020-01-31 --scenarios 3
+```
+
+Source fetches can use Python scripts where official clients are Python-first,
+but simulator execution should remain file-based and should not call external
+APIs.
+
 ```text
 source catalog
   -> raw fetch / source manifest
