@@ -1,4 +1,10 @@
-import Plot from "react-plotly.js";
+import createPlotComponent from "react-plotly.js/factory";
+// plotly.js-dist-min is the bundle we install directly. react-plotly.js's
+// default entry point imports `plotly.js` (the meta-package) which we don't
+// ship — so build the component via the factory instead.
+import Plotly from "plotly.js-dist-min";
+
+const Plot = createPlotComponent(Plotly as any);
 
 export function KpiChart({
   x, y, color, unit,

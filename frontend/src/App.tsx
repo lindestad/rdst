@@ -24,9 +24,9 @@ export default function App() {
       {compareMode ? (
         <CompareView />
       ) : (
-        <div className="grid grid-cols-[340px_1fr_320px] min-h-0">
+        <div className="grid grid-cols-[340px_1fr_320px] min-h-0 h-full">
           <LeftRail />
-          <div className="relative min-h-0">
+          <div className="relative h-full w-full overflow-hidden">
             <NileMap />
             <MonthScrubber />
           </div>
