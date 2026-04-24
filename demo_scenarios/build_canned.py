@@ -18,6 +18,7 @@ from typing import Callable
 
 import pandas as pd
 
+from api.scenario_store import ScenarioStore
 from simengine.engine import run
 from simengine.scenario import (
     Constraints, DemandPolicy, Policy, ReservoirPolicy, Scenario, Weights,
@@ -84,6 +85,13 @@ BUILDERS: list[Callable[[], Scenario]] = [
 
 def main() -> None:
     SCEN.mkdir(parents=True, exist_ok=True)
+    store = ScenarioStore(SCEN)
+    # Delete any previous canned scenarios (matched by name) so this command
+    # is idempotent: running it a second time doesn't leave duplicates.
+    canned_names = {b().name for b in BUILDERS}
+    for row in store.list():
+        if row["name"] in canned_names:
+            store.delete(row["id"])
     for builder in BUILDERS:
         s = builder()
         try:
@@ -95,10 +103,10 @@ def main() -> None:
                 f"Nile graph; run `python -m dataloader nodes` (without --stub) "
                 f"first, or trim the canned scenarios to match your graph."
             ) from e
-        out = SCEN / f"{s.name}.json"
-        s.to_file(out)
+        # Save via the store so filename == scenario.id (what GET /scenarios/{id} opens).
+        store.save(s)
         score = s.results.score if s.results and s.results.score is not None else float("nan")
-        print(f"wrote {out} — score {score:.3f}")
+        print(f"saved {s.name!r} → data/scenarios/{s.id}.json (score {score:.3f})")
 
 
 if __name__ == "__main__":
