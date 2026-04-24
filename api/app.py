@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routes import health, nodes, overlays
+from api.routes import health, nodes, overlays, scenarios
 
 
 def create_app() -> FastAPI:
@@ -15,6 +15,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(nodes.router)
     app.include_router(overlays.router)
+    app.include_router(scenarios.router)
     return app
 
 
