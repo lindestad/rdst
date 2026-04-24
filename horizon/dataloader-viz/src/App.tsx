@@ -1,18 +1,23 @@
 import { useMemo, useState, type ChangeEvent } from "react";
 import {
   AlertTriangle,
+  ArrowLeft,
   BarChart3,
   CheckCircle2,
+  ChevronRight,
   Database,
   FileUp,
   GitBranch,
+  LayoutGrid,
   Layers3,
+  Plus,
   RefreshCcw,
   Search,
   TableProperties,
 } from "lucide-react";
 import { parseBundle, readCsvBundleFromFiles } from "./csv";
 import { sampleBundleFiles } from "./sampleBundle";
+import { visualizers, type VisualizerDefinition, type VisualizerId } from "./visualizers";
 import type {
   DataloaderBundle,
   Diagnostic,
@@ -30,6 +35,17 @@ const viewBox = { width: 1040, height: 680, padding: 58 };
 const sampleBundle = parseBundle("Sample Nile normalized bundle", sampleBundleFiles);
 
 function App() {
+  const [activeVisualizerId, setActiveVisualizerId] = useState<VisualizerId | null>(null);
+  const activeVisualizer = visualizers.find((visualizer) => visualizer.id === activeVisualizerId);
+
+  if (!activeVisualizer) {
+    return <VisualizerHome onOpen={setActiveVisualizerId} />;
+  }
+
+  return <BundleVisualizer onBack={() => setActiveVisualizerId(null)} visualizer={activeVisualizer} />;
+}
+
+function BundleVisualizer({ onBack, visualizer }: { onBack: () => void; visualizer: VisualizerDefinition }) {
   const [bundle, setBundle] = useState<DataloaderBundle>(sampleBundle);
   const [loadError, setLoadError] = useState("");
   const [selectedMetric, setSelectedMetric] = useState("");
@@ -72,9 +88,14 @@ function App() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <div className="title-block">
-          <p>Dataloader Tool</p>
-          <h1>Bundle Visualizer</h1>
+        <div className="title-row">
+          <button className="icon-shell" onClick={onBack} title="Back to visualizers" type="button">
+            <ArrowLeft size={18} />
+          </button>
+          <div className="title-block">
+            <p>{visualizer.eyebrow}</p>
+            <h1>{visualizer.name}</h1>
+          </div>
         </div>
         <div className="top-actions">
           <label className="upload-button" title="Load nodes.csv, edges.csv, and time_series.csv">
@@ -284,6 +305,85 @@ function App() {
         </aside>
       </section>
     </main>
+  );
+}
+
+function VisualizerHome({ onOpen }: { onOpen: (id: VisualizerId) => void }) {
+  return (
+    <main className="home-shell">
+      <header className="home-header">
+        <div className="title-block">
+          <p>Horizon Dataloader</p>
+          <h1>Visualization Console</h1>
+        </div>
+        <div className="home-status">
+          <LayoutGrid size={17} />
+          <span>{visualizers.length} ready visualizer</span>
+        </div>
+      </header>
+
+      <section className="home-stage" aria-label="Available visualizers">
+        <div className="home-intro">
+          <h2>Select a data view</h2>
+          <p>Each visualizer is a focused surface for one normalized data shape. We can add more cards here as new dataloader outputs become real.</p>
+        </div>
+
+        <div className="visualizer-grid">
+          {visualizers.map((visualizer) => (
+            <VisualizerCard key={visualizer.id} onOpen={onOpen} visualizer={visualizer} />
+          ))}
+          <article className="visualizer-card planned-card" aria-label="Future visualizer slot">
+            <div className="planned-preview">
+              <Plus size={26} />
+            </div>
+            <div className="visualizer-copy">
+              <p>Next slot</p>
+              <h3>Future Dataset View</h3>
+              <span>Reserved for raster QA, source inventories, scenario assembly, or optimizer traces.</span>
+            </div>
+          </article>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function VisualizerCard({ onOpen, visualizer }: { onOpen: (id: VisualizerId) => void; visualizer: VisualizerDefinition }) {
+  return (
+    <article className="visualizer-card">
+      <VisualizerPreview visualizer={visualizer} />
+      <div className="visualizer-copy">
+        <p>{visualizer.eyebrow}</p>
+        <h3>{visualizer.name}</h3>
+        <span>{visualizer.summary}</span>
+      </div>
+      <div className="visualizer-stats">
+        {visualizer.stats.map((stat) => (
+          <div key={stat.label}>
+            <strong>{stat.value}</strong>
+            <span>{stat.label}</span>
+          </div>
+        ))}
+      </div>
+      <button className="open-visualizer" onClick={() => onOpen(visualizer.id)} type="button">
+        <span>Open</span>
+        <ChevronRight size={17} />
+      </button>
+    </article>
+  );
+}
+
+function VisualizerPreview({ visualizer }: { visualizer: VisualizerDefinition }) {
+  return (
+    <svg className="visualizer-preview" viewBox="0 0 320 180" role="img" aria-label={`${visualizer.name} preview`}>
+      <rect className="preview-grid" x="0" y="0" width="320" height="180" rx="8" />
+      {visualizer.preview.edges.map((edge) => (
+        <path className="preview-edge" d={edge.d} key={edge.d} strokeWidth={edge.width} />
+      ))}
+      {visualizer.preview.nodes.map((node) => (
+        <circle className="preview-node" cx={node.x} cy={node.y} key={`${node.x}-${node.y}`} r={node.r} />
+      ))}
+    </svg>
   );
 }
 
