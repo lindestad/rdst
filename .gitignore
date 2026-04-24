@@ -1,6 +1,7 @@
 # Project-specific
 herss/
 .superpowers/
+data/
 
 # Rust
 target/
