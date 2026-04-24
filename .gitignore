@@ -1,0 +1,62 @@
+# Project-specific
+herss/
+
+# Rust
+target/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+dist/
+build/
+site/
+*.egg-info/
+.eggs/
+.ipynb_checkpoints/
+
+# C and C++
+*.o
+*.obj
+*.lo
+*.la
+*.a
+*.lib
+*.dll
+*.dylib
+*.so
+*.exe
+*.out
+*.app
+*.iobj
+*.ipdb
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+compile_commands.json
+Makefile
+makedep*
+libtool
+autom4te.cache/
+m4/
+
+# Editors and OS files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
