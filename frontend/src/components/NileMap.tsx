@@ -22,6 +22,9 @@ export function NileMap() {
       zoom: 3.6,
     });
     mapRef.current = map;
+    map.on("error", (e) => console.error("[NileMap] map error", e?.error ?? e));
+    map.on("load", () => console.debug("[NileMap] load fired; size",
+      map.getCanvas().width, "x", map.getCanvas().height));
     map.on("click", "node-circle", (e) => {
       const id = (e.features?.[0]?.properties as any)?.id;
       if (id) setSelectedId(id as string);
@@ -104,7 +107,11 @@ export function NileMap() {
 
   return (
     <>
-      <div ref={ref} className="absolute inset-0" />
+      <div
+        ref={ref}
+        className="absolute inset-0 bg-slate-700"
+        style={{ minHeight: 200 }}
+      />
       {selectedId && (
         <NodeInspector nodeId={selectedId} onClose={() => setSelectedId(null)} />
       )}
