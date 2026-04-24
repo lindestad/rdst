@@ -296,6 +296,21 @@ station product is accessible quickly.
 5. Replace at least `catchment_inflow` for one or two nodes with real GloFAS or
    ERA5-derived values if source access behaves.
 
+## First API Smoke Test
+
+Use the Python CDS API client through `uv`; keep Rust focused on generated
+simulator inputs.
+
+```powershell
+uv run horizon\nrsm\scripts\fetch_glofas_smoke.py --dry-run
+uv run horizon\nrsm\scripts\fetch_glofas_smoke.py --submit
+```
+
+This hits the EWDS `cems-glofas-historical` dataset with a one-day GloFAS v4
+request and writes the raw GRIB2 file under `horizon/nrsm/data/raw/glofas/`.
+Before `--submit`, manually accept the GloFAS dataset Terms of Use on the EWDS
+dataset page while logged in with the same account that owns the API token.
+
 ## Validation
 
 - Config YAML parses and has unique node ids.
