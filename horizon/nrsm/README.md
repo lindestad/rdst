@@ -22,7 +22,7 @@ workspace under `horizon/` so it can grow cleanly inside a larger monorepo.
 - `contracts/scenario.schema.yaml`: machine-readable scenario contract
 - `scenarios/nile-mvp`: small Nile-inspired demo scenario
 - `docs/nile-dataloader-plan.md`: dataset research and visual loading plan
-- `docs/dataloader-node-generation-plan.md`: plan for generating `node.md` / `module.md` simulator inputs from sourced data
+- `docs/dataloader-node-generation-plan.md`: plan for generating `main/node.md` / `main/modules.md` simulator inputs from sourced data
 
 ## MVP Assumptions
 
