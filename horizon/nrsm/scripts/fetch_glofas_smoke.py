@@ -64,12 +64,8 @@ def main() -> int:
     load_dotenv(repo_root / ".env")
     load_dotenv(repo_root / "horizon" / "nrsm" / ".env")
 
-    url = first_present("EWDS_API_URL", "CDS_API_URL") or "https://ewds.climate.copernicus.eu/api"
-    key = first_present("EWDS_API_KEY", "CDS_API_KEY")
-    request = dict(DEFAULT_REQUEST)
-    request["hyear"] = [args.year]
-    request["hmonth"] = [args.month]
-    request["hday"] = [args.day]
+    url, key = api_credentials()
+    request = build_request(args.year, args.month, args.day)
     target = resolve_output_path(repo_root, args.target)
 
     print("GloFAS smoke request")
@@ -143,6 +139,20 @@ def first_present(*keys: str) -> str | None:
         if value:
             return value
     return None
+
+
+def api_credentials() -> tuple[str, str | None]:
+    url = first_present("EWDS_API_URL", "CDS_API_URL") or "https://ewds.climate.copernicus.eu/api"
+    key = first_present("EWDS_API_KEY", "CDS_API_KEY")
+    return url, key
+
+
+def build_request(year: str, month: str, day: str) -> dict[str, object]:
+    request = dict(DEFAULT_REQUEST)
+    request["hyear"] = [year]
+    request["hmonth"] = [month.zfill(2)]
+    request["hday"] = [day.zfill(2)]
+    return request
 
 
 def resolve_output_path(repo_root: Path, target: str) -> Path:

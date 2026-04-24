@@ -314,6 +314,19 @@ If EWDS returns "user didn't accept all required site policies", accept the CEMS
 terms here:
 `https://ewds.climate.copernicus.eu/licences/terms-of-use-cems`.
 
+Run the offline downloader tests with:
+
+```powershell
+uv run horizon\nrsm\scripts\run_glofas_smoke_tests.py
+```
+
+After the EWDS terms are accepted, run the one-day integration fetch with:
+
+```powershell
+$env:RUN_EWDS_INTEGRATION="1"
+uv run horizon\nrsm\scripts\run_glofas_smoke_tests.py
+```
+
 ## Validation
 
 - Config YAML parses and has unique node ids.
