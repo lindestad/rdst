@@ -143,7 +143,7 @@ pub struct NodeModules {
     pub energy: EnergyModule,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct EvaporationModule {
     #[serde(flatten)]
     pub rate: ModuleSeries,
@@ -157,7 +157,28 @@ impl Default for EvaporationModule {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+impl<'de> Deserialize<'de> for EvaporationModule {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Input {
+            Scalar(f64),
+            Structured(ModuleSeries),
+        }
+
+        match Input::deserialize(deserializer)? {
+            Input::Scalar(value) => Ok(Self {
+                rate: ModuleSeries::constant(value),
+            }),
+            Input::Structured(rate) => Ok(Self { rate }),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
 pub struct DrinkWaterModule {
     #[serde(flatten)]
     pub daily_demand: ModuleSeries,
@@ -167,6 +188,27 @@ impl Default for DrinkWaterModule {
     fn default() -> Self {
         Self {
             daily_demand: ModuleSeries::constant(0.0),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for DrinkWaterModule {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Input {
+            Scalar(f64),
+            Structured(ModuleSeries),
+        }
+
+        match Input::deserialize(deserializer)? {
+            Input::Scalar(value) => Ok(Self {
+                daily_demand: ModuleSeries::constant(value),
+            }),
+            Input::Structured(daily_demand) => Ok(Self { daily_demand }),
         }
     }
 }
@@ -206,7 +248,7 @@ impl FoodProductionModule {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct EnergyModule {
     #[serde(flatten)]
     pub price_per_unit: ModuleSeries,
@@ -216,6 +258,27 @@ impl Default for EnergyModule {
     fn default() -> Self {
         Self {
             price_per_unit: ModuleSeries::constant(0.0),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for EnergyModule {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Input {
+            Scalar(f64),
+            Structured(ModuleSeries),
+        }
+
+        match Input::deserialize(deserializer)? {
+            Input::Scalar(value) => Ok(Self {
+                price_per_unit: ModuleSeries::constant(value),
+            }),
+            Input::Structured(price_per_unit) => Ok(Self { price_per_unit }),
         }
     }
 }
@@ -528,5 +591,31 @@ nodes:
         assert!(error.to_string().contains("missing column `scenario_2`"));
 
         fs::remove_dir_all(&dir).expect("temporary directory should be removed");
+    }
+
+    #[test]
+    fn accepts_scalar_shorthand_for_simple_modules() {
+        let scenario: Scenario = serde_yaml::from_str(
+            r#"
+nodes:
+  - id: test_node
+    reservoir:
+      initial_level: 0.0
+      max_capacity: 1000.0
+    max_production: 100.0
+    catchment_inflow:
+      rate: 10.0
+    modules:
+      evaporation: 1.0
+      drink_water: 2.0
+      energy: 0.5
+"#,
+        )
+        .expect("scenario yaml should parse");
+
+        let modules = &scenario.nodes[0].modules;
+        assert_eq!(modules.evaporation.rate.value_at(0), 1.0);
+        assert_eq!(modules.drink_water.daily_demand.value_at(0), 2.0);
+        assert_eq!(modules.energy.price_per_unit.value_at(0), 0.5);
     }
 }

@@ -1,7 +1,7 @@
 $schema: https://json-schema.org/draft/2020-12/schema
 $id: https://cassini.local/nrsm/scenario.schema.yaml
 title: NRSM Scenario
-description: YAML scenario contract consumed by the NRSM simulator, matching root node.md/module.md.
+description: YAML scenario contract consumed by the NRSM simulator, matching main/node.md and main/modules.md.
 type: object
 additionalProperties: false
 required:
@@ -90,10 +90,12 @@ $defs:
         minimum: 0
         default: 0
   rate_module:
-    allOf:
+    oneOf:
+      - type: number
       - $ref: "#/$defs/module_series"
   drink_water_module:
-    allOf:
+    oneOf:
+      - type: number
       - $ref: "#/$defs/module_series"
   food_production_module:
     type: object
@@ -115,7 +117,8 @@ $defs:
         type: string
         default: scenario_1
   energy_module:
-    allOf:
+    oneOf:
+      - type: number
       - $ref: "#/$defs/module_series"
   module_series:
     oneOf:
