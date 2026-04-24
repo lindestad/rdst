@@ -360,8 +360,7 @@ from simengine.nodes.source import Source
 
 
 def test_source_outflow_from_runoff():
-    # 100,000 km² catchment × 30 mm runoff/month × scale 1.0
-    # → 30 mm × 1e5 km² = 3.0e9 m³/month → m³/s ÷ (30×86400) ≈ 1157 m³/s
+    # 30 mm × 1e5 km² / (31 × 86400) ≈ 1120 m³/s for Jan
     src = Source(id="src", upstream=[], downstream=["x"],
                  catchment_area_km2=100000, catchment_scale=1.0)
     forcings = pd.DataFrame({
@@ -384,7 +383,8 @@ def test_source_catchment_scale_multiplies():
     src.load_forcings(forcings)
     state: dict = {}
     src.step(0, state)
-    assert 2300 < state["src"]["outflow_m3s"] < 2400
+    # 30 mm × 1e5 km² × 2.0 / (31 × 86400) ≈ 2240 m³/s for Jan (31-day month)
+    assert 2200 < state["src"]["outflow_m3s"] < 2300
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
