@@ -14,7 +14,8 @@ workspace under `horizon/` so it can grow cleanly inside a larger monorepo.
 ## Workspace Layout
 
 - `crates/nrsm-sim-core`: public simulation API and domain model
-- `crates/nrsm-cli`: command-line runner for JSON scenarios
+- `crates/nrsm-cli`: command-line runner for YAML scenarios
+- `contracts/scenario.schema.yaml`: machine-readable scenario contract
 - `scenarios/nile-mvp`: small Nile-inspired demo scenario
 
 ## MVP Assumptions
@@ -35,5 +36,5 @@ Those choices keep the first implementation compact while leaving room for:
 ## Run The Demo
 
 ```powershell
-cargo run -p nrsm-cli -- scenarios/nile-mvp/scenario.json --pretty
+cargo run -p nrsm-cli -- scenarios/nile-mvp/scenario.yaml
 ```

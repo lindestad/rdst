@@ -5,8 +5,8 @@ use crate::{
     model::{
         DeliveryResult, EdgeConfig, EdgeResult, EngineTimeStep, HydropowerPlant, HydropowerResult,
         IrrigationDemand, IrrigationResult, NetworkConfig, NodeConfig, NodeKind, NodeResult,
-        PeriodResult, ReportingFrequency, ReservoirConfig, Scenario, SimulationResult,
-        SimulationSummary,
+        PeriodResult, ReportingFrequency, ReservoirConfig, SUPPORTED_SCHEMA_VERSION, Scenario,
+        SimulationResult, SimulationSummary,
     },
 };
 
@@ -21,6 +21,7 @@ pub fn simulate(scenario: &Scenario) -> Result<SimulationResult, SimulationError
     let summary = summarize(&periods);
 
     Ok(SimulationResult {
+        schema_version: scenario.schema_version.clone(),
         metadata: scenario.metadata.clone(),
         engine_time_step: EngineTimeStep::Daily,
         reporting: scenario.simulation.reporting,
@@ -407,6 +408,13 @@ fn merge_hydropower(target: &mut Option<HydropowerResult>, source: &Option<Hydro
 }
 
 fn validate_scenario(scenario: &Scenario) -> Result<(), SimulationError> {
+    if scenario.schema_version != SUPPORTED_SCHEMA_VERSION {
+        return Err(SimulationError::Validation(format!(
+            "unsupported schema_version `{}`, expected `{SUPPORTED_SCHEMA_VERSION}`",
+            scenario.schema_version
+        )));
+    }
+
     if scenario.simulation.horizon_days == 0 {
         return Err(SimulationError::Validation(
             "simulation horizon must be at least one day".to_string(),
@@ -686,8 +694,8 @@ impl CompiledNetwork {
 mod tests {
     use crate::{
         model::{
-            NetworkConfig, NodeConfig, NodeKind, ReportingFrequency, Scenario, ScenarioMetadata,
-            SimulationConfig, TimeSeries,
+            NetworkConfig, NodeConfig, NodeKind, ReportingFrequency, SUPPORTED_SCHEMA_VERSION,
+            Scenario, ScenarioMetadata, SimulationConfig, TimeSeries,
         },
         simulate,
     };
@@ -697,6 +705,7 @@ mod tests {
     #[test]
     fn daily_engine_supports_monthly_reporting() {
         let scenario = Scenario {
+            schema_version: SUPPORTED_SCHEMA_VERSION.to_string(),
             metadata: ScenarioMetadata {
                 name: "test".to_string(),
                 description: None,
@@ -766,6 +775,7 @@ mod tests {
     #[test]
     fn detects_cycles() {
         let scenario = Scenario {
+            schema_version: SUPPORTED_SCHEMA_VERSION.to_string(),
             metadata: ScenarioMetadata {
                 name: "cyclic".to_string(),
                 description: None,
