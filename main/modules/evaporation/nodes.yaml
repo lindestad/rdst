@@ -1,0 +1,159 @@
+# Reservoir nodes for evaporation module
+# Includes bounding box extents for each lake and reservoir surface area
+
+nodes:
+  - id: victoria
+    latitude: -1.0
+    longitude: 33.0
+    reservoir_area_km2: 68800   # Lake Victoria (Wikipedia)
+    interior_lat: -0.9
+    interior_lon: 33.2
+    extent:
+      lat_min: -2.7
+      lat_max: 0.5
+      lon_min: 31.5
+      lon_max: 34.5
+
+  - id: southwest
+    latitude: 8.5
+    longitude: 29.5
+    reservoir_area_km2: 15000   # Sudd / Sobat area (approx)
+    interior_lat: 8.5
+    interior_lon: 30.0
+    extent:
+      lat_min: 5.0
+      lat_max: 12.0
+      lon_min: 27.0
+      lon_max: 32.0
+
+  - id: karthoum
+    latitude: 15.5
+    longitude: 32.5
+    reservoir_area_km2: 600   # Near White/Blue Nile confluence (approx)
+    interior_lat: 15.5
+    interior_lon: 32.5
+    extent:
+      lat_min: 15.0
+      lat_max: 16.0
+      lon_min: 32.0
+      lon_max: 34.0
+
+  - id: merowe
+    latitude: 18.5
+    longitude: 32.5
+    reservoir_area_km2: 1200  # Merowe Dam reservoir (approx)
+    interior_lat: 18.74
+    interior_lon: 32.056
+    extent:
+      lat_min: 18.5
+      lat_max: 19.5
+      lon_min: 31.5
+      lon_max: 33.5
+
+  - id: aswand
+    latitude: 24.0
+    longitude: 32.9
+    reservoir_area_km2: 5250  # Lake Nasser / Aswan (Wikipedia)
+    interior_lat: 23.5
+    interior_lon: 32.8
+    extent:
+      lat_min: 22.82
+      lat_max: 24.0
+      lon_min: 32.4
+      lon_max: 33.1
+
+  - id: cairo
+    latitude: 30.8
+    longitude: 31.0
+    reservoir_area_km2: 200   # Nile Delta / irrigated area (approx)
+    interior_lat: 31.0
+    interior_lon: 31.5
+    extent:
+      lat_min: 29.5
+      lat_max: 31.5
+      lon_min: 30.5
+      lon_max: 32.5
+
+  - id: singa
+    latitude: 13.2
+    longitude: 34.0
+    reservoir_area_km2: 350   # Sennar Dam (approx)
+    interior_lat: 13.2
+    interior_lon: 34.0
+    extent:
+      lat_min: 12.5
+      lat_max: 13.8
+      lon_min: 33.5
+      lon_max: 34.5
+
+  - id: roseires
+    latitude: 11.9
+    longitude: 34.4
+    reservoir_area_km2: 480   # Roseires Dam (approx)
+    interior_lat: 11.74
+    interior_lon: 34.41
+    extent:
+      lat_min: 11.5
+      lat_max: 12.3
+      lon_min: 34.0
+      lon_max: 34.8
+
+  - id: gerd
+    latitude: 11.2
+    longitude: 34.9
+    reservoir_area_km2: 1800  # Grand Ethiopian Renaissance Dam reservoir (approx)
+    interior_lat: 11.0
+    interior_lon: 35.2
+    extent:
+      lat_min: 10.4
+      lat_max: 11.27
+      lon_min: 35.0
+      lon_max: 35.6
+
+  - id: tana
+    latitude: 12.2
+    longitude: 37.3
+    reservoir_area_km2: 3100  # Lake Tana (Wikipedia)
+    interior_lat: 12.2
+    interior_lon: 37.3
+    extent:
+      lat_min: 11.8
+      lat_max: 12.6
+      lon_min: 36.8
+      lon_max: 37.8
+
+  - id: kashm
+    latitude: 15.5
+    longitude: 36.0
+    reservoir_area_km2: 600   # Kassala area (approx)
+    interior_lat: 15.5
+    interior_lon: 36.0
+    extent:
+      lat_min: 15.0
+      lat_max: 16.0
+      lon_min: 35.5
+      lon_max: 36.5
+
+  - id: tsengh
+    latitude: 13.5
+    longitude: 35.5
+    reservoir_area_km2: 320   # Tekeze Dam (approx)
+    interior_lat: 13.5
+    interior_lon: 35.5
+    extent:
+      lat_min: 13.0
+      lat_max: 14.0
+      lon_min: 35.0
+      lon_max: 36.0
+
+  - id: ozentari
+    latitude: 10.8
+    longitude: 36.0
+    reservoir_area_km2: 200   # Omo Basin / lower Omo (approx)
+    interior_lat: 11.0
+    interior_lon: 36.0
+    extent:
+      lat_min: 10.2
+      lat_max: 11.4
+      lon_min: 35.5
+      lon_max: 36.5
