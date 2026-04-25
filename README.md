@@ -9,7 +9,7 @@ RDST is a compact digital-twin prototype for exploring water-policy tradeoffs ac
 | Area | Path | Purpose |
 | --- | --- | --- |
 | Simulator | `horizon/nrsm` | Rust workspace for the Nile River Systems Model MVP. |
-| Dataloader | `horizon/nrsm/crates/nrsm-dataloader` | Standalone generator for sourced simulator configs, module CSVs, and staging metadata. |
+| Dataloader | `horizon/nrsm/crates/nrsm-dataloader` | Assembles canonical `horizon/data` CSVs into simulator configs, module CSVs, and staging metadata. |
 | Scenario contract | `horizon/nrsm/contracts/scenario.schema.yaml` | Machine-readable YAML schema for scenario files. |
 | Demo scenario | `horizon/nrsm/scenarios/nile-mvp/scenario.yaml` | Small Nile-inspired network used by the CLI and visualizer. |
 | Visualizer | `nile-visualizer-app` | Vite + React app for inspecting simulator output. |
@@ -24,7 +24,7 @@ RDST
 |-- horizon/nrsm/              Rust simulator, CLI, contracts, scenarios
 |   |-- crates/nrsm-sim-core   Daily engine, graph model, aggregation
 |   |-- crates/nrsm-cli        YAML scenario runner
-|   |-- crates/nrsm-dataloader Standalone sourced-data generator
+|   |-- crates/nrsm-dataloader Canonical-data assembler and seed generator
 |   |-- contracts/             Scenario schema
 |   `-- scenarios/nile-mvp/    Demo Nile scenario
 |-- horizon/nile-digital-twin/ Python/FastAPI/React draft prototype
@@ -54,7 +54,15 @@ cd horizon\nrsm
 cargo run -p nrsm-cli -- scenarios\nile-mvp\scenario.yaml --json --pretty
 ```
 
-Generate dataloader files:
+Assemble the canonical Python dataloader outputs into simulator files:
+
+```powershell
+cd horizon\nrsm
+cargo run -p nrsm-dataloader -- assemble --input ..\data --output data\generated --start-date 2005-01-01 --end-date 2005-01-31
+cargo run -p nrsm-cli -- data\generated\config.yaml --json --pretty
+```
+
+Generate deterministic seed files:
 
 ```powershell
 cd horizon\nrsm
