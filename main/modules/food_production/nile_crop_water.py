@@ -105,9 +105,11 @@ def load_era5_daily(node_id: str) -> pd.Series:
     """
     Load the cached monthly ERA5 ET₀ CSV for *node_id* and interpolate
     to daily resolution using PCHIP (same method as copernicus_egypt_agriculture.py).
+    The series is clipped to the last real ERA5 data month; dates beyond that
+    are excluded so they don't contaminate the plot tail.
     """
-    slug = re.sub(r"\W+", "_", node_id.lower()).strip("_")
-    csv  = ERA5_DIR / f"{slug}_{YEAR_FROM}_{YEAR_TO}.csv"
+    slug  = re.sub(r"\W+", "_", node_id.lower()).strip("_")
+    csv   = ERA5_DIR / f"{slug}_{YEAR_FROM}_{YEAR_TO}.csv"
     if not csv.exists():
         raise FileNotFoundError(
             f"ERA5 cache not found: {csv}\n"
@@ -117,12 +119,17 @@ def load_era5_daily(node_id: str) -> pd.Series:
     monthly = pd.read_csv(csv, index_col=0, parse_dates=True).squeeze("columns")
     monthly.name = "et0_mm_day"
 
+    # Last month that is not a flat extension (last month with a real observation)
+    last_real_month = monthly.index[monthly.diff().abs() > 0].max()
+    # Keep up to last day of that month for the daily output
+    last_day = last_real_month + pd.offsets.MonthEnd(0)
+
     # Assign each monthly value to the 15th and PCHIP-interpolate
     mid     = monthly.copy()
     mid.index = pd.DatetimeIndex(
         [pd.Timestamp(t.year, t.month, 15) for t in monthly.index]
     )
-    daily_idx = pd.date_range(f"{YEAR_FROM}-01-01", f"{YEAR_TO}-12-31", freq="D")
+    daily_idx = pd.date_range(f"{YEAR_FROM}-01-01", last_day, freq="D")
     epoch     = pd.Timestamp(f"{YEAR_FROM}-01-01")
     x_m = np.array([(t - epoch).days for t in mid.index],   dtype=float)
     x_d = np.array([(t - epoch).days for t in daily_idx], dtype=float)
@@ -258,8 +265,8 @@ def make_plot(results: list[dict]) -> None:
             # Daily thin line
             ax.plot(s.index, s.values, linewidth=0.35, alpha=0.22, color=color)
 
-            # 365-day rolling mean (bold)
-            roll = s.rolling(365, center=True, min_periods=90).mean()
+            # 365-day rolling mean — require full window so edges don't show
+            roll = s.rolling(365, center=True, min_periods=365).mean()
             label = (
                 f"{nid.capitalize()}"
                 f"  [{zdata['area_ha'] / 1e3:,.0f} k ha"
