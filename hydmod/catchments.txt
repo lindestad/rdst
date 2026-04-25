@@ -1,0 +1,14 @@
+Nodeid	CatchmentName	AREA_KM2	Lake_Area	fraction
+0	Cairo   197840	1978	0.01
+1	Aswand  536191	5250	0.03
+2	Merowe  248410	7452	0.03
+3	Karthoum    188740	5662	0.03
+4	Singa   117490	3525	0.03
+5	Kashm   24834	745	0.03
+6	Tsengh  63558	636	0.01
+7	Ozentari    25231	252	0.01
+8	Tana    18260	183	0.01
+9	Roseires    13243	132	0.01
+10	GERD    164452	1880	0.01
+11	SouthWest   1221321	24426	0.02
+12	Victoria    263804	68000	0.26
