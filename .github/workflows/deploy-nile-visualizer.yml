@@ -1,11 +1,6 @@
 name: Deploy Nile visualizer
 
 on:
-  push:
-    branches: [main, master]
-    paths:
-      - "nile-visualizer-app/**"
-      - ".github/workflows/deploy-nile-visualizer.yml"
   workflow_dispatch:
 
 permissions:

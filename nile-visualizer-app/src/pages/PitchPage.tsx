@@ -11,23 +11,50 @@ import {
 const pitchCards: Array<{ title: string; body: string; Icon: LucideIcon }> = [
   {
     title: "The problem",
-    body: "Water allocation decisions are often discussed through separate spreadsheets, maps, and sector models. That makes tradeoffs hard to see and harder to explain.",
+    body: "Water policy in shared river basins is one of the hardest coordination problems in the world. Hold back water in Ethiopia for hydropower and Egypt's farms get less irrigation. Release early for agriculture and reservoirs run low when drought hits. Today these tradeoffs are navigated with spreadsheets, political pressure, and guesswork.",
     Icon: Globe2,
   },
   {
-    title: "The solution",
-    body: "Fairwater turns simulator runs into a shared visual workspace for river flow, reservoir releases, agriculture, municipal demand, and energy output.",
+    title: "Our solution",
+    body: "FairWater is a digital twin for river basin policy: a what-if sandbox that lets anyone see the downstream consequences of a water decision before it happens. Move a slider, run a scenario, and in seconds see the cascading impact on drinking-water reliability, food production, and hydropower output in real, comparable units.",
     Icon: Target,
   },
   {
-    title: "The evidence layer",
-    body: "A Rust simulation core produces reproducible outputs, while the web interface translates those outputs into plots, basin state, and sector indicators.",
+    title: "What makes us different",
+    body: "We rely exclusively on open satellite data. Our ground truth comes from the EU Copernicus programme: free, independent, and trusted by scientists worldwide. No proprietary feeds, no black-box algorithms, every number traceable back to its source. That neutrality is what lets opposing parties share the same fact base.",
     Icon: Satellite,
   },
   {
-    title: "The outcome",
-    body: "Teams can compare scenarios, identify stress points, and communicate the consequences of policy choices without hiding the underlying model assumptions.",
+    title: "The opportunity",
+    body: "The World Bank finances over $26B in water infrastructure annually and every project needs credible impact assessment. The Nile is our starting point; because we rely entirely on open data, the platform generalizes to any basin in the world, from the Mekong to the Colorado, without renegotiating data access with any government.",
     Icon: ShieldCheck,
+  },
+];
+
+const dataSources: Array<{ term: string; description: string }> = [
+  {
+    term: "ERA5 reanalysis",
+    description: "Twenty years of validated climate forcings from Copernicus, used for historical calibration and stress-test scenarios.",
+  },
+  {
+    term: "Sentinel-2 imagery",
+    description: "Optical satellite observations of real crop health and irrigation footprint across the basin.",
+  },
+  {
+    term: "Physics-based river model",
+    description: "A reproducible Rust simulation core calibrated against measured discharge data at gauging stations.",
+  },
+  {
+    term: "Reservoir levels (live)",
+    description: "Near real-time reservoir storage from satellite altimetry feeds. Source: TBD.",
+  },
+  {
+    term: "Crop production (live)",
+    description: "Current-season crop production estimates derived from satellite indices. Source: TBD.",
+  },
+  {
+    term: "Runoff and inflow (live)",
+    description: "Real-time runoff and tributary inflow signals feeding the basin model. Source: TBD.",
   },
 ];
 
@@ -36,12 +63,15 @@ export function PitchPage({ onOpenVisualization }: { onOpenVisualization: () => 
     <section className="content-page pitch-page">
       <div className="content-hero">
         <div>
-          <p className="app-kicker">Fairwater pitch</p>
-          <h2>Transparent scenario planning for shared river basins</h2>
+          <p className="app-kicker">FairWater</p>
+          <h2>Fair and optimal water distribution across borders</h2>
           <p>
-            Fairwater helps decision-makers and technical teams explore how
-            reservoir operations, drought stress, irrigation demand, and
-            municipal needs affect downstream flow, food production, and energy.
+            The Nile feeds 500 million people across 11 countries. Every year,
+            decisions about dam releases, irrigation allocations, and reservoir
+            schedules are made with incomplete information, and the consequences
+            ripple downstream for decades. Droughts worsen. Crops fail. Cities
+            run dry. FairWater makes those consequences visible before the
+            decision is made.
           </p>
           <div className="hero-actions">
             <button className="file-button" onClick={onOpenVisualization} type="button">
@@ -81,48 +111,35 @@ export function PitchPage({ onOpenVisualization }: { onOpenVisualization: () => 
 
       <section className="wide-band">
         <div>
-          <p className="app-kicker">Pitch</p>
-          <h2>From simulator output to shared evidence</h2>
+          <p className="app-kicker">Who it's for</p>
+          <h2>Built for the people in the room when hard water decisions get made</h2>
         </div>
         <p>
-          The current prototype converts NRSM outputs into a browser-based basin
-          view. Line widths show routed water, panels surface sector outcomes,
-          and plots summarize basin balance. The product direction is a simple
-          web workspace where users can upload or select scenarios, inspect
-          tradeoffs, and export evidence for discussion.
+          International organizations such as the UN, the World Bank, and
+          regional river basin bodies working to prevent water conflicts and
+          support cooperative agreements. Foreign aid and development programs
+          that need rigorous, defensible impact assessments for water
+          infrastructure investments. National governments and ministries
+          managing shared watercourses and needing decision support they can
+          stand behind in public. Hydropower companies and water utilities
+          seeking to optimize operations while demonstrating respect for
+          downstream obligations. If you work in any of these spaces, FairWater
+          was built with you in mind.
         </p>
       </section>
 
       <section className="pitch-outline">
         <div>
-          <p className="app-kicker">Pitch skeleton</p>
-          <h2>Storyline to complete</h2>
+          <p className="app-kicker">Open data foundation</p>
+          <h2>Every number traceable to its source</h2>
         </div>
         <dl>
-          <div>
-            <dt>Problem</dt>
-            <dd>Fragmented water planning makes basin tradeoffs difficult to compare and communicate.</dd>
-          </div>
-          <div>
-            <dt>Users</dt>
-            <dd>Water agencies, energy planners, agriculture analysts, basin researchers, and public-interest teams.</dd>
-          </div>
-          <div>
-            <dt>Product</dt>
-            <dd>A lightweight web interface for simulation runs, maps, sector KPIs, and scenario evidence.</dd>
-          </div>
-          <div>
-            <dt>Data and model</dt>
-            <dd>NRSM simulator outputs today, with a path toward hydrology, climate, and Earth observation inputs.</dd>
-          </div>
-          <div>
-            <dt>Demo</dt>
-            <dd>Load a saved run, scrub the period, select a stress point, and explain flow, food, and energy impacts.</dd>
-          </div>
-          <div>
-            <dt>Next step</dt>
-            <dd>Finalize scenario export, add comparison mode, improve basin geometry, and publish under the Fairwater domain.</dd>
-          </div>
+          {dataSources.map(({ term, description }) => (
+            <div key={term}>
+              <dt>{term}</dt>
+              <dd>{description}</dd>
+            </div>
+          ))}
         </dl>
       </section>
     </section>
