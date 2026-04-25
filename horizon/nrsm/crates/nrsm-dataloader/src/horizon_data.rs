@@ -214,6 +214,7 @@ fn catchment_inflow_rows(
 
 const EVAPORATION_TEMP_SLOPE_MM_PER_C: f64 = 0.2301;
 const EVAPORATION_TEMP_INTERCEPT_MM: f64 = -3.0550;
+const SECONDS_PER_DAY: f64 = 86_400.0;
 
 fn evaporation_rows(
     input_dir: &Path,
@@ -253,7 +254,7 @@ fn evaporation_rows(
                     .or_else(|| fallback_values.get(&key).copied())
                     .ok_or_else(|| {
                         format!(
-                            "{} is missing evaporation_m3_day for date {} and no fallback value was available",
+                            "{} is missing direct evaporation_m3_day or evaporation_m3 for date {} and no fallback value was available",
                             path.display(),
                             key
                         )
@@ -601,7 +602,7 @@ fn read_food_water_value_map(
         let value = if let Some(value) = optional_f64(&row, "water_m3_day")? {
             value
         } else if let Some(value) = optional_f64(&row, "water_m3_s")? {
-            value * 86_400.0
+            value * SECONDS_PER_DAY
         } else {
             return Err(format!(
                 "{} is missing `water_m3_day` or `water_m3_s` for date {}",
@@ -886,7 +887,8 @@ mod tests {
                 .join("gezira_irr.food_production.csv"),
         )
         .expect("food module csv should be readable");
-        assert!(food.contains("2005-01-01,42.000000"));
+        assert!(food.contains("2005-01-01,216000.000000"));
+        assert!(food.contains("2005-01-02,259200.000000"));
         let evaporation = fs::read_to_string(output.join("modules").join("res.evaporation.csv"))
             .expect("evaporation module csv should be readable");
         assert!(evaporation.contains("2005-01-01,123.000000"));
@@ -955,11 +957,16 @@ mod tests {
                 "date,precip_mm_day,temp_c,dewpoint_c,radiation_mj_m2_day,wind_ms,runoff_mm_day,quality_flag\n2005-01-01,1,20,5,10,2,1,fixture\n2005-01-02,1,20,5,10,2,1,fixture\n",
             )
             .expect("era5 daily csv");
+            let water_usage = if node_id == "gezira_irr" {
+                "date,water_m3_s\n2005-01-01,2.5\n2005-01-02,3.0\n"
+            } else {
+                "date,et0_mm_day,kc,water_m3_day\n2005-01-01,1,1,42\n2005-01-02,1,1,43\n"
+            };
             fs::write(
                 root.join("agriculture")
                     .join("water_usage")
                     .join(format!("nile_{node_id}_water.csv")),
-                "date,et0_mm_day,kc,water_m3_day\n2005-01-01,1,1,42\n2005-01-02,1,1,43\n",
+                water_usage,
             )
             .expect("water usage csv");
             fs::write(
