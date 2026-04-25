@@ -262,25 +262,33 @@ def _fix_era5_outliers(s: "pd.Series", z_thresh: float = 2.5) -> "pd.Series":
     """
     Detect and replace anomalous monthly ERA5 ET₀ values.
 
-    ERA5-Land has known data quality artefacts (e.g. spurious spikes in the
-    1960s, suppressed values in 2022-2023) where individual months deviate
-    strongly from the long-term climatology for that calendar month.  Any
-    month whose value lies more than *z_thresh* standard deviations from the
-    long-term mean for that calendar month is replaced by that climatological
-    mean, and the replaced indices are reported to stdout.
+    Uses iterative mean/std z-scoring with a std floor (10 % of the monthly
+    mean) to avoid over-sensitivity on months with very tight distributions.
+    Iterating ensures that 1950s artefacts don't inflate the std and mask the
+    2022-2023 anomaly in later passes.
     """
+    import pandas as pd
     s = s.copy()
-    # Compute long-term mean and std for each calendar month (1–12)
-    clim_mean = s.groupby(s.index.month).transform("mean")
-    clim_std  = s.groupby(s.index.month).transform("std")
-    z = (s - clim_mean) / clim_std.replace(0, np.nan)
-    bad = z.abs() > z_thresh
-    if bad.any():
-        n = bad.sum()
-        print(f"  [ERA5 QC] Replaced {n} outlier month(s) with climatological mean "
-              f"(|z| > {z_thresh}): "
-              + ", ".join(t.strftime("%Y-%m") for t in s.index[bad]))
-        s[bad] = clim_mean[bad]
+    all_bad = pd.Series(False, index=s.index)
+
+    for _ in range(10):
+        clim_mean = s.groupby(s.index.month).transform("mean")
+        clim_std  = s.groupby(s.index.month).transform("std")
+        # Floor: std must be at least 10 % of the climatological mean so that
+        # months with very low natural variability don't over-flag small deviations.
+        clim_std  = clim_std.where(clim_std > 0.10 * clim_mean.abs(),
+                                   0.10 * clim_mean.abs())
+        z = (s - clim_mean) / clim_std
+        new_bad = (z.abs() > z_thresh) & ~all_bad
+        if not new_bad.any():
+            break
+        all_bad |= new_bad
+        s[new_bad] = clim_mean[new_bad]
+
+    if all_bad.any():
+        print(f"  [ERA5 QC] Replaced {all_bad.sum()} outlier month(s) with "
+              f"climatological mean (iterative |z| > {z_thresh}): "
+              + ", ".join(t.strftime("%Y-%m") for t in s.index[all_bad]))
     return s
 
 
