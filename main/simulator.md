@@ -2,12 +2,12 @@
 
 The simulator orchestrates a network of [nodes](node.md) over a time horizon,
 stepping forward one timestep at a time. Each node independently manages its
-own water balance (inflow, evaporation, drinking water, food production,
-hydropower release, and spill) and routes surplus water downstream through a
-directed acyclic graph (DAG). External time-varying inputs — inflow, evaporation
-rates, demand, food capacity, and energy prices — are supplied by
-[modules](modules.md) that write their data to CSV files before the simulation
-starts.
+own water balance (inflow, node loss/evaporation, drinking water, food
+production, hydropower release, and spill) and routes surplus water downstream
+through a directed acyclic graph (DAG). External time-varying inputs — inflow,
+node loss/evaporation rates, demand, food capacity, and energy prices — are
+supplied by [modules](modules.md) that write their data to CSV files before the
+simulation starts.
 
 ---
 
@@ -51,7 +51,8 @@ Before the main loop runs, the simulator performs the following steps:
 
 1. **Parse config** — load and validate `config.yaml`. Every `id` must be
    unique; connection `node_id` values must reference existing nodes; all
-   connection fractions for a node must sum to ≤ 1.
+   connection fractions for a node must sum to ≤ 1. Connection fractions define
+   routing topology only; hydrologic loss belongs in the node water balance.
 
 2. **Build the DAG** — derive a topological ordering of nodes from the
    `connections` graph. This ordering is used in every timestep so that
