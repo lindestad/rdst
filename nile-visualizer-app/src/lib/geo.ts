@@ -26,6 +26,16 @@ const viewWorldBounds = {
   bottom: center.y + MAP_VIEWBOX.height / (2 * scale),
 };
 
+// Pad the tile-loading region so zoom-out and pan reveal map beyond the basin
+// frame. Margin is in screen pixels at scale=1; we convert back to world units.
+const TILE_MARGIN_PX = 1300;
+const tileWorldBounds = {
+  left: viewWorldBounds.left - TILE_MARGIN_PX / scale,
+  top: viewWorldBounds.top - TILE_MARGIN_PX / scale,
+  right: viewWorldBounds.right + TILE_MARGIN_PX / scale,
+  bottom: viewWorldBounds.bottom + TILE_MARGIN_PX / scale,
+};
+
 export const osmTiles = buildTiles();
 
 export function projectGeo(longitude: number, latitude: number) {
@@ -161,10 +171,10 @@ function worldPoint(longitude: number, latitude: number) {
 }
 
 function buildTiles() {
-  const minX = Math.floor(viewWorldBounds.left / 256);
-  const maxX = Math.floor(viewWorldBounds.right / 256);
-  const minY = Math.floor(viewWorldBounds.top / 256);
-  const maxY = Math.floor(viewWorldBounds.bottom / 256);
+  const minX = Math.floor(tileWorldBounds.left / 256);
+  const maxX = Math.floor(tileWorldBounds.right / 256);
+  const minY = Math.floor(tileWorldBounds.top / 256);
+  const maxY = Math.floor(tileWorldBounds.bottom / 256);
   const tiles: Array<{ key: string; href: string; x: number; y: number; width: number; height: number }> = [];
   const tileCount = 2 ** MAP_VIEWBOX.tileZoom;
 

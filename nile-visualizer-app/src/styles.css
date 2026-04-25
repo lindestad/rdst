@@ -71,9 +71,9 @@ button {
 .control-label {
   margin: 0;
   color: var(--muted);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
   text-transform: uppercase;
 }
 
@@ -92,7 +92,7 @@ h1 {
 
 h2 {
   margin-top: 4px;
-  font-size: 18px;
+  font-size: 20px;
   line-height: 1.2;
 }
 
@@ -210,8 +210,8 @@ h3 {
 .data-item dt {
   display: block;
   color: var(--muted);
-  font-size: 12px;
-  line-height: 1.2;
+  font-size: 13px;
+  line-height: 1.25;
 }
 
 .summary-item strong,
@@ -221,14 +221,14 @@ h3 {
   display: block;
   margin: 4px 0 0;
   color: var(--ink);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
-  line-height: 1.2;
+  line-height: 1.25;
 }
 
 .workspace {
   display: grid;
-  grid-template-columns: 292px minmax(460px, 1fr) 332px;
+  grid-template-columns: 308px minmax(460px, 1fr) 388px;
   min-height: 0;
 }
 
@@ -491,7 +491,7 @@ h3 {
 
 .control-group,
 .inspector {
-  padding: 12px;
+  padding: 14px;
 }
 
 .control-group.compact {
@@ -595,13 +595,13 @@ h3 {
 }
 
 .metric {
-  min-height: 70px;
-  padding: 10px;
+  min-height: 78px;
+  padding: 12px;
   border-top-width: 4px;
 }
 
 .metric strong {
-  font-size: 20px;
+  font-size: 22px;
 }
 
 .metric.blue {
@@ -767,6 +767,42 @@ h3 {
   height: 100%;
   min-height: 760px;
   background: #cfd8db;
+  cursor: grab;
+  touch-action: none;
+}
+
+.basin-map.panning {
+  cursor: grabbing;
+}
+
+.basin-map .node,
+.basin-map .edge-line {
+  cursor: pointer;
+}
+
+.basin-map.panning .node,
+.basin-map.panning .edge-line {
+  cursor: grabbing;
+}
+
+.map-zoom-controls {
+  position: absolute;
+  z-index: 3;
+  right: 18px;
+  bottom: 22px;
+  display: grid;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid rgba(31, 39, 50, 0.14);
+  border-radius: 9px;
+  background: rgba(248, 249, 250, 0.92);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 14px rgba(31, 39, 50, 0.12);
+}
+
+.map-zoom-controls .icon-button {
+  width: 36px;
+  min-height: 36px;
 }
 
 .basin-frame {
@@ -1114,7 +1150,13 @@ h3 {
 
 .data-item dd {
   margin-left: 0;
-  font-size: 16px;
+  font-size: 18px;
+}
+
+.data-item dt {
+  font-size: 12.5px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
 }
 
 .data-item.good dd {
@@ -1192,13 +1234,13 @@ h3 {
 
 .line-plot span {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
 }
 
 .line-plot strong {
   color: var(--ink);
-  font-size: 13px;
+  font-size: 15px;
 }
 
 .line-plot svg {
