@@ -18,7 +18,7 @@ workspace under `horizon/` so it can grow cleanly inside a larger monorepo.
 
 - `crates/nrsm-sim-core`: public simulation API and domain model
 - `crates/nrsm-cli`: command-line runner for YAML scenarios
-- `crates/nrsm-dataloader`: standalone generator for sourced simulator configs, module CSVs, and staging metadata
+- `crates/nrsm-dataloader`: assembler for canonical `horizon/data` CSVs into simulator configs, module CSVs, and staging metadata
 - `contracts/scenario.schema.yaml`: machine-readable scenario contract
 - `scenarios/nile-mvp`: small Nile-inspired demo scenario
 - `docs/nile-dataloader-plan.md`: dataset research and visual loading plan
@@ -47,7 +47,17 @@ Those choices keep the first implementation compact while leaving room for:
 cargo run -p nrsm-cli -- scenarios/nile-mvp/scenario.yaml
 ```
 
-## Generate Dataloader Files
+## Assemble Canonical Data
+
+```powershell
+cd horizon\nrsm
+cargo run -p nrsm-dataloader -- assemble --input ..\data --output data\generated --start-date 2005-01-01 --end-date 2005-01-31
+cargo run -p nrsm-cli -- data\generated\config.yaml --json --pretty
+```
+
+The `assemble` command reads the Python dataloader's checked-in CSV bundle under
+`horizon/data` and writes simulator-ready files. The older deterministic seed
+path is still available for tests and demos:
 
 ```powershell
 cargo run -p nrsm-dataloader -- seed --output data/generated --start-date 2020-01-01 --end-date 2020-01-31 --scenarios 3
