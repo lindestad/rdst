@@ -557,7 +557,7 @@ policy for GERD that Pareto-beats the historical baseline.
 
 ## Try it
 
-- Code: <https://github.com/…/rdst>
+- Code: <https://github.com/…/fairwater>
 - Demo: `docker compose up` → http://localhost:5173
 - Team: @…  @…  @…  @…  @…
 ```

@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="logo/logo.svg" alt="RDST logo" width="420">
+  <img src="logo/logo.svg" alt="FairWater logo" width="420">
 </p>
 
-# RDST
+# FairWater
 
 **A Nile-focused river systems simulator and visualizer for CASSINI's Space for Water track.**
 
-RDST is a compact digital-twin prototype for exploring water-policy tradeoffs across the Nile basin. It combines a Rust simulation core, a YAML scenario contract, and a React dashboard that turns simulated flows, storage, losses, drinking-water delivery, irrigation, and hydropower into an explorable basin view.
+FairWater is a compact digital-twin prototype for exploring water-policy tradeoffs across the Nile basin. It combines a Rust simulation core, a YAML scenario contract, and a React dashboard that turns simulated flows, storage, losses, drinking-water delivery, irrigation, and hydropower into an explorable basin view.
 
 ## What Is Here
 
@@ -24,7 +24,7 @@ RDST is a compact digital-twin prototype for exploring water-policy tradeoffs ac
 ## Project Shape
 
 ```text
-RDST
+FairWater
 |-- horizon/nrsm/              Rust simulator, CLI, contracts, scenarios
 |   |-- crates/nrsm-sim-core   Daily engine, graph model, aggregation
 |   |-- crates/nrsm-cli        YAML scenario runner
@@ -90,6 +90,6 @@ npm run build
 
 ## Current Status
 
-RDST is an MVP-scale prototype. The Rust core already provides a serializable scenario model, validation, a CLI runner, 30-day aggregation, and result summaries. The React app is a polished local visualizer using typed demo data copied from the Nile MVP scenario and CLI output.
+FairWater is an MVP-scale prototype. The Rust core already provides a serializable scenario model, validation, a CLI runner, 30-day aggregation, and result summaries. The React app is a polished local visualizer using typed demo data copied from the Nile MVP scenario and CLI output.
 
 The next natural integration step is to export scenario and result JSON from the CLI directly into the visualizer's data layer, then replace the copied fixture data with generated payloads.
