@@ -85,3 +85,18 @@ export type PeriodResult = {
   nodeResults: NodePeriodResult[];
   edgeResults: EdgePeriodResult[];
 };
+
+export type RunMetadata = {
+  name: string;
+  source: string;
+  horizon: string;
+  reporting: string;
+  units: string;
+};
+
+export type VisualizerDataset = {
+  metadata: RunMetadata;
+  nodes: NileNode[];
+  edges: NileEdge[];
+  periods: PeriodResult[];
+};
