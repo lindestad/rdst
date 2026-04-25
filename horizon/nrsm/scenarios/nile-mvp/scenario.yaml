@@ -68,6 +68,8 @@ nodes:
     modules:
       energy:
         price_per_unit: 0.38
+        effective_head_m: 67.0
+        turbine_efficiency: 0.9
 
   - id: aswand
     reservoir:
@@ -84,6 +86,8 @@ nodes:
     modules:
       energy:
         price_per_unit: 0.59
+        effective_head_m: 111.0
+        turbine_efficiency: 0.9
 
   - id: cairo
     reservoir:
@@ -133,6 +137,8 @@ nodes:
     modules:
       energy:
         price_per_unit: 0.31
+        effective_head_m: 68.0
+        turbine_efficiency: 0.9
 
   - id: gerd
     reservoir:
@@ -149,6 +155,8 @@ nodes:
     modules:
       energy:
         price_per_unit: 0.68
+        effective_head_m: 145.0
+        turbine_efficiency: 0.9
 
   - id: tana
     reservoir:
