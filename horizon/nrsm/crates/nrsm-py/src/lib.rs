@@ -36,6 +36,7 @@ impl PyPreparedScenario {
             output_dir: output_dir.clone(),
             start_date: period.start_date,
             end_date: period.end_date,
+            node_ids: period.node_ids,
         })
         .map_err(to_py_value_error)?;
 
@@ -111,6 +112,7 @@ fn to_py_value_error(error: impl std::fmt::Display) -> PyErr {
 struct PeriodSpec {
     start_date: String,
     end_date: String,
+    node_ids: Option<Vec<String>>,
 }
 
 fn read_period_spec(path: &Path) -> Result<PeriodSpec, Box<dyn std::error::Error>> {
@@ -121,10 +123,12 @@ fn read_period_spec(path: &Path) -> Result<PeriodSpec, Box<dyn std::error::Error
         .ok_or("period file must contain a `settings` mapping")?;
     let start_date = required_string_setting(settings, "start_date", path)?;
     let end_date = required_string_setting(settings, "end_date", path)?;
+    let node_ids = optional_string_list_setting(settings, "node_ids", path)?;
 
     Ok(PeriodSpec {
         start_date,
         end_date,
+        node_ids,
     })
 }
 
@@ -147,6 +151,36 @@ fn required_string_setting(
         path.display()
     )
     .into())
+}
+
+fn optional_string_list_setting(
+    settings: &serde_yaml::Value,
+    field: &str,
+    path: &Path,
+) -> Result<Option<Vec<String>>, Box<dyn std::error::Error>> {
+    let Some(value) = settings.get(field) else {
+        return Ok(None);
+    };
+    let Some(items) = value.as_sequence() else {
+        return Err(format!(
+            "period file `{}` setting `settings.{field}` must be a list of node ids",
+            path.display()
+        )
+        .into());
+    };
+
+    let mut strings = Vec::with_capacity(items.len());
+    for item in items {
+        let Some(text) = item.as_str() else {
+            return Err(format!(
+                "period file `{}` setting `settings.{field}` must contain only strings",
+                path.display()
+            )
+            .into());
+        };
+        strings.push(text.to_string());
+    }
+    Ok(Some(strings))
 }
 
 fn infer_nrsm_root(period_path: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
@@ -210,7 +244,7 @@ mod tests {
         let path = dir.join("wet-season.yaml");
         fs::write(
             &path,
-            "settings:\n  start_date: 1963-09-01\n  end_date: 1963-09-30\nnodes: []\n",
+            "settings:\n  start_date: 1963-09-01\n  end_date: 1963-09-30\n  node_ids:\n    - tana\n    - gerd\nnodes: []\n",
         )
         .expect("period file should be written");
 
@@ -218,6 +252,10 @@ mod tests {
 
         assert_eq!(period.start_date, "1963-09-01");
         assert_eq!(period.end_date, "1963-09-30");
+        assert_eq!(
+            period.node_ids,
+            Some(vec!["tana".to_string(), "gerd".to_string()])
+        );
 
         fs::remove_dir_all(&dir).expect("temp dir should be removed");
     }

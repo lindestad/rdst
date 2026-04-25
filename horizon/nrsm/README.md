@@ -45,19 +45,19 @@ Those choices keep the first implementation compact while leaving room for:
 ## Run The Demo
 
 ```powershell
-cargo run -p nrsm-cli -- scenarios/nile-mvp/scenario.yaml
+cargo run -p nrsm-dataloader -- assemble --period scenarios\nile-mvp\scenario.yaml --input ..\data
+cargo run -p nrsm-cli -- data\generated\scenario\config.yaml
 ```
 
-Additional ready-to-run variants live under `scenarios/nile-mvp/past`,
-`scenarios/nile-mvp/future`, and `scenarios/nile-mvp/few-nodes`. The dated
-variants use `settings.start_date`, `settings.end_date`, and `horizon_days`;
-the simulator currently executes by day count while retaining the calendar
-window as scenario metadata.
+Additional period specs live under `scenarios/nile-mvp/past`,
+`scenarios/nile-mvp/future`, and `scenarios/nile-mvp/few-nodes`. These files
+only select date ranges and optional node subsets. The simulator inputs are
+assembled from the CSV-backed data bundle under `horizon/data`.
 
 Write visualization-ready time series CSVs while running a scenario:
 
 ```powershell
-cargo run -p nrsm-cli -- scenarios/nile-mvp/scenario.yaml --json --results-dir data\results\nile-mvp
+cargo run -p nrsm-cli -- data\generated\scenario\config.yaml --json --results-dir data\results\nile-mvp
 ```
 
 The results directory contains one CSV per node, named `<node_id>.csv`, plus a
@@ -277,11 +277,12 @@ summary = json.loads(sim.run_actions_summary_json(actions))
 ```
 
 `from_period` is the default Python path for real-data runs: it reads only the
-period dates from the YAML, assembles node inputs from `horizon/data`, and then
-loads the generated CSV-backed config. `from_yaml("data/generated/.../config.yaml")`
-loads an already assembled CSV-backed config. `from_yaml("scenarios/...yaml")`
-runs that hand-written demo scenario as written. Build the Python extension with
-maturin from `horizon/nrsm/crates/nrsm-py`.
+period dates and optional node subset from the YAML, assembles node inputs from
+`horizon/data`, and then loads the generated CSV-backed config.
+`from_yaml("data/generated/.../config.yaml")` loads an already assembled
+CSV-backed config. Catalog files under `scenarios/` are period specs, not
+complete simulator configs. Build the Python extension with maturin from
+`horizon/nrsm/crates/nrsm-py`.
 
 ## Assemble Canonical Data
 
@@ -291,9 +292,9 @@ cargo run -p nrsm-dataloader -- assemble --input ..\data --output data\generated
 cargo run -p nrsm-cli -- data\generated\config.yaml --json --pretty
 ```
 
-You can also use an existing scenario YAML as a period spec while ignoring its
-hand-written node data. The assembler reads `settings.start_date` and
-`settings.end_date`, then loads all node inputs from `horizon/data`:
+You can also use an existing scenario YAML as a period spec. The assembler reads
+`settings.start_date`, `settings.end_date`, and optional `settings.node_ids`,
+then loads node inputs from `horizon/data`:
 
 ```powershell
 cargo run -p nrsm-dataloader -- assemble --period scenarios\nile-mvp\past\1963-september-30d.yaml --input ..\data
