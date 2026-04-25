@@ -58,6 +58,19 @@ Their hydropower valuation uses `electricity_price/<node>.csv`; the NRSM
 assembler takes the mean of the latest 365 daily price records for each node and
 combines that with `topology/nodes.csv` `effective_head_m`.
 
+For simulator economics, `electricity_price/<node>.csv` is expected to contain:
+
+```csv
+date,price_eur_kwh
+2005-01-01,0.01
+```
+
+The assembler does not copy the raw daily price series into the scenario. It
+turns each file into a constant node price equal to the latest-365-record mean.
+The simulator then combines that price with `effective_head_m` and turbine
+efficiency to compute `water_value_eur_per_m3`, generated electricity, and
+period `energy_value`.
+
 When `horizon/nrsm` assembles this bundle into a simulator snapshot, it also
 writes a default per-node action CSV named `<node_id>.actions.csv` in the
 generated `modules/` directory. Those files are not source data; they are policy
