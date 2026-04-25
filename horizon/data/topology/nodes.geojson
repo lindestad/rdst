@@ -1,0 +1,418 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          33.19,
+          0.42
+        ]
+      },
+      "properties": {
+        "id": "lake_victoria_outlet",
+        "name": "Lake Victoria outlet (Jinja)",
+        "type": "source",
+        "country": "UG",
+        "upstream": [],
+        "downstream": [
+          "white_nile_to_sudd"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          31.5,
+          5.0
+        ]
+      },
+      "properties": {
+        "id": "white_nile_to_sudd",
+        "name": "White Nile reach to Sudd",
+        "type": "reach",
+        "country": "SS",
+        "upstream": [
+          "lake_victoria_outlet"
+        ],
+        "downstream": [
+          "sudd"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          30.5,
+          7.5
+        ]
+      },
+      "properties": {
+        "id": "sudd",
+        "name": "Sudd wetland",
+        "type": "wetland",
+        "country": "SS",
+        "upstream": [
+          "white_nile_to_sudd"
+        ],
+        "downstream": [
+          "malakal"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          31.65,
+          9.53
+        ]
+      },
+      "properties": {
+        "id": "malakal",
+        "name": "Malakal (post-Sudd)",
+        "type": "confluence",
+        "country": "SS",
+        "upstream": [
+          "sudd"
+        ],
+        "downstream": [
+          "khartoum"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.38,
+          11.6
+        ]
+      },
+      "properties": {
+        "id": "lake_tana_outlet",
+        "name": "Lake Tana outlet",
+        "type": "source",
+        "country": "ET",
+        "upstream": [],
+        "downstream": [
+          "blue_nile_to_gerd"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          35.1,
+          11.0
+        ]
+      },
+      "properties": {
+        "id": "blue_nile_to_gerd",
+        "name": "Blue Nile reach to GERD",
+        "type": "reach",
+        "country": "ET",
+        "upstream": [
+          "lake_tana_outlet"
+        ],
+        "downstream": [
+          "gerd"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          35.09,
+          11.22
+        ]
+      },
+      "properties": {
+        "id": "gerd",
+        "name": "Grand Ethiopian Renaissance Dam",
+        "type": "reservoir",
+        "country": "ET",
+        "upstream": [
+          "blue_nile_to_gerd"
+        ],
+        "downstream": [
+          "blue_nile_to_khartoum"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          34.0,
+          13.5
+        ]
+      },
+      "properties": {
+        "id": "blue_nile_to_khartoum",
+        "name": "Blue Nile reach (Roseires \u2192 Khartoum)",
+        "type": "reach",
+        "country": "SD",
+        "upstream": [
+          "gerd"
+        ],
+        "downstream": [
+          "gezira_irr"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          33.0,
+          14.4
+        ]
+      },
+      "properties": {
+        "id": "gezira_irr",
+        "name": "Gezira irrigation scheme",
+        "type": "demand_irrigation",
+        "country": "SD",
+        "upstream": [
+          "blue_nile_to_khartoum"
+        ],
+        "downstream": [
+          "khartoum"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          32.53,
+          15.6
+        ]
+      },
+      "properties": {
+        "id": "khartoum",
+        "name": "Khartoum confluence",
+        "type": "confluence",
+        "country": "SD",
+        "upstream": [
+          "malakal",
+          "gezira_irr"
+        ],
+        "downstream": [
+          "khartoum_muni",
+          "atbara_confluence"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          32.53,
+          15.58
+        ]
+      },
+      "properties": {
+        "id": "khartoum_muni",
+        "name": "Khartoum municipal demand",
+        "type": "demand_municipal",
+        "country": "SD",
+        "upstream": [
+          "khartoum"
+        ],
+        "downstream": [
+          "atbara_confluence"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.0,
+          13.5
+        ]
+      },
+      "properties": {
+        "id": "atbara_source",
+        "name": "Atbara River (Ethiopian highlands)",
+        "type": "source",
+        "country": "ET",
+        "upstream": [],
+        "downstream": [
+          "atbara_confluence"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          33.97,
+          17.67
+        ]
+      },
+      "properties": {
+        "id": "atbara_confluence",
+        "name": "Atbara confluence",
+        "type": "confluence",
+        "country": "SD",
+        "upstream": [
+          "khartoum_muni",
+          "atbara_source"
+        ],
+        "downstream": [
+          "merowe"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          31.93,
+          18.68
+        ]
+      },
+      "properties": {
+        "id": "merowe",
+        "name": "Merowe Dam",
+        "type": "reservoir",
+        "country": "SD",
+        "upstream": [
+          "atbara_confluence"
+        ],
+        "downstream": [
+          "main_nile_to_aswan"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          32.0,
+          22.0
+        ]
+      },
+      "properties": {
+        "id": "main_nile_to_aswan",
+        "name": "Main Nile reach to Aswan",
+        "type": "reach",
+        "country": "EG",
+        "upstream": [
+          "merowe"
+        ],
+        "downstream": [
+          "aswan"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          32.88,
+          23.97
+        ]
+      },
+      "properties": {
+        "id": "aswan",
+        "name": "Aswan High Dam / Lake Nasser",
+        "type": "reservoir",
+        "country": "EG",
+        "upstream": [
+          "main_nile_to_aswan"
+        ],
+        "downstream": [
+          "egypt_ag"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          31.0,
+          30.0
+        ]
+      },
+      "properties": {
+        "id": "egypt_ag",
+        "name": "Egypt agriculture (Delta + Valley)",
+        "type": "demand_irrigation",
+        "country": "EG",
+        "upstream": [
+          "aswan"
+        ],
+        "downstream": [
+          "cairo_muni"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          31.25,
+          30.05
+        ]
+      },
+      "properties": {
+        "id": "cairo_muni",
+        "name": "Cairo municipal demand",
+        "type": "demand_municipal",
+        "country": "EG",
+        "upstream": [
+          "egypt_ag"
+        ],
+        "downstream": [
+          "delta"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          31.5,
+          31.5
+        ]
+      },
+      "properties": {
+        "id": "delta",
+        "name": "Nile Delta / Mediterranean",
+        "type": "sink",
+        "country": "EG",
+        "upstream": [
+          "cairo_muni"
+        ],
+        "downstream": []
+      }
+    }
+  ]
+}

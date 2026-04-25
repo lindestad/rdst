@@ -1,0 +1,2 @@
+month,total_precipitation_mm,runoff_mm,potential_evaporation_mm,total_evaporation_mm,soil_water_layer1_m3_m3,soil_water_layer2_m3_m3,soil_water_layer3_m3_m3,soil_water_layer4_m3_m3,skin_temperature_c,quality_flag
+2005-01-01,0.06359481246034715,0.7146214774943724,79.90849334716476,47.771381892326765,0.1733692912811734,0.19363560759470086,0.21190278224709208,0.24787329203651717,20.911249932350547,stub
