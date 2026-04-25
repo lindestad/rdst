@@ -5,8 +5,8 @@ mod sim;
 pub use error::SimulationError;
 pub use model::{
     ConnectionConfig, DrinkWaterModule, EnergyModule, EngineTimeStep, EvaporationModule,
-    FoodProductionModule, ModuleSeries, ModuleSourceType, NodeConfig, NodeModules, NodeResult,
-    PeriodResult, ReportingFrequency, ReservoirConfig, Scenario, SimulationResult,
+    FoodProductionModule, ModuleSeries, ModuleSourceType, NodeActions, NodeConfig, NodeModules,
+    NodeResult, PeriodResult, ReportingFrequency, ReservoirConfig, Scenario, SimulationResult,
     SimulationSettings, SimulationSummary,
 };
 pub use sim::simulate;

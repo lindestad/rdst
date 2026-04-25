@@ -21,6 +21,8 @@ starts.
 | `timestep_days` | — | Simulation timestep in days (default `1.0`; overrides `settings.timestep_days` in the YAML) |
 | `scenario` | — | Scenario column name to use from every module CSV (default `scenario_1`) |
 | `initial_levels` | — | Per-node override of starting reservoir volume in m³; any node not listed uses the value from `config.yaml` |
+| `actions_dir` | — | Optional directory of external action CSVs, one per node, replacing `actions.production_level` in the config |
+| `action_column` | — | Scenario column to read from action CSVs (default `scenario_1`) |
 
 ---
 
@@ -96,6 +98,11 @@ date,scenario_1,scenario_2
 This action only controls the controlled hydropower/production release. It does
 not directly reduce drinking-water withdrawal or food-production allocation,
 which still run first in the node water balance.
+
+Runtime callers may provide an `actions_dir` instead of editing `config.yaml`.
+The simulator expects one file per node named either `<node_id>.actions.csv` or
+`<node_id>.csv`, with daily rows and the selected `action_column`. Missing node
+action files are treated as an input error when `actions_dir` is supplied.
 
 ### Upstream inflow
 

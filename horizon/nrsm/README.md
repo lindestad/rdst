@@ -116,6 +116,17 @@ data assembler writes one default `<node_id>.actions.csv` per node with full
 production (`1.0`) so policy and optimizer code can replace those time series
 without changing the scenario structure.
 
+External policy code can also pass an action directory at runtime:
+
+```powershell
+cargo run -p nrsm-cli -- data\generated\config.yaml --json --results-dir data\results\policy-a --actions-dir data\policy-a\actions --action-column scenario_1
+```
+
+`--actions-dir` expects one CSV for every node. Files are matched as either
+`<node_id>.actions.csv` or `<node_id>.csv`; each file must have `date` plus the
+selected action column. Runtime overrides replace the scenario's configured
+`actions.production_level` series before the simulator loads CSV data.
+
 ## Assemble Canonical Data
 
 ```powershell
