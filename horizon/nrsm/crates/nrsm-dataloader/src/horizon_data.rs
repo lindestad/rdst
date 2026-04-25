@@ -210,6 +210,9 @@ fn catchment_inflow_rows(
     })
 }
 
+const EVAPORATION_TEMP_SLOPE_MM_PER_C: f64 = 0.2301;
+const EVAPORATION_TEMP_INTERCEPT_MM: f64 = -3.0550;
+
 fn evaporation_rows(
     input_dir: &Path,
     node: &TopologyNode,
@@ -222,31 +225,58 @@ fn evaporation_rows(
             "zero because surface_area_km2_at_full is missing",
         ));
     };
-    let path = input_dir
-        .join("hydmod")
-        .join("daily")
-        .join(format!("{}.csv", node.node_id));
-    if !path.exists() {
-        return Err(format!(
-            "missing hydmod daily file for node `{}`: {}",
-            node.node_id,
-            path.display()
-        )
-        .into());
-    }
 
-    let daily = read_date_value_map(&path, "actual_et_mm_day")?;
+    let path = daily_temperature_path(input_dir, &node.node_id).ok_or_else(|| {
+        format!(
+            "missing ERA5 daily temperature file for node `{}`",
+            node.node_id
+        )
+    })?;
+    let daily_temperatures = read_date_value_map(&path, "temp_c")?;
+
     Ok(ModuleRows {
-        rows: rows_for_dates(&daily, dates, &path, "actual_et_mm_day")?
+        rows: rows_for_dates(&daily_temperatures, dates, &path, "temp_c")?
             .into_iter()
-            .map(|(date, actual_et_mm_day)| {
-                let daily_m3 = actual_et_mm_day * surface_area_km2 * 1_000.0;
+            .map(|(date, temp_c)| {
+                let evaporation_mm_day = (EVAPORATION_TEMP_SLOPE_MM_PER_C * temp_c
+                    + EVAPORATION_TEMP_INTERCEPT_MM)
+                    .max(0.0);
+                let daily_m3 = evaporation_mm_day * surface_area_km2 * 1_000.0;
                 (date, daily_m3.max(0.0))
             })
             .collect(),
-        source_note: "hydmod daily ActualET_mm_day over lake_area_km2 converted to m3/day"
-            .to_string(),
+        source_note: "ERA5 daily temp_c with evap_mm_day = max(0, 0.2301 * temp_c - 3.0550) over lake_area_km2 converted to m3/day".to_string(),
     })
+}
+
+fn daily_temperature_path(input_dir: &Path, node_id: &str) -> Option<PathBuf> {
+    let dir = input_dir.join("climate").join("era5_daily");
+    for candidate in climate_node_candidates(node_id) {
+        let path = dir.join(format!("{candidate}.csv"));
+        if path.exists() {
+            return Some(path);
+        }
+    }
+    None
+}
+
+fn climate_node_candidates(node_id: &str) -> Vec<&str> {
+    match node_id {
+        "aswand" => vec!["aswan", "main_nile_to_aswan"],
+        "cairo" => vec!["cairo_muni", "delta"],
+        "karthoum" => vec!["khartoum", "khartoum_muni"],
+        "southwest" => vec!["white_nile_to_sudd", "sudd"],
+        "tana" => vec!["lake_tana_outlet"],
+        "victoria" => vec!["lake_victoria_outlet"],
+        "singa" => vec!["gezira_irr"],
+        "gerd" => vec!["gerd", "blue_nile_to_gerd"],
+        "roseires" => vec!["blue_nile_to_khartoum", "gerd"],
+        "kashm" => vec!["atbara_confluence", "atbara_source"],
+        "tsengh" => vec!["atbara_source", "atbara_confluence"],
+        "ozentari" => vec!["atbara_source"],
+        "merowe" => vec!["merowe"],
+        _ => vec![node_id],
+    }
 }
 
 fn drink_water_rows(node: &TopologyNode, dates: &[SimpleDate]) -> ModuleRows {
@@ -702,6 +732,10 @@ mod tests {
         )
         .expect("food module csv should be readable");
         assert!(food.contains("2005-01-01,42.000000"));
+        let evaporation = fs::read_to_string(output.join("modules").join("res.evaporation.csv"))
+            .expect("evaporation module csv should be readable");
+        assert!(evaporation.contains("2005-01-01,3094.000000"));
+        assert!(evaporation.contains("2005-01-02,3094.000000"));
         assert!(
             output
                 .join("staging")
@@ -725,6 +759,7 @@ mod tests {
     fn write_fixture_data(root: &Path) {
         fs::create_dir_all(root.join("topology")).expect("topology dir");
         fs::create_dir_all(root.join("hydmod").join("daily")).expect("hydmod dir");
+        fs::create_dir_all(root.join("climate").join("era5_daily")).expect("era5 daily dir");
         fs::create_dir_all(root.join("agriculture").join("water_usage")).expect("ag dir");
         fs::create_dir_all(root.join("electricity_price")).expect("electricity dir");
         fs::write(
@@ -754,6 +789,13 @@ mod tests {
                 "date,precip_mm_day,air_temp_c,soil_moisture_mm,actual_et_mm_day,runoff_mm_day,runoff_m3s,runoff_m3_day\n2005-01-01,1,20,75,1,1,10,864000\n2005-01-02,1,20,75,1,1,11,950400\n",
             )
             .expect("hydmod csv");
+            fs::write(
+                root.join("climate")
+                    .join("era5_daily")
+                    .join(format!("{node_id}.csv")),
+                "date,precip_mm_day,temp_c,dewpoint_c,radiation_mj_m2_day,wind_ms,runoff_mm_day,quality_flag\n2005-01-01,1,20,5,10,2,1,fixture\n2005-01-02,1,20,5,10,2,1,fixture\n",
+            )
+            .expect("era5 daily csv");
             fs::write(
                 root.join("agriculture")
                     .join("water_usage")
