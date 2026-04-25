@@ -108,10 +108,13 @@ def build_node_metrics(bundle: ResultBundle, node_ids: list[str] | None = None) 
                 "total_food_water_met": frame["food_water_met"].sum(),
                 "total_unmet_food_water": frame["unmet_food_water"].sum(),
                 "total_production_release": frame["production_release"].sum(),
+                "total_generated_electricity_kwh": frame["generated_electricity_kwh"].sum(),
+                "total_generated_electricity_mwh": frame["generated_electricity_mwh"].sum(),
                 "total_spill": frame["spill"].sum(),
                 "total_downstream_release": frame["downstream_release"].sum(),
                 "total_routing_loss": frame["routing_loss"].sum(),
                 "total_energy_value": frame["energy_value"].sum(),
+                "mean_water_value_eur_per_m3": frame["water_value_eur_per_m3"].mean(),
                 "mean_action": frame["action"].mean(),
                 "min_reservoir_level": frame["reservoir_level"].min(),
                 "max_reservoir_level": frame["reservoir_level"].max(),
@@ -287,17 +290,17 @@ def _network_energy(bundle: ResultBundle, output: Path, file_format: str, dpi: i
     x = summary["mid_day"]
 
     axes[0].plot(x, summary["total_energy_value"], color=ENERGY_COLOR, label="Energy value")
-    axes[0].set_ylabel("Value proxy")
-    axes[0].set_title("Network Energy Proxy")
+    axes[0].set_ylabel("EUR")
+    axes[0].set_title("Network Hydropower Value")
     axes[0].legend(loc="upper right")
 
     axes[1].plot(
         x,
-        summary["total_energy_value"].cumsum(),
+        summary["total_generated_electricity_mwh"].cumsum(),
         color="#A65F1B",
-        label="Cumulative energy value",
+        label="Cumulative generated electricity",
     )
-    axes[1].set_ylabel("Cumulative value")
+    axes[1].set_ylabel("MWh")
     axes[1].set_xlabel("Simulation day")
     axes[1].legend(loc="upper left")
 
@@ -341,9 +344,9 @@ def _node_totals(metrics: pd.DataFrame, output: Path, file_format: str, dpi: int
     axes[1].set_title("Per-Node Consumptive Uses")
     axes[1].legend(loc="upper right")
 
-    axes[2].bar(x, metrics["total_energy_value"], color=ENERGY_COLOR, label="Energy value")
-    axes[2].set_ylabel("Value proxy")
-    axes[2].set_title("Per-Node Energy Proxy")
+    axes[2].bar(x, metrics["total_generated_electricity_mwh"], color=ENERGY_COLOR, label="Generated electricity")
+    axes[2].set_ylabel("MWh")
+    axes[2].set_title("Per-Node Generated Electricity")
     axes[2].tick_params(axis="x", labelrotation=35)
     axes[2].legend(loc="upper right")
 
@@ -445,7 +448,7 @@ def _node_detail(
     axes[3].plot(x, frame["unmet_drink_water"], color=DRINK_COLOR, label="Unmet drinking")
     axes[3].plot(x, frame["unmet_food_water"], color=FOOD_COLOR, label="Unmet food water")
     axes[3].plot(x, frame["energy_value"], color=ENERGY_COLOR, label="Energy value")
-    axes[3].set_ylabel("m3 / value")
+    axes[3].set_ylabel("m3 / EUR")
     axes[3].set_xlabel("Simulation day")
     axes[3].set_title("Shortage And Energy")
     axes[3].legend(loc="upper right", ncols=3)

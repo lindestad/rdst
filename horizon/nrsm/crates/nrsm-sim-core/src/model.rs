@@ -287,6 +287,10 @@ impl FoodProductionModule {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct EnergyModule {
+    #[serde(default)]
+    pub effective_head_m: f64,
+    #[serde(default = "default_turbine_efficiency")]
+    pub turbine_efficiency: f64,
     #[serde(flatten)]
     pub price_per_unit: ModuleSeries,
 }
@@ -294,9 +298,15 @@ pub struct EnergyModule {
 impl Default for EnergyModule {
     fn default() -> Self {
         Self {
+            effective_head_m: 0.0,
+            turbine_efficiency: default_turbine_efficiency(),
             price_per_unit: ModuleSeries::constant(0.0),
         }
     }
+}
+
+fn default_turbine_efficiency() -> f64 {
+    0.9
 }
 
 impl<'de> Deserialize<'de> for EnergyModule {
@@ -308,15 +318,54 @@ impl<'de> Deserialize<'de> for EnergyModule {
         #[serde(untagged)]
         enum Input {
             Scalar(f64),
-            Structured(ModuleSeries),
+            Structured(EnergyModuleInput),
+        }
+
+        #[derive(Deserialize)]
+        struct EnergyModuleInput {
+            #[serde(default)]
+            effective_head_m: f64,
+            #[serde(default = "default_turbine_efficiency")]
+            turbine_efficiency: f64,
+            #[serde(flatten)]
+            price_per_unit: ModuleSeries,
         }
 
         match Input::deserialize(deserializer)? {
             Input::Scalar(value) => Ok(Self {
+                effective_head_m: 0.0,
+                turbine_efficiency: default_turbine_efficiency(),
                 price_per_unit: ModuleSeries::constant(value),
             }),
-            Input::Structured(price_per_unit) => Ok(Self { price_per_unit }),
+            Input::Structured(input) => Ok(Self {
+                effective_head_m: input.effective_head_m,
+                turbine_efficiency: input.turbine_efficiency,
+                price_per_unit: input.price_per_unit,
+            }),
         }
+    }
+}
+
+impl EnergyModule {
+    pub fn generated_electricity_kwh(&self, turbine_release_m3: f64) -> f64 {
+        turbine_release_m3.max(0.0) * self.kwh_per_m3()
+    }
+
+    pub fn water_value_eur_per_m3(&self, day: usize) -> f64 {
+        self.kwh_per_m3() * self.price_per_unit.value_at(day)
+    }
+
+    fn kwh_per_m3(&self) -> f64 {
+        const WATER_DENSITY_KG_M3: f64 = 1_000.0;
+        const GRAVITY_M_S2: f64 = 9.80665;
+        const JOULES_PER_KWH: f64 = 3_600_000.0;
+
+        if self.effective_head_m <= 0.0 || self.turbine_efficiency <= 0.0 {
+            return 0.0;
+        }
+
+        WATER_DENSITY_KG_M3 * GRAVITY_M_S2 * self.effective_head_m * self.turbine_efficiency
+            / JOULES_PER_KWH
     }
 }
 
@@ -500,6 +549,7 @@ pub struct SimulationSummary {
     pub total_unmet_food_water: f64,
     pub total_food_produced: f64,
     pub total_production_release: f64,
+    pub total_generated_electricity_kwh: f64,
     pub total_energy_value: f64,
     pub total_spill: f64,
     pub total_downstream_release: f64,
@@ -520,6 +570,8 @@ pub struct NodeResult {
     pub action: f64,
     pub reservoir_level: f64,
     pub production_release: f64,
+    pub generated_electricity_kwh: f64,
+    pub water_value_eur_per_m3: f64,
     pub energy_value: f64,
     pub evaporation: f64,
     pub food_water_demand: f64,

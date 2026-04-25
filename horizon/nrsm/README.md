@@ -30,12 +30,13 @@ workspace under `horizon/` so it can grow cleanly inside a larger monorepo.
 - Monthly support is handled through 30-day aggregation and optional monthly input series
 - Drinking water and irrigation are treated as consumptive uses in v1
 - Food production is currently linear by delivered irrigation water
-- Hydropower is modeled as a non-consumptive linear conversion on routed outflow
+- Hydropower is modeled as a non-consumptive linear conversion on controlled
+  turbine release using each node's effective head and turbine efficiency
 - Default sector allocation priority is drinking water first, then irrigation
 
 Those choices keep the first implementation compact while leaving room for:
 
-- head-based hydropower
+- richer hydropower plant curves and tailwater effects
 - crop and region-specific agriculture modules
 - explicit optimization layers on top of the simulator
 - Python bindings and training workflows
@@ -75,16 +76,19 @@ Per-node columns:
 | `food_water_met` / `unmet_food_water` | Agricultural water demand served and shortfall. |
 | `food_produced` | Food units produced by the node. In the canonical hydmod assembly this is water-equivalent because `water_coefficient` is `1.0`. |
 | `production_release` | Controlled hydropower/production release volume. |
+| `generated_electricity_kwh` / `generated_electricity_mwh` | Electricity generated from `production_release`, `energy.effective_head_m`, and `energy.turbine_efficiency`. |
+| `water_value_eur_per_m3` | Marginal hydropower value of one m3 at this node, using the node's effective head and electricity price. |
 | `spill` | Uncontrolled reservoir overflow volume. |
 | `release_for_routing` | `production_release + spill`, before edge fractions are applied. |
 | `downstream_release` | Routed volume sent to downstream nodes after connection fractions. |
 | `routing_loss` | `release_for_routing - downstream_release`, useful for plotting reach losses. |
-| `energy_value` | Hydropower value proxy for the period. |
+| `energy_value` | Hydropower value for the period in EUR. |
 
 `summary.csv` uses the same period columns and aggregates the water, food, and
-energy fields across all nodes. Calendar dates are not emitted yet; consumers
-should treat `start_day` and `end_day_exclusive` as offsets from the scenario
-start date used by the data assembler.
+energy fields across all nodes, including total generated electricity. Calendar
+dates are not emitted yet; consumers should treat `start_day` and
+`end_day_exclusive` as offsets from the scenario start date used by the data
+assembler.
 
 ## Plot Simulator Outputs
 
@@ -197,11 +201,23 @@ The `assemble` command reads the checked-in canonical data bundle under
 `horizon/data` and writes simulator-ready files. The current MVP topology uses
 the 13 hydmod catchment nodes in `horizon/data/topology/nodes.csv`; catchment
 inflow and evaporation come from `horizon/data/hydmod/daily`, while food and
-energy modules come from the agriculture and electricity-price folders.
+energy modules come from the agriculture and electricity-price folders. The
+assembler reads `effective_head_m` from `topology/nodes.csv`, writes it into
+each node's energy module, and uses the mean of the latest 365 daily records in
+`horizon/data/electricity_price/<node_id>.csv` as the node electricity price for
+hydropower valuation.
 Agriculture files supply `water_m3_day`, which the assembler writes as the
 food-production module with `water_coefficient: 1.0`; outputs therefore expose
 the agricultural water balance directly through `food_water_demand`,
 `food_water_met`, and `unmet_food_water`.
+
+Hydropower generation is computed as:
+
+```text
+generated_electricity_kwh = production_release_m3 * 1000 kg/m3 * 9.80665 m/s2 * effective_head_m * turbine_efficiency / 3,600,000
+energy_value = generated_electricity_kwh * price_eur_kwh
+water_value_eur_per_m3 = generated_electricity_kwh_per_m3 * price_eur_kwh
+```
 
 The older deterministic seed path is still available for tests and demos:
 

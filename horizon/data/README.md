@@ -38,7 +38,7 @@ data/
 │   ├── ndvi/                 NDVI timeseries CSVs (gezira, egypt_delta)
 │   └── egypt_ndvi.tiff       NDVI raster
 │
-├── electricity_price/        Per-node price CSVs (legacy node naming)
+├── electricity_price/        Per-node daily electricity prices (`price_eur_kwh`)
 │
 └── examples/
     └── headwater_inflow.csv  Sample inflow used by main/example
@@ -54,6 +54,9 @@ The canonical NRSM MVP now uses the **hydmod catchment nodes**:
 These nodes are defined in `topology/nodes.csv` and `topology/edges.csv`.
 Their simulator catchment inflows and evaporation inputs come from
 `hydmod/daily/<node>.csv`.
+Their hydropower valuation uses `electricity_price/<node>.csv`; the NRSM
+assembler takes the mean of the latest 365 daily price records for each node and
+combines that with `topology/nodes.csv` `effective_head_m`.
 
 When `horizon/nrsm` assembles this bundle into a simulator snapshot, it also
 writes a default per-node action CSV named `<node_id>.actions.csv` in the

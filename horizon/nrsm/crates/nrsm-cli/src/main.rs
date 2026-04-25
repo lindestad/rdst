@@ -223,7 +223,7 @@ fn write_result_csvs(
     Ok(outputs)
 }
 
-const NODE_RESULT_HEADER: &str = "period_index,start_day,end_day_exclusive,duration_days,node_id,action,reservoir_level,total_inflow,evaporation,drink_water_met,unmet_drink_water,food_water_demand,food_water_met,unmet_food_water,food_produced,production_release,spill,release_for_routing,downstream_release,routing_loss,energy_value";
+const NODE_RESULT_HEADER: &str = "period_index,start_day,end_day_exclusive,duration_days,node_id,action,reservoir_level,total_inflow,evaporation,drink_water_met,unmet_drink_water,food_water_demand,food_water_met,unmet_food_water,food_produced,production_release,generated_electricity_kwh,generated_electricity_mwh,water_value_eur_per_m3,spill,release_for_routing,downstream_release,routing_loss,energy_value";
 
 fn render_node_result_row(period: &PeriodResult, node: &NodeResult) -> String {
     let duration_days = period.end_day_exclusive - period.start_day;
@@ -246,6 +246,9 @@ fn render_node_result_row(period: &PeriodResult, node: &NodeResult) -> String {
         node.unmet_food_water.to_string(),
         node.food_produced.to_string(),
         node.production_release.to_string(),
+        node.generated_electricity_kwh.to_string(),
+        (node.generated_electricity_kwh / 1_000.0).to_string(),
+        node.water_value_eur_per_m3.to_string(),
         node.spill.to_string(),
         release_for_routing.to_string(),
         node.downstream_release.to_string(),
@@ -256,7 +259,7 @@ fn render_node_result_row(period: &PeriodResult, node: &NodeResult) -> String {
 
 fn render_summary_csv(result: &SimulationResult) -> String {
     let mut contents = String::from(
-        "period_index,start_day,end_day_exclusive,duration_days,total_inflow,total_evaporation,total_drink_water_met,total_unmet_drink_water,total_food_water_demand,total_food_water_met,total_unmet_food_water,total_food_produced,total_production_release,total_spill,total_release_for_routing,total_downstream_release,total_routing_loss,total_energy_value\n",
+        "period_index,start_day,end_day_exclusive,duration_days,total_inflow,total_evaporation,total_drink_water_met,total_unmet_drink_water,total_food_water_demand,total_food_water_met,total_unmet_food_water,total_food_produced,total_production_release,total_generated_electricity_kwh,total_generated_electricity_mwh,total_spill,total_release_for_routing,total_downstream_release,total_routing_loss,total_energy_value\n",
     );
 
     for period in &result.periods {
@@ -270,6 +273,7 @@ fn render_summary_csv(result: &SimulationResult) -> String {
         let mut total_unmet_food_water = 0.0;
         let mut total_food_produced = 0.0;
         let mut total_production_release = 0.0;
+        let mut total_generated_electricity_kwh = 0.0;
         let mut total_spill = 0.0;
         let mut total_release_for_routing = 0.0;
         let mut total_downstream_release = 0.0;
@@ -287,6 +291,7 @@ fn render_summary_csv(result: &SimulationResult) -> String {
             total_unmet_food_water += node.unmet_food_water;
             total_food_produced += node.food_produced;
             total_production_release += node.production_release;
+            total_generated_electricity_kwh += node.generated_electricity_kwh;
             total_spill += node.spill;
             total_release_for_routing += release_for_routing;
             total_downstream_release += node.downstream_release;
@@ -308,6 +313,8 @@ fn render_summary_csv(result: &SimulationResult) -> String {
             total_unmet_food_water.to_string(),
             total_food_produced.to_string(),
             total_production_release.to_string(),
+            total_generated_electricity_kwh.to_string(),
+            (total_generated_electricity_kwh / 1_000.0).to_string(),
             total_spill.to_string(),
             total_release_for_routing.to_string(),
             total_downstream_release.to_string(),

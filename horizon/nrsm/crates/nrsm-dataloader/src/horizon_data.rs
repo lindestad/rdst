@@ -30,6 +30,7 @@ struct TopologyNode {
     initial_storage_mcm: Option<f64>,
     surface_area_km2_at_full: Option<f64>,
     population_baseline: Option<f64>,
+    effective_head_m: Option<f64>,
     max_production_m3_day: Option<f64>,
 }
 
@@ -151,6 +152,7 @@ fn read_nodes(path: &Path) -> Result<Vec<TopologyNode>, Box<dyn std::error::Erro
             initial_storage_mcm: optional_f64(&row, "initial_storage_mcm")?,
             surface_area_km2_at_full: optional_f64(&row, "surface_area_km2_at_full")?,
             population_baseline: optional_f64(&row, "population_baseline")?,
+            effective_head_m: optional_f64(&row, "effective_head_m")?,
             max_production_m3_day: optional_f64(&row, "max_production_m3_day")?,
         });
     }
@@ -309,11 +311,15 @@ fn energy_rows(
         .into());
     }
 
-    let values = read_date_value_map(&path, "price_eur_kwh")?;
+    let mean_price_eur_kwh = mean_latest_values(&path, "price_eur_kwh", 365)?;
     Ok(ModuleRows {
-        rows: rows_for_dates(&values, dates, &path, "price_eur_kwh")?,
-        source_note: "electricity_price price_eur_kwh used as current NRSM energy value proxy"
-            .to_string(),
+        rows: dates
+            .iter()
+            .map(|date| (date.to_string(), mean_price_eur_kwh))
+            .collect(),
+        source_note: format!(
+            "electricity_price price_eur_kwh mean over latest 365 records used for hydropower water value ({mean_price_eur_kwh:.6} EUR/kWh)"
+        ),
     })
 }
 
@@ -381,6 +387,7 @@ fn render_config(nodes: &[TopologyNode], outgoing: &HashMap<String, Vec<Topology
                 }
             });
         let max_production = default_max_production(node);
+        let effective_head_m = node.effective_head_m.unwrap_or(0.0).max(0.0);
 
         yaml.push_str(&format!(
             "  - id: {}\n    reservoir:\n      initial_level: {:.3}\n      max_capacity: {:.3}\n    max_production: {:.3}\n    catchment_inflow:\n      type: csv\n      filepath: modules/{}.catchment_inflow.csv\n      column: scenario_1\n    connections:\n",
@@ -410,8 +417,13 @@ fn render_config(nodes: &[TopologyNode], outgoing: &HashMap<String, Vec<Topology
         }
 
         yaml.push_str(&format!(
-            "    modules:\n      evaporation:\n        type: csv\n        filepath: modules/{}.evaporation.csv\n        column: scenario_1\n      drink_water:\n        type: csv\n        filepath: modules/{}.drink_water.csv\n        column: scenario_1\n      food_production:\n        type: csv\n        filepath: modules/{}.food_production.csv\n        column: scenario_1\n        water_coefficient: 1.0\n      energy:\n        type: csv\n        filepath: modules/{}.energy.csv\n        column: scenario_1\n    actions:\n      production_level:\n        type: csv\n        filepath: modules/{}.actions.csv\n        column: scenario_1\n",
-            node.node_id, node.node_id, node.node_id, node.node_id, node.node_id
+            "    modules:\n      evaporation:\n        type: csv\n        filepath: modules/{}.evaporation.csv\n        column: scenario_1\n      drink_water:\n        type: csv\n        filepath: modules/{}.drink_water.csv\n        column: scenario_1\n      food_production:\n        type: csv\n        filepath: modules/{}.food_production.csv\n        column: scenario_1\n        water_coefficient: 1.0\n      energy:\n        type: csv\n        filepath: modules/{}.energy.csv\n        column: scenario_1\n        effective_head_m: {:.3}\n        turbine_efficiency: 0.9\n    actions:\n      production_level:\n        type: csv\n        filepath: modules/{}.actions.csv\n        column: scenario_1\n",
+            node.node_id,
+            node.node_id,
+            node.node_id,
+            node.node_id,
+            effective_head_m,
+            node.node_id
         ));
     }
 
@@ -458,6 +470,35 @@ fn read_date_value_map(
         values.insert(date, value);
     }
     Ok(values)
+}
+
+fn mean_latest_values(
+    path: &Path,
+    value_column: &str,
+    max_records: usize,
+) -> Result<f64, Box<dyn std::error::Error>> {
+    let mut rows = read_csv(path)?
+        .into_iter()
+        .map(|row| {
+            let date = required(&row, "date").or_else(|_| required(&row, "month"))?;
+            let value = optional_f64(&row, value_column)?.unwrap_or(0.0);
+            Ok((date, value))
+        })
+        .collect::<Result<Vec<_>, Box<dyn std::error::Error>>>()?;
+    rows.sort_by(|left, right| left.0.cmp(&right.0));
+
+    let window_len = max_records.min(rows.len());
+    if window_len == 0 {
+        return Err(format!("{} has no `{}` values", path.display(), value_column).into());
+    }
+
+    let sum = rows
+        .iter()
+        .rev()
+        .take(window_len)
+        .map(|(_, value)| *value)
+        .sum::<f64>();
+    Ok(sum / window_len as f64)
 }
 
 fn rows_for_dates(
@@ -694,6 +735,7 @@ mod tests {
         let config = fs::read_to_string(output.join("config.yaml"))
             .expect("generated config should be readable");
         assert!(config.contains("fraction: 0.500000"));
+        assert!(config.contains("effective_head_m: 50.000"));
 
         let food = fs::read_to_string(
             output
@@ -730,10 +772,10 @@ mod tests {
         fs::write(
             root.join("topology").join("nodes.csv"),
             concat!(
-                "node_id,name,node_type,country,latitude,longitude,upstream,downstream,catchment_area_km2,storage_capacity_mcm,surface_area_km2_at_full,area_ha_baseline,population_baseline\n",
-                "src,Source,source,XX,0,0,,res,100,,,,\n",
-                "res,Reservoir,reservoir,XX,0,1,src,, ,10,2,,1000\n",
-                "gezira_irr,Gezira,demand_irrigation,XX,0,2,src,, ,,,, \n",
+                "node_id,name,node_type,country,latitude,longitude,upstream,downstream,catchment_area_km2,storage_capacity_mcm,surface_area_km2_at_full,area_ha_baseline,population_baseline,effective_head_m,max_production_m3_day\n",
+                "src,Source,source,XX,0,0,,res,100,,,,,0,1000\n",
+                "res,Reservoir,reservoir,XX,0,1,src,, ,10,2,,1000,50,1000\n",
+                "gezira_irr,Gezira,demand_irrigation,XX,0,2,src,, ,,,,,0,0\n",
             ),
         )
         .expect("nodes csv");

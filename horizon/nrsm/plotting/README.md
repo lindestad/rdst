@@ -29,10 +29,10 @@ The plotter writes:
   including accounted outflows, storage change, and balance residual.
 - `network_service_reliability.png`: unmet drinking and food-water demand over
   time, plus cumulative reliability.
-- `network_energy.png`: energy-value proxy over time and cumulative energy
+- `network_energy.png`: hydropower value over time and cumulative generated MWh
   value.
 - `node_totals.png`: per-node totals for inflow, release, evaporation, food
-  water, shortages, and energy value.
+  water, shortages, generated electricity, and hydropower value.
 - `node_water_balance.png`: per-node water-balance residuals over time.
 - `node_shortage_heatmap.png`: per-node shortage intensity over time.
 - `nodes/<node_id>.png`: node-level storage, action, inflow/release, sector

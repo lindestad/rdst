@@ -122,7 +122,34 @@ $defs:
   energy_module:
     oneOf:
       - type: number
-      - $ref: "#/$defs/module_series"
+      - type: object
+        additionalProperties: false
+        properties:
+          type:
+            type: string
+            enum: [constant, csv]
+          value:
+            type: number
+          price_per_unit:
+            type: number
+          filepath:
+            type: string
+          column:
+            type: string
+            default: scenario_1
+          effective_head_m:
+            type: number
+            minimum: 0
+            default: 0.0
+          turbine_efficiency:
+            type: number
+            minimum: 0
+            maximum: 1
+            default: 0.9
+        oneOf:
+          - required: [value]
+          - required: [price_per_unit]
+          - required: [type, filepath]
   actions:
     type: object
     additionalProperties: false

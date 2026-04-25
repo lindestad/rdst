@@ -213,14 +213,21 @@ fn simulate_daily_periods(
                 }
             }
 
+            let generated_electricity_kwh = node
+                .modules
+                .energy
+                .generated_electricity_kwh(production_release);
+            let water_value_eur_per_m3 = node.modules.energy.water_value_eur_per_m3(day);
             let energy_value =
-                production_release * node.modules.energy.price_per_unit.value_at(day);
+                generated_electricity_kwh * node.modules.energy.price_per_unit.value_at(day);
 
             node_results.push(NodeResult {
                 node_id: node.id.clone(),
                 action: action_fraction,
                 reservoir_level,
                 production_release,
+                generated_electricity_kwh,
+                water_value_eur_per_m3,
                 energy_value,
                 evaporation,
                 food_water_demand,
@@ -316,8 +323,12 @@ fn simulate_daily_summary(
                 }
             }
 
+            let generated_electricity_kwh = node
+                .modules
+                .energy
+                .generated_electricity_kwh(production_release);
             let energy_value =
-                production_release * node.modules.energy.price_per_unit.value_at(day);
+                generated_electricity_kwh * node.modules.energy.price_per_unit.value_at(day);
 
             summary.total_inflow += total_inflow;
             summary.total_evaporation += evaporation;
@@ -328,6 +339,7 @@ fn simulate_daily_summary(
             summary.total_unmet_food_water += unmet_food_water;
             summary.total_food_produced += food_produced;
             summary.total_production_release += production_release;
+            summary.total_generated_electricity_kwh += generated_electricity_kwh;
             summary.total_energy_value += energy_value;
             summary.total_spill += spill;
             summary.total_downstream_release += downstream_release;
@@ -366,6 +378,8 @@ fn aggregate_chunk(period_index: usize, chunk: &[PeriodResult]) -> PeriodResult 
                     aggregate.action += node.action;
                     aggregate.reservoir_level = node.reservoir_level;
                     aggregate.production_release += node.production_release;
+                    aggregate.generated_electricity_kwh += node.generated_electricity_kwh;
+                    aggregate.water_value_eur_per_m3 += node.water_value_eur_per_m3;
                     aggregate.energy_value += node.energy_value;
                     aggregate.evaporation += node.evaporation;
                     aggregate.food_water_demand += node.food_water_demand;
@@ -391,6 +405,7 @@ fn aggregate_chunk(period_index: usize, chunk: &[PeriodResult]) -> PeriodResult 
     for (index, aggregate) in node_results.iter_mut().enumerate() {
         let count = node_counts.get(index).copied().unwrap_or(1);
         aggregate.action /= count as f64;
+        aggregate.water_value_eur_per_m3 /= count as f64;
     }
 
     PeriodResult {
@@ -421,6 +436,7 @@ fn summarize(periods: &[PeriodResult]) -> SimulationSummary {
             summary.total_unmet_food_water += node.unmet_food_water;
             summary.total_food_produced += node.food_produced;
             summary.total_production_release += node.production_release;
+            summary.total_generated_electricity_kwh += node.generated_electricity_kwh;
             summary.total_energy_value += node.energy_value;
             summary.total_spill += node.spill;
             summary.total_downstream_release += node.downstream_release;
@@ -558,6 +574,18 @@ fn validate_node(node: &NodeConfig) -> Result<(), SimulationError> {
         .price_per_unit
         .validate(&format!("node `{}` energy", node.id))
         .map_err(SimulationError::Validation)?;
+    if node.modules.energy.effective_head_m < 0.0 {
+        return Err(SimulationError::Validation(format!(
+            "node `{}` energy.effective_head_m must be non-negative",
+            node.id
+        )));
+    }
+    if !(0.0..=1.0).contains(&node.modules.energy.turbine_efficiency) {
+        return Err(SimulationError::Validation(format!(
+            "node `{}` energy.turbine_efficiency must be between 0 and 1",
+            node.id
+        )));
+    }
     if let Some(actions) = &node.actions {
         actions
             .production_level
@@ -719,6 +747,8 @@ mod tests {
                         max_food_units: ModuleSeries::constant(8.0),
                     },
                     energy: EnergyModule {
+                        effective_head_m: 100.0,
+                        turbine_efficiency: 0.9,
                         price_per_unit: ModuleSeries::constant(3.0),
                     },
                 },
@@ -735,7 +765,9 @@ mod tests {
         assert_eq!(node.unmet_food_water, 0.0);
         assert_eq!(node.food_produced, 8.0);
         assert_eq!(node.production_release, 10.0);
-        assert_eq!(node.energy_value, 30.0);
+        assert_approx_eq(node.generated_electricity_kwh, 2.4516625);
+        assert_approx_eq(node.water_value_eur_per_m3, 0.73549875);
+        assert_approx_eq(node.energy_value, 7.3549875000000005);
         assert_eq!(node.reservoir_level, 24.0);
     }
 
