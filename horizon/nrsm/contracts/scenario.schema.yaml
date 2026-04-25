@@ -1,0 +1,159 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://cassini.local/nrsm/scenario.schema.yaml
+title: NRSM Scenario
+description: YAML scenario contract consumed by the NRSM simulator, matching main/node.md and main/modules.md.
+type: object
+additionalProperties: false
+required:
+  - nodes
+properties:
+  settings:
+    type: object
+    additionalProperties: false
+    properties:
+      timestep_days:
+        type: number
+        exclusiveMinimum: 0
+        default: 1.0
+      horizon_days:
+        type: integer
+        minimum: 1
+      reporting:
+        type: string
+        enum: [daily, monthly30_day]
+        default: daily
+      production_level_fraction:
+        type: number
+        minimum: 0
+        maximum: 1
+        default: 1.0
+  nodes:
+    type: array
+    minItems: 1
+    items:
+      $ref: "#/$defs/node"
+$defs:
+  node:
+    type: object
+    additionalProperties: false
+    required: [id, reservoir, max_production, catchment_inflow]
+    properties:
+      id:
+        $ref: "#/$defs/id"
+      reservoir:
+        $ref: "#/$defs/reservoir"
+      max_production:
+        type: number
+        minimum: 0
+      catchment_inflow:
+        $ref: "#/$defs/module_series"
+      connections:
+        type: array
+        items:
+          $ref: "#/$defs/connection"
+      modules:
+        type: object
+        additionalProperties: false
+        properties:
+          evaporation:
+            $ref: "#/$defs/rate_module"
+          drink_water:
+            $ref: "#/$defs/drink_water_module"
+          food_production:
+            $ref: "#/$defs/food_production_module"
+          energy:
+            $ref: "#/$defs/energy_module"
+  reservoir:
+    type: object
+    additionalProperties: false
+    required: [initial_level, max_capacity]
+    properties:
+      initial_level:
+        type: number
+        minimum: 0
+      max_capacity:
+        type: number
+        minimum: 0
+  connection:
+    type: object
+    additionalProperties: false
+    required: [node_id, fraction]
+    properties:
+      node_id:
+        $ref: "#/$defs/id"
+      fraction:
+        type: number
+        minimum: 0
+        maximum: 1
+      delay:
+        type: integer
+        minimum: 0
+        default: 0
+  rate_module:
+    oneOf:
+      - type: number
+      - $ref: "#/$defs/module_series"
+  drink_water_module:
+    oneOf:
+      - type: number
+      - $ref: "#/$defs/module_series"
+  food_production_module:
+    type: object
+    additionalProperties: false
+    properties:
+      type:
+        type: string
+        enum: [constant, csv]
+      water_coefficient:
+        type: number
+        exclusiveMinimum: 0
+        default: 1.0
+      max_food_units:
+        type: number
+        minimum: 0
+      filepath:
+        type: string
+      column:
+        type: string
+        default: scenario_1
+  energy_module:
+    oneOf:
+      - type: number
+      - $ref: "#/$defs/module_series"
+  module_series:
+    oneOf:
+      - type: object
+        additionalProperties: false
+        properties:
+          type:
+            const: constant
+          value:
+            type: number
+          rate:
+            type: number
+          daily_demand:
+            type: number
+          max_food_units:
+            type: number
+          price_per_unit:
+            type: number
+        anyOf:
+          - required: [value]
+          - required: [rate]
+          - required: [daily_demand]
+          - required: [max_food_units]
+          - required: [price_per_unit]
+      - type: object
+        additionalProperties: false
+        required: [type, filepath]
+        properties:
+          type:
+            const: csv
+          filepath:
+            type: string
+          column:
+            type: string
+            default: scenario_1
+  id:
+    type: string
+    pattern: "^[a-z][a-z0-9_]*$"
