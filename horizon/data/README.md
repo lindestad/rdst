@@ -73,12 +73,14 @@ date,evaporation_m3_day
 2005-01-01,1000000.0
 ```
 
-The current direct evaporation import is available for all canonical MVP nodes
-except `cairo`, where the root source file contained no non-empty values. The
-direct files cover `1950-01-01` through `2024-12-31`; the `2025-2026` blank tail
-in the root source was intentionally not copied into `horizon/data`. Requests
-outside the available direct and fallback date coverage should fail assembly
-rather than treating missing evaporation as zero.
+The current direct evaporation import is available for all canonical MVP nodes.
+The original Cairo direct evaporation source contained no non-empty values, so
+`main/modules/evaporation/evap_csv/cairo_1950_2026_direct.csv` has been filled
+from the Aswand direct evaporation series as the MVP proxy. The direct files
+cover `1950-01-01` through `2024-12-31`; the `2025-2026` blank tail in the root
+source was intentionally not copied into `horizon/data`. Requests outside the
+available direct and fallback date coverage should fail assembly rather than
+treating missing evaporation as zero.
 
 For simulator economics, `electricity_price/<node>.csv` is expected to contain:
 
