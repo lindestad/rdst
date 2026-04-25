@@ -15,8 +15,12 @@ import { RightRail } from "./components/RightRail";
 import { SummaryItem } from "./components/SummaryItem";
 import { PitchPage } from "./pages/PitchPage";
 import { TeamPage } from "./pages/TeamPage";
-import { applyScenarioPreset, scenarioLabel } from "./lib/scenarios";
-import type { Lens, ScenarioPreset, VisualizerDataset } from "./types";
+import {
+  datasetForPackagedScenario,
+  defaultScenarioRunId,
+  packagedScenarioRuns,
+} from "./data/scenarioCatalog";
+import type { Lens, VisualizerDataset } from "./types";
 
 type SitePage = "visualization" | "pitch" | "team";
 
@@ -33,8 +37,8 @@ function readPageFromHash(): SitePage {
 
 function App() {
   const [page, setPage] = useState<SitePage>(readPageFromHash);
-  const [baseDataset, setBaseDataset] = useState<VisualizerDataset>(sampleDataset);
-  const [scenario, setScenario] = useState<ScenarioPreset>("normal");
+  const [baseDataset, setBaseDataset] = useState<VisualizerDataset>(() => sampleDataset);
+  const [selectedRunId, setSelectedRunId] = useState(defaultScenarioRunId);
   const [lens, setLens] = useState<Lens>("stress");
   const [periodIndex, setPeriodIndex] = useState(0);
   const [selectedNodeId, setSelectedNodeId] = useState(sampleDataset.nodes[0].id);
@@ -42,7 +46,7 @@ function App() {
   const [isPlaying, setIsPlaying] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const dataset = useMemo(() => applyScenarioPreset(baseDataset, scenario), [baseDataset, scenario]);
+  const dataset = baseDataset;
   const { metadata, nodes, edges, periods } = dataset;
   const activePeriodIndex = Math.min(periodIndex, periods.length - 1);
 
@@ -93,7 +97,7 @@ function App() {
     try {
       const next = await datasetFromFile(file);
       setBaseDataset(next);
-      setScenario("normal");
+      setSelectedRunId("custom");
       setLoadError(null);
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "Could not load simulator output.");
@@ -105,7 +109,7 @@ function App() {
     try {
       const next = await datasetFromCsvFiles(files);
       setBaseDataset(next);
-      setScenario("normal");
+      setSelectedRunId("custom");
       setLoadError(null);
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "Could not load NRSM CSV results.");
@@ -115,6 +119,16 @@ function App() {
   function navigate(nextPage: SitePage) {
     window.location.hash = `/${nextPage}`;
     setPage(nextPage);
+  }
+
+  function loadPackagedScenario(runId: string) {
+    try {
+      setBaseDataset(datasetForPackagedScenario(runId));
+      setSelectedRunId(runId);
+      setLoadError(null);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Could not load packaged scenario.");
+    }
   }
 
   return (
@@ -141,7 +155,7 @@ function App() {
         {page === "visualization" ? (
           <div className="scenario-strip" aria-label="Scenario summary">
             <SummaryItem label="Scenario" value={metadata.name} />
-            <SummaryItem label="What-if" value={scenarioLabel(scenario)} />
+            <SummaryItem label="Horizon" value={metadata.horizon} />
             <SummaryItem label="Source" value={metadata.source} />
             <SummaryItem label="Reporting" value={metadata.reporting} />
           </div>
@@ -155,6 +169,26 @@ function App() {
 
         {page === "visualization" && (
           <div className="file-tools">
+            <label className="scenario-select-wrap" title="Choose a packaged NRSM scenario run">
+              <span>Run</span>
+              <select
+                onChange={(event) => loadPackagedScenario(event.currentTarget.value)}
+                value={selectedRunId}
+              >
+                {selectedRunId === "custom" && <option value="custom">Uploaded run</option>}
+                {["Default", "Extremes", "Future", "Past", "Smoke"].map((group) => (
+                  <optgroup key={group} label={group}>
+                    {packagedScenarioRuns
+                      .filter((run) => run.group === group)
+                      .map((run) => (
+                        <option key={run.id} value={run.id}>
+                          {run.label}
+                        </option>
+                      ))}
+                  </optgroup>
+                ))}
+              </select>
+            </label>
             <label className="file-button secondary" title="Load NRSM --results-dir CSV files">
               <FileJson size={18} />
               <span>Load CSVs</span>
@@ -178,9 +212,7 @@ function App() {
             <button
               className="icon-button"
               onClick={() => {
-                setBaseDataset(sampleDataset);
-                setScenario("normal");
-                setLoadError(null);
+                loadPackagedScenario(defaultScenarioRunId);
               }}
               title="Reset to sample run"
               type="button"
@@ -201,8 +233,6 @@ function App() {
           <LeftRail
             lens={lens}
             onLensChange={setLens}
-            scenario={scenario}
-            onScenarioChange={setScenario}
             period={period}
             periods={periods}
             activePeriodIndex={activePeriodIndex}

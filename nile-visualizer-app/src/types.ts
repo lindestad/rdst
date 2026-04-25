@@ -1,7 +1,5 @@
 export type Lens = "stress" | "water" | "storage" | "production";
 
-export type ScenarioPreset = "normal" | "drought" | "extreme_rain" | "upstream_holdback";
-
 export type NodeKind = "river" | "reservoir";
 
 export type NileNode = {

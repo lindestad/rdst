@@ -1,0 +1,8 @@
+period_index,start_day,end_day_exclusive,duration_days,node_id,action,reservoir_level,total_inflow,evaporation,drink_water_met,unmet_drink_water,food_water_demand,food_water_met,unmet_food_water,food_produced,production_release,generated_electricity_kwh,generated_electricity_mwh,water_value_eur_per_m3,spill,release_for_routing,downstream_release,routing_loss,energy_value
+0,0,1,1,karthoum,1,0,12,0,12,13,20.0000000002,0,20.0000000002,0,0,0,0,0,0,0,0,0,0
+1,1,2,1,karthoum,1,0,12,0,12,13,20.0000000002,0,20.0000000002,0,0,0,0,0,0,0,0,0,0
+2,2,3,1,karthoum,1,0,12,0,12,13,20.0000000002,0,20.0000000002,0,0,0,0,0,0,0,0,0,0
+3,3,4,1,karthoum,1,0,12,0,12,13,20.0000000002,0,20.0000000002,0,0,0,0,0,0,0,0,0,0
+4,4,5,1,karthoum,1,0,12,0,12,13,20.0000000002,0,20.0000000002,0,0,0,0,0,0,0,0,0,0
+5,5,6,1,karthoum,1,0,12,0,12,13,20.0000000002,0,20.0000000002,0,0,0,0,0,0,0,0,0,0
+6,6,7,1,karthoum,1,0,12,0,12,13,20.0000000002,0,20.0000000002,0,0,0,0,0,0,0,0,0,0

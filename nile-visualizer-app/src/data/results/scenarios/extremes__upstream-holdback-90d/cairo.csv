@@ -1,0 +1,4 @@
+period_index,start_day,end_day_exclusive,duration_days,node_id,action,reservoir_level,total_inflow,evaporation,drink_water_met,unmet_drink_water,food_water_demand,food_water_met,unmet_food_water,food_produced,production_release,generated_electricity_kwh,generated_electricity_mwh,water_value_eur_per_m3,spill,release_for_routing,downstream_release,routing_loss,energy_value
+0,0,30,30,cairo,1,0,1781.00000000496,0,871,1829,6022.499999890503,910.0000000049599,5112.499999885543,1489.0909091260996,-0.000000000000014210854715202004,0,0,0,0,-0.000000000000014210854715202004,0,0,0
+1,30,60,30,cairo,1,0,4950.000000066959,0,2661,39,6022.499999890503,2289.000000066957,3733.499999823542,3745.6363638140347,0,0,0,0,0,0,0,0,0
+2,60,90,30,cairo,1,0,7470.000000068398,0,2700,0,6022.499999890503,4770.000000068397,1252.4999998221035,7805.454545708383,0,0,0,0,0,0,0,0,0

@@ -24,7 +24,25 @@ npm install
 npm run dev
 ```
 
-The primary path is the saved CSV output from the Rust CLI:
+The visualization ships with packaged NRSM scenario results under
+`src/data/results/scenarios`. Use the **Run** selector on `#/visualization` to
+switch between the default, past, future, extreme, and smoke-test runs without
+uploading files.
+
+To refresh the packaged catalog after editing scenarios, run this from the repo
+root:
+
+```bash
+cd horizon/nrsm
+for file in scenarios/nile-mvp/scenario.yaml scenarios/nile-mvp/past/*.yaml scenarios/nile-mvp/future/*.yaml scenarios/nile-mvp/extremes/*.yaml scenarios/nile-mvp/few-nodes/*.yaml; do
+  rel=${file#scenarios/nile-mvp/}
+  id=${rel%.yaml}
+  id=${id//\//__}
+  cargo run -q -p nrsm-cli -- "$file" --json --results-dir "../../nile-visualizer-app/src/data/results/scenarios/$id" > "/tmp/nrsm-${id//__/-}.json"
+done
+```
+
+You can also load ad-hoc saved CSV output from the Rust CLI:
 
 ```bash
 cd horizon/nrsm

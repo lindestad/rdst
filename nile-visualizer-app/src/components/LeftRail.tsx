@@ -1,18 +1,14 @@
 import {
-  CloudRain,
   Droplets,
-  Gauge,
   Pause,
   Play,
   ShieldAlert,
-  Sun,
   Waves,
   type LucideIcon,
   Zap,
 } from "lucide-react";
 import { format, sumNodes } from "../lib/format";
-import { scenarioPresets } from "../lib/scenarios";
-import type { Lens, PeriodResult, ScenarioPreset } from "../types";
+import type { Lens, PeriodResult } from "../types";
 
 const lensOptions: Array<{ id: Lens; label: string; Icon: LucideIcon }> = [
   { id: "stress", label: "Shortage", Icon: ShieldAlert },
@@ -21,18 +17,9 @@ const lensOptions: Array<{ id: Lens; label: string; Icon: LucideIcon }> = [
   { id: "production", label: "Output", Icon: Zap },
 ];
 
-const scenarioIcons: Record<ScenarioPreset, LucideIcon> = {
-  normal: Gauge,
-  drought: Sun,
-  extreme_rain: CloudRain,
-  upstream_holdback: Droplets,
-};
-
 type LeftRailProps = {
   lens: Lens;
   onLensChange: (lens: Lens) => void;
-  scenario: ScenarioPreset;
-  onScenarioChange: (scenario: ScenarioPreset) => void;
   period: PeriodResult;
   periods: PeriodResult[];
   activePeriodIndex: number;
@@ -44,8 +31,6 @@ type LeftRailProps = {
 export function LeftRail({
   lens,
   onLensChange,
-  scenario,
-  onScenarioChange,
   period,
   periods,
   activePeriodIndex,
@@ -55,30 +40,6 @@ export function LeftRail({
 }: LeftRailProps) {
   return (
     <aside className="left-rail" aria-label="Simulation controls">
-      <div className="control-group">
-        <p className="control-label">Scenario preset</p>
-        <div className="scenario-grid">
-          {scenarioPresets.map(({ id, label, summary }) => {
-            const Icon = scenarioIcons[id];
-            return (
-              <button
-                className={`scenario-button ${scenario === id ? "active" : ""}`}
-                key={id}
-                onClick={() => onScenarioChange(id)}
-                title={summary}
-                type="button"
-              >
-                <Icon size={17} strokeWidth={2.1} />
-                <span>{label}</span>
-              </button>
-            );
-          })}
-        </div>
-        <p className="scenario-help">
-          What-if presets are display transforms until simulator-native scenario runs are available.
-        </p>
-      </div>
-
       <div className="control-group">
         <p className="control-label">Lens</p>
         <div className="tool-grid">
@@ -151,21 +112,32 @@ function MetricStack({ period }: { period: PeriodResult }) {
 
   return (
     <div className="metric-stack">
-      <Metric label="Exit flow" value={format(period.totalBasinExitFlow)} accent="blue" />
-      <Metric label="Edge loss" value={format(period.totalEdgeLoss)} accent="red" />
-      <Metric label="Food" value={format(food)} accent="green" />
-      <Metric label="Energy" value={format(energy)} accent="yellow" />
-      <Metric label="Drinking" value={format(drinking)} accent="cyan" />
-      <Metric label="Irrigation" value={format(irrigation)} accent="violet" />
+      <Metric label="Exit flow" value={format(period.totalBasinExitFlow)} unit="water units" accent="blue" />
+      <Metric label="Edge loss" value={format(period.totalEdgeLoss)} unit="water units" accent="red" />
+      <Metric label="Food" value={format(food)} unit="food units" accent="green" />
+      <Metric label="Energy" value={format(energy)} unit="kWh" accent="yellow" />
+      <Metric label="Drinking" value={format(drinking)} unit="water units" accent="cyan" />
+      <Metric label="Irrigation" value={format(irrigation)} unit="water units" accent="violet" />
     </div>
   );
 }
 
-function Metric({ label, value, accent }: { label: string; value: string; accent: string }) {
+function Metric({
+  label,
+  value,
+  unit,
+  accent,
+}: {
+  label: string;
+  value: string;
+  unit: string;
+  accent: string;
+}) {
   return (
     <div className={`metric ${accent}`}>
       <span>{label}</span>
       <strong>{value}</strong>
+      <small>{unit}</small>
     </div>
   );
 }

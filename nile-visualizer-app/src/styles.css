@@ -151,6 +151,29 @@ h3 {
   gap: 8px;
 }
 
+.scenario-select-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--ink);
+  background: var(--surface-2);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.scenario-select-wrap select {
+  width: 190px;
+  border: 0;
+  color: var(--ink);
+  background: transparent;
+  font: inherit;
+  outline: 0;
+}
+
 .file-button {
   position: relative;
   display: inline-flex;
@@ -505,15 +528,7 @@ h3 {
   margin-top: 10px;
 }
 
-.scenario-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 10px;
-}
-
 .tool-button,
-.scenario-button,
 .icon-button,
 .segmented button {
   border: 1px solid var(--line);
@@ -527,7 +542,6 @@ h3 {
     transform 150ms ease;
 }
 
-.scenario-button,
 .tool-button {
   display: flex;
   align-items: center;
@@ -539,20 +553,7 @@ h3 {
   font-weight: 750;
 }
 
-.scenario-button {
-  min-height: 44px;
-}
-
-.scenario-help {
-  margin: 10px 0 0;
-  color: var(--muted);
-  font-size: 11.5px;
-  font-weight: 700;
-  line-height: 1.35;
-}
-
 .tool-button:hover,
-.scenario-button:hover,
 .icon-button:hover,
 .segmented button:hover {
   transform: translateY(-1px);
@@ -560,7 +561,6 @@ h3 {
 }
 
 .tool-button.active,
-.scenario-button.active,
 .segmented button.active {
   border-color: #1f2732;
   background: #1f2732;
@@ -625,6 +625,15 @@ h3 {
 
 .metric strong {
   font-size: 22px;
+}
+
+.metric small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
 }
 
 .metric.blue {
@@ -1335,6 +1344,15 @@ h3 {
 
   .site-summary {
     width: 100%;
+  }
+
+  .file-tools {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .scenario-select-wrap select {
+    width: min(230px, 58vw);
   }
 
   .workspace {
