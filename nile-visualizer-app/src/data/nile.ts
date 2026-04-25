@@ -9,6 +9,11 @@ import type {
   PeriodResult,
   VisualizerDataset,
 } from "../types";
+import { pathBetweenNodes, roundedPoint } from "../lib/geo";
+
+function nodePosition(longitude: number, latitude: number) {
+  return roundedPoint(longitude, latitude);
+}
 
 export const nodes: NileNode[] = [
   {
@@ -16,8 +21,7 @@ export const nodes: NileNode[] = [
     name: "Lake Victoria Outlet",
     shortName: "Victoria",
     kind: "river",
-    x: 497,
-    y: 642,
+    ...nodePosition(33.19, 0.42),
     country: "UGA",
   },
   {
@@ -25,8 +29,7 @@ export const nodes: NileNode[] = [
     name: "Lake Tana Outlet",
     shortName: "Tana",
     kind: "river",
-    x: 878,
-    y: 435,
+    ...nodePosition(37.38, 11.6),
     country: "ETH",
   },
   {
@@ -34,8 +37,7 @@ export const nodes: NileNode[] = [
     name: "GERD",
     shortName: "GERD",
     kind: "reservoir",
-    x: 670,
-    y: 442,
+    ...nodePosition(35.09, 11.22),
     country: "ETH",
     capacity: 950,
     minStorage: 250,
@@ -46,8 +48,7 @@ export const nodes: NileNode[] = [
     name: "Khartoum Confluence",
     shortName: "Khartoum",
     kind: "river",
-    x: 437,
-    y: 361,
+    ...nodePosition(32.53, 15.6),
     country: "SDN",
   },
   {
@@ -55,8 +56,7 @@ export const nodes: NileNode[] = [
     name: "High Aswan",
     shortName: "Aswan",
     kind: "reservoir",
-    x: 469,
-    y: 206,
+    ...nodePosition(32.88, 23.97),
     country: "EGY",
     capacity: 1600,
     minStorage: 500,
@@ -67,58 +67,44 @@ export const nodes: NileNode[] = [
     name: "Nile Delta",
     shortName: "Delta",
     kind: "river",
-    x: 343,
-    y: 66,
+    ...nodePosition(31.5, 31.5),
     country: "EGY",
   },
 ];
 
+const nodeById = new Map(nodes.map((node) => [node.id, node]));
+
+function sampleEdge(
+  id: string,
+  fromId: string,
+  toId: string,
+  label: string,
+  lossFraction: number,
+): NileEdge {
+  const from = nodeById.get(fromId);
+  const to = nodeById.get(toId);
+  return {
+    id,
+    from: fromId,
+    to: toId,
+    label,
+    lossFraction,
+    path: pathBetweenNodes(from, to),
+    gradient: {
+      x1: from?.x ?? 0,
+      y1: from?.y ?? 0,
+      x2: to?.x ?? 0,
+      y2: to?.y ?? 0,
+    },
+  };
+}
+
 export const edges: NileEdge[] = [
-  {
-    id: "white_to_khartoum",
-    from: "white_nile_headwaters",
-    to: "khartoum",
-    label: "White Nile to Khartoum",
-    lossFraction: 0.02,
-    path: "M 497 642 C 378 555 346 452 437 361",
-    gradient: { x1: 497, y1: 642, x2: 437, y2: 361 },
-  },
-  {
-    id: "blue_to_gerd",
-    from: "blue_nile_headwaters",
-    to: "gerd",
-    label: "Blue Nile to GERD",
-    lossFraction: 0.01,
-    path: "M 878 435 C 778 429 724 438 670 442",
-    gradient: { x1: 878, y1: 435, x2: 670, y2: 442 },
-  },
-  {
-    id: "gerd_to_khartoum",
-    from: "gerd",
-    to: "khartoum",
-    label: "GERD to Khartoum",
-    lossFraction: 0.015,
-    path: "M 670 442 C 590 403 512 386 437 361",
-    gradient: { x1: 670, y1: 442, x2: 437, y2: 361 },
-  },
-  {
-    id: "khartoum_to_aswan",
-    from: "khartoum",
-    to: "aswan",
-    label: "Khartoum to Aswan",
-    lossFraction: 0.025,
-    path: "M 437 361 C 526 302 418 254 469 206",
-    gradient: { x1: 437, y1: 361, x2: 469, y2: 206 },
-  },
-  {
-    id: "aswan_to_delta",
-    from: "aswan",
-    to: "nile_delta",
-    label: "Aswan to Delta",
-    lossFraction: 0.03,
-    path: "M 469 206 C 410 154 358 112 343 66",
-    gradient: { x1: 469, y1: 206, x2: 343, y2: 66 },
-  },
+  sampleEdge("white_to_khartoum", "white_nile_headwaters", "khartoum", "White Nile to Khartoum", 0.02),
+  sampleEdge("blue_to_gerd", "blue_nile_headwaters", "gerd", "Blue Nile to GERD", 0.01),
+  sampleEdge("gerd_to_khartoum", "gerd", "khartoum", "GERD to Khartoum", 0.015),
+  sampleEdge("khartoum_to_aswan", "khartoum", "aswan", "Khartoum to Aswan", 0.025),
+  sampleEdge("aswan_to_delta", "aswan", "nile_delta", "Aswan to Delta", 0.03),
 ];
 
 export const periods: PeriodResult[] = [
@@ -202,41 +188,41 @@ export const periods: PeriodResult[] = [
   },
   {
     periodIndex: 2,
-    label: "Month 3",
+    label: "Month 3 (drought)",
     startDay: 60,
     endDayExclusive: 90,
-    totalIncomingFlow: 41277.6075,
-    totalLocalInflow: 14100,
-    totalEdgeLoss: 912.1425,
-    totalBasinExitFlow: 5270.8575,
+    totalIncomingFlow: 22063.09,
+    totalLocalInflow: 7930,
+    totalEdgeLoss: 428.534,
+    totalBasinExitFlow: 1900,
     nodeResults: [
-      nodeResult("white_nile_headwaters", 0, 7050, 0, 0, 7050, 7050, 0),
-      nodeResult("blue_nile_headwaters", 0, 6300, 0, 0, 6300, 6300, 0),
-      nodeResult("gerd", 6237, 0, 772, 409, 24133.5, 6600, 0, null, null, {
-        turbineFlow: 6600,
-        energyGenerated: 4488,
+      nodeResult("white_nile_headwaters", 0, 4500, 0, 0, 4500, 4500, 0),
+      nodeResult("blue_nile_headwaters", 0, 3000, 0, 0, 3000, 3000, 0),
+      nodeResult("gerd", 2970, 0, 772, 150, 3742, 3000, 0, null, null, {
+        turbineFlow: 3000,
+        energyGenerated: 2040,
         totalTargetEnergy: 4350,
         totalMinimumEnergy: 3300,
-        shortfallToTarget: 0,
-        shortfallToMinimum: 0,
+        shortfallToTarget: 2310,
+        shortfallToMinimum: 1260,
       }),
-      nodeResult("khartoum", 13410, 600, 0, 0, 14010, 11610, 0, delivery(750, 750, 540), irrigation(1650, 1650, 1050, 3465)),
-      nodeResult("aswan", 11319.75, 150, 1600, 1600, 59469.75, 10629.75, 0, delivery(840, 840, 600), null, {
-        turbineFlow: 8700,
-        energyGenerated: 5133,
+      nodeResult("khartoum", 7365, 350, 0, 0, 7715, 5435, 0, delivery(680, 750, 540), irrigation(1050, 1650, 1050, 2205)),
+      nodeResult("aswan", 5299.125, 80, 1600, 250, 6929.125, 4288.625, 0, delivery(720, 840, 600), null, {
+        turbineFlow: 4400,
+        energyGenerated: 2596,
         totalTargetEnergy: 5100,
         totalMinimumEnergy: 3900,
-        shortfallToTarget: 0,
-        shortfallToMinimum: 0,
+        shortfallToTarget: 2504,
+        shortfallToMinimum: 1304,
       }),
-      nodeResult("nile_delta", 10310.8575, 0, 0, 0, 10310.8575, 5270.8575, 5270.8575, delivery(1440, 1440, 1050), irrigation(3600, 3600, 2400, 6480)),
+      nodeResult("nile_delta", 4159.966, 0, 0, 0, 4159.966, 1900, 1900, delivery(1280, 1440, 1050), irrigation(2200, 3600, 2400, 3960)),
     ],
     edgeResults: [
-      edgeResult("white_to_khartoum", 7050, 141, 6909),
-      edgeResult("blue_to_gerd", 6300, 63, 6237),
-      edgeResult("gerd_to_khartoum", 6600, 99, 6501),
-      edgeResult("khartoum_to_aswan", 11610, 290.25, 11319.75),
-      edgeResult("aswan_to_delta", 10629.75, 318.8925, 10310.8575),
+      edgeResult("white_to_khartoum", 4500, 90, 4410),
+      edgeResult("blue_to_gerd", 3000, 30, 2970),
+      edgeResult("gerd_to_khartoum", 3000, 45, 2955),
+      edgeResult("khartoum_to_aswan", 5435, 135.875, 5299.125),
+      edgeResult("aswan_to_delta", 4288.625, 128.659, 4159.966),
     ],
   },
 ];

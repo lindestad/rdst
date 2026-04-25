@@ -25,9 +25,9 @@ import {
 } from "lucide-react";
 import { datasetFromCsvFiles, datasetFromFile } from "./adapters/nrsm";
 import { sampleDataset } from "./data/nile";
+import { osmTiles, roundedPoint } from "./lib/geo";
 import type {
   EdgePeriodResult,
-  Delivery,
   Lens,
   NileEdge,
   NileNode,
@@ -108,6 +108,182 @@ const teamMembers = [
     focus: "Fill in name, role, affiliation, and contribution.",
   },
 ];
+
+type RegionDef = {
+  id: string;
+  name: string;
+  codes: string[];
+  match: RegExp;
+  centroid: { x: number; y: number };
+  pillAnchor: { x: number; y: number };
+};
+
+const regions: RegionDef[] = [
+  {
+    id: "egy",
+    name: "Egypt",
+    codes: ["EGY", "EG"],
+    match: /egypt|aswan|cairo|delta/i,
+    centroid: roundedPoint(31.7, 27.2),
+    pillAnchor: roundedPoint(31.4, 27.7),
+  },
+  {
+    id: "sdn",
+    name: "Sudan",
+    codes: ["SDN", "SD"],
+    match: /khartoum|gezira|roseires|merowe|atbara|sudan/i,
+    centroid: roundedPoint(32.8, 16.2),
+    pillAnchor: roundedPoint(31.8, 17.7),
+  },
+  {
+    id: "ssd",
+    name: "South Sudan",
+    codes: ["SSD", "SS"],
+    match: /sudd|malakal|south[ _]sudan/i,
+    centroid: roundedPoint(31.8, 6.8),
+    pillAnchor: roundedPoint(31.2, 5.6),
+  },
+  {
+    id: "eth",
+    name: "Ethiopia",
+    codes: ["ETH", "ET"],
+    match: /tana|gerd|ethiopia|atbara_source/i,
+    centroid: roundedPoint(36.0, 8.8),
+    pillAnchor: roundedPoint(36.25, 8.2),
+  },
+  {
+    id: "uga",
+    name: "Uganda",
+    codes: ["UGA", "UG"],
+    match: /victoria|uganda/i,
+    centroid: roundedPoint(32.35, 1.35),
+    pillAnchor: roundedPoint(31.75, 0.25),
+  },
+];
+
+type SectorKind = "food" | "drinking" | "power" | "storage" | "flow";
+
+type SectorRisk = {
+  kind: SectorKind;
+  ratio: number;
+  nodeShortName: string;
+};
+
+type RegionRisk = {
+  level: "none" | "warning" | "critical";
+  worst: SectorRisk | null;
+  byKind: Map<SectorKind, SectorRisk>;
+};
+
+const sectorCopy: Record<SectorKind, { critical: string; warning: string; valueSuffix: string }> = {
+  food: { critical: "Food production at risk", warning: "Food allocation strained", valueSuffix: "of crop demand met" },
+  drinking: { critical: "Drinking water unmet", warning: "Drinking water strained", valueSuffix: "of city demand met" },
+  power: { critical: "Hydropower deficit", warning: "Power below target", valueSuffix: "of energy target" },
+  storage: { critical: "Reservoir near empty", warning: "Storage running low", valueSuffix: "of capacity" },
+  flow: { critical: "Low downstream flow", warning: "Reduced downstream flow", valueSuffix: "of best period" },
+};
+
+const sectorIcons: Record<SectorKind, LucideIcon> = {
+  food: Wheat,
+  drinking: GlassWater,
+  power: Zap,
+  storage: Droplets,
+  flow: Waves,
+};
+
+function nodesForRegion(region: RegionDef, nodes: NileNode[]) {
+  return nodes.filter((node) => {
+    const code = (node.country ?? "").toUpperCase();
+    if (code && region.codes.includes(code)) return true;
+    if (!code && region.match.test(node.id)) return true;
+    return false;
+  });
+}
+
+function computeRegionRisk(
+  region: RegionDef,
+  nodes: NileNode[],
+  resultById: Map<string, NodePeriodResult>,
+  periods: PeriodResult[],
+): RegionRisk {
+  const matched = nodesForRegion(region, nodes);
+  const sectors: SectorRisk[] = [];
+
+  for (const node of matched) {
+    const result = resultById.get(node.id);
+    if (!result) continue;
+
+    if (result.drinkingWater && result.drinkingWater.totalTarget > 0) {
+      sectors.push({
+        kind: "drinking",
+        ratio: result.drinkingWater.actualDelivery / result.drinkingWater.totalTarget,
+        nodeShortName: node.shortName,
+      });
+    }
+    if (result.irrigation && result.irrigation.water.totalTarget > 0) {
+      sectors.push({
+        kind: "food",
+        ratio: result.irrigation.water.actualDelivery / result.irrigation.water.totalTarget,
+        nodeShortName: node.shortName,
+      });
+    }
+    if (result.hydropower && result.hydropower.totalTargetEnergy > 0) {
+      sectors.push({
+        kind: "power",
+        ratio: result.hydropower.energyGenerated / result.hydropower.totalTargetEnergy,
+        nodeShortName: node.shortName,
+      });
+    }
+    if (node.capacity && node.capacity > 0) {
+      sectors.push({
+        kind: "storage",
+        ratio: result.endingStorage / node.capacity,
+        nodeShortName: node.shortName,
+      });
+    }
+    if (result.totalBasinExitOutflow > 0) {
+      const max = Math.max(
+        1,
+        ...periods.flatMap((entry) =>
+          entry.nodeResults
+            .filter((candidate) => candidate.nodeId === node.id)
+            .map((candidate) => candidate.totalBasinExitOutflow),
+        ),
+      );
+      sectors.push({
+        kind: "flow",
+        ratio: result.totalBasinExitOutflow / max,
+        nodeShortName: node.shortName,
+      });
+    }
+  }
+
+  if (sectors.length === 0) {
+    return { level: "none", worst: null, byKind: new Map() };
+  }
+
+  const byKind = new Map<SectorKind, SectorRisk>();
+  for (const sector of sectors) {
+    const existing = byKind.get(sector.kind);
+    if (!existing || sector.ratio < existing.ratio) {
+      byKind.set(sector.kind, sector);
+    }
+  }
+
+  const worst = sectors.reduce((acc, candidate) => (candidate.ratio < acc.ratio ? candidate : acc));
+  return { level: sectorRiskLevel(worst), worst, byKind };
+}
+
+function sectorRiskLevel(sector: SectorRisk): "none" | "warning" | "critical" {
+  if (sector.kind === "storage") {
+    if (sector.ratio < 0.18) return "critical";
+    if (sector.ratio < 0.4) return "warning";
+    return "none";
+  }
+  if (sector.ratio < 0.75) return "critical";
+  if (sector.ratio < 0.97) return "warning";
+  return "none";
+}
 
 function App() {
   const [page, setPage] = useState<SitePage>(readPageFromHash);
@@ -349,24 +525,31 @@ function App() {
             </div>
             <div className="legend">
               <span className="legend-item flow">River flow</span>
-              <span className="legend-item warning">Moderate risk</span>
-              <span className="legend-item critical">High risk</span>
-              <span className="risk-note">Risk areas show where allocation choices constrain food, cities, storage, or Delta flow.</span>
+              <span className="legend-item warning-swatch">Allocation strain</span>
+              <span className="legend-item critical-swatch">Severe shortage</span>
+              <span className="legend-item storage-swatch">Reservoir below safe storage</span>
+              <span className="risk-note">
+                Risk badges mark where current flows fail to meet regional water, food, or power needs.
+              </span>
             </div>
           </div>
 
           <svg className="basin-map" viewBox="0 0 1040 720" role="img" aria-label="Nile simulator graph">
             <defs>
-              <filter id="risk-blur" x="-30%" y="-30%" width="160%" height="160%">
-                <feGaussianBlur stdDeviation="12" />
-              </filter>
-              <pattern id="warning-risk-pattern" width="16" height="16" patternTransform="rotate(35)" patternUnits="userSpaceOnUse">
-                <rect fill="#d89b24" height="16" opacity="0.58" width="16" />
-                <path d="M0 0 L0 16" stroke="#9b6816" strokeWidth="4" opacity="0.44" />
+              <clipPath id="basin-clip">
+                <rect x="70" y="42" width="900" height="626" rx="8" />
+              </clipPath>
+              <pattern id="scribble-critical" width="64" height="64" patternUnits="userSpaceOnUse">
+                <path d="M2 12 Q 14 4 26 12 T 50 14 T 66 8" fill="none" stroke="#d4483c" strokeWidth="2.4" strokeLinecap="round" opacity="0.78" />
+                <path d="M-2 28 Q 16 20 28 28 T 52 30 T 68 24" fill="none" stroke="#b8392e" strokeWidth="2.1" strokeLinecap="round" opacity="0.66" />
+                <path d="M0 44 Q 18 36 30 44 T 54 46 T 68 40" fill="none" stroke="#d4483c" strokeWidth="2.6" strokeLinecap="round" opacity="0.7" />
+                <path d="M-2 60 Q 14 52 26 60 T 50 62 T 66 56" fill="none" stroke="#a3322a" strokeWidth="1.9" strokeLinecap="round" opacity="0.6" />
+                <path d="M10 0 L 14 18 L 6 36 L 14 54 L 6 64" fill="none" stroke="#a3322a" strokeWidth="1.5" strokeLinecap="round" opacity="0.45" />
+                <path d="M50 0 L 42 18 L 48 36 L 40 54 L 48 64" fill="none" stroke="#a3322a" strokeWidth="1.5" strokeLinecap="round" opacity="0.45" />
               </pattern>
-              <pattern id="critical-risk-pattern" width="16" height="16" patternTransform="rotate(35)" patternUnits="userSpaceOnUse">
-                <rect fill="#d4483c" height="16" opacity="0.66" width="16" />
-                <path d="M0 0 L0 16" stroke="#8d3028" strokeWidth="4" opacity="0.5" />
+              <pattern id="scribble-warning" width="22" height="22" patternUnits="userSpaceOnUse" patternTransform="rotate(38)">
+                <line x1="0" y1="0" x2="0" y2="22" stroke="#d89b24" strokeWidth="2.6" opacity="0.55" />
+                <line x1="11" y1="0" x2="11" y2="22" stroke="#b07c1a" strokeWidth="1.4" opacity="0.42" />
               </pattern>
               {edges.map((edge) => {
                 const edgeResult = period.edgeResults.find((result) => result.edgeId === edge.id);
@@ -386,21 +569,25 @@ function App() {
               })}
             </defs>
 
-            <g className="basin-basemap">
-              <rect x="70" y="42" width="900" height="626" rx="8" />
-              <path className="country-boundary" d="M250 82 L266 214 L240 338 L302 484 L450 652" />
-              <path className="country-boundary" d="M430 120 L456 294 L438 360 L356 486" />
-              <path className="country-boundary" d="M610 138 L612 286 L532 392 L662 458 L882 450" />
-              <path className="country-boundary" d="M252 82 C346 106 388 108 430 120" />
-              <path className="country-boundary" d="M438 360 C498 316 560 290 612 286" />
-              <text x="332" y="102">Egypt</text>
-              <text x="438" y="322">Sudan</text>
-              <text x="720" y="390">Ethiopia</text>
-              <text x="320" y="522">South Sudan</text>
-              <text x="510" y="638">Uganda</text>
+            <g className="basin-basemap" clipPath="url(#basin-clip)">
+              <rect className="basin-frame" x="70" y="42" width="900" height="626" rx="8" />
+              {osmTiles.map((tile) => (
+                <image
+                  className="map-tile"
+                  height={tile.height}
+                  href={tile.href}
+                  key={tile.key}
+                  preserveAspectRatio="none"
+                  width={tile.width}
+                  x={tile.x}
+                  y={tile.y}
+                />
+              ))}
             </g>
 
-            <ImpactOverlays nodes={nodes} period={period} periods={periods} />
+            <g clipPath="url(#basin-clip)">
+              <RegionRiskOverlay nodes={nodes} period={period} periods={periods} />
+            </g>
 
             <g className="edge-layer">
               {edges.map((edge) => {
@@ -454,6 +641,11 @@ function App() {
                 );
               })}
             </g>
+
+            <RegionAnnotations nodes={nodes} period={period} periods={periods} />
+            <text className="map-attribution" x={942} y={652}>
+              © OpenStreetMap contributors
+            </text>
           </svg>
         </section>
 
@@ -611,7 +803,7 @@ function SummaryItem({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ImpactOverlays({
+function RegionRiskOverlay({
   nodes,
   period,
   periods,
@@ -620,167 +812,124 @@ function ImpactOverlays({
   period: PeriodResult;
   periods: PeriodResult[];
 }) {
-  const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const resultById = new Map(period.nodeResults.map((result) => [result.nodeId, result]));
-  const foodNodes = nodes.filter((node) => {
-    const result = resultById.get(node.id);
-    return Boolean(result?.irrigation) || /ag|irrigation|delta/i.test(node.id);
-  });
-  const municipalNodes = nodes.filter((node) => {
-    const result = resultById.get(node.id);
-    return Boolean(result?.drinkingWater) || /cairo|khartoum|municipal|delta/i.test(node.id);
-  });
-  const reservoirNodes = nodes.filter((node) => node.kind === "reservoir");
-  const deltaNode = nodeById.get("nile_delta") ?? nodeById.get("delta");
-  const deltaResult = deltaNode ? resultById.get(deltaNode.id) : undefined;
-  const deltaStress = deltaResult ? flowStress(deltaResult.totalBasinExitOutflow, periods) : null;
-
   return (
-    <g className="impact-layer" pointerEvents="none">
-      {foodNodes.map((node) => {
-        const stress = foodStress(node.id, resultById.get(node.id), periods);
-        if (stress.level === "none") return null;
+    <g className="region-risk-layer" pointerEvents="none">
+      {regions.map((region) => {
+        const risk = computeRegionRisk(region, nodes, resultById, periods);
+        if (risk.level === "none") return null;
         return (
-          <g className="risk-cluster" key={`food-${node.id}`}>
-            <ellipse
-              className={`impact-zone ${stress.level}`}
-              cx={node.x}
-              cy={node.y}
-              rx={stress.radiusX}
-              ry={stress.radiusY}
-            />
-            <text className="impact-label" x={node.x} y={node.y - stress.radiusY - 8}>
-              {stress.label}
-            </text>
-            <text className="impact-value" x={node.x} y={node.y + 5}>
-              {stress.value}
-            </text>
-          </g>
-        );
-      })}
-
-      {municipalNodes.map((node) => {
-        const stress = demandStress(resultById.get(node.id)?.drinkingWater ?? null, "water demand");
-        if (stress.level === "none") return null;
-        return (
-          <g className="risk-cluster" key={`municipal-${node.id}`}>
-            <circle className={`impact-ring ${stress.level}`} cx={node.x} cy={node.y} r={stress.radius} />
-            <text className="impact-label" x={node.x + stress.radius + 8} y={node.y + 4}>
-              {stress.label}
-            </text>
-            <text className="impact-value side" x={node.x + stress.radius + 8} y={node.y + 20}>
-              {stress.value}
-            </text>
-          </g>
-        );
-      })}
-
-      {reservoirNodes.map((node) => {
-        const stress = reservoirStress(node, resultById.get(node.id));
-        if (stress.level === "none") return null;
-        return (
-          <g className="risk-cluster" key={`reservoir-${node.id}`}>
-            <circle className={`impact-ring ${stress.level}`} cx={node.x} cy={node.y} r={stress.radius} />
-            <text className="impact-label" x={node.x + stress.radius + 8} y={node.y - 6}>
-              {stress.label}
-            </text>
-            <text className="impact-value side" x={node.x + stress.radius + 8} y={node.y + 10}>
-              {stress.value}
-            </text>
-          </g>
-        );
-      })}
-
-      {deltaNode && deltaStress && deltaStress.level !== "none" && (
-        <g className="risk-cluster">
-          <ellipse
-            className={`impact-zone ${deltaStress.level}`}
-            cx={deltaNode.x}
-            cy={deltaNode.y}
-            rx="118"
-            ry="60"
+          <circle
+            className={`region-risk ${risk.level}`}
+            cx={region.pillAnchor.x}
+            cy={region.pillAnchor.y}
+            key={`region-risk-${region.id}`}
+            r={risk.level === "critical" ? 72 : 56}
           />
-          <text className="impact-label" x={deltaNode.x - 92} y={deltaNode.y + 84}>
-            {deltaStress.label}
-          </text>
-          <text className="impact-value side" x={deltaNode.x - 92} y={deltaNode.y + 102}>
-            {deltaStress.value}
-          </text>
-        </g>
-      )}
+        );
+      })}
     </g>
   );
 }
 
-function foodStress(
-  nodeId: string,
-  result: NodePeriodResult | undefined,
-  periods: PeriodResult[],
-) {
-  const target = result?.irrigation?.water.totalTarget ?? 0;
-  const delivered = result?.irrigation?.water.actualDelivery ?? 0;
-  const currentFood = result?.irrigation?.foodProduced ?? 0;
-  const maxFood = Math.max(
-    0,
-    ...periods.map((period) => {
-      const node = period.nodeResults.find((candidate) => candidate.nodeId === nodeId);
-      return node?.irrigation?.foodProduced ?? 0;
-    }),
+function RegionAnnotations({
+  nodes,
+  period,
+  periods,
+}: {
+  nodes: NileNode[];
+  period: PeriodResult;
+  periods: PeriodResult[];
+}) {
+  const resultById = new Map(period.nodeResults.map((result) => [result.nodeId, result]));
+  const reservoirNodes = nodes.filter((node) => node.kind === "reservoir");
+
+  return (
+    <>
+      <g className="reservoir-badge-layer" pointerEvents="none">
+        {reservoirNodes.map((node) => {
+          const result = resultById.get(node.id);
+          if (!result || !node.capacity) return null;
+          const ratio = result.endingStorage / node.capacity;
+          const level = ratio < 0.18 ? "critical" : ratio < 0.4 ? "warning" : "none";
+          if (level === "none") return null;
+          const radius = level === "critical" ? 30 : 24;
+          return (
+            <g key={`storage-${node.id}`}>
+              <circle className={`storage-ring ${level}`} cx={node.x} cy={node.y} r={radius} />
+              <text className="storage-label" x={node.x} y={node.y - radius - 6}>
+                {level === "critical" ? "Reservoir near empty" : "Storage running low"}
+              </text>
+              <text className="storage-value" x={node.x} y={node.y - radius - 22}>
+                {`${Math.round(ratio * 100)}% of capacity`}
+              </text>
+            </g>
+          );
+        })}
+      </g>
+
+      <g className="region-pill-layer" pointerEvents="none">
+        {regions.map((region) => {
+          const risk = computeRegionRisk(region, nodes, resultById, periods);
+          if (risk.level === "none" || !risk.worst) return null;
+          return <RegionRiskPill key={`pill-${region.id}`} region={region} risk={risk} />;
+        })}
+      </g>
+    </>
   );
-  const ratio = target > 0 ? delivered / target : maxFood > 0 ? currentFood / maxFood : 1;
-  const level = stressLevel(ratio);
-  return {
-    level,
-    label: level === "critical" ? "Food production at risk" : level === "warning" ? "Food pressure" : "",
-    value: `${Math.round(ratio * 100)}% of reference`,
-    radiusX: /egypt|delta/i.test(nodeId) ? 148 : 100,
-    radiusY: /egypt|delta/i.test(nodeId) ? 72 : 58,
-  };
 }
 
-function demandStress(delivery: Delivery | null, label: string) {
-  if (!delivery || delivery.totalTarget <= 0) {
-    return { level: "none" as const, label: "", value: "", radius: 0 };
+function RegionRiskPill({ region, risk }: { region: RegionDef; risk: RegionRisk }) {
+  if (!risk.worst) return null;
+  const copy = sectorCopy[risk.worst.kind];
+  const headline = risk.level === "critical" ? copy.critical : copy.warning;
+  const Icon = sectorIcons[risk.worst.kind];
+  const value = `${Math.round(risk.worst.ratio * 100)}% ${copy.valueSuffix}`;
+  const otherKinds = Array.from(risk.byKind.values())
+    .filter((sector) => sector !== risk.worst && sectorRiskLevel(sector) !== "none")
+    .slice(0, 2);
+  const width = 268;
+  const height = otherKinds.length > 0 ? 76 : 60;
+
+  return (
+    <foreignObject
+      x={region.pillAnchor.x - width / 2}
+      y={region.pillAnchor.y - height / 2}
+      width={width}
+      height={height}
+      style={{ overflow: "visible" }}
+    >
+      <div className={`region-pill ${risk.level}`}>
+        <div className="region-pill-icon">
+          <Icon size={18} strokeWidth={2.2} />
+        </div>
+        <div className="region-pill-text">
+          <strong>
+            <span className="region-pill-region">{region.name}</span>
+            <span className="region-pill-headline">{headline}</span>
+          </strong>
+          <span className="region-pill-value">{value}</span>
+          {otherKinds.length > 0 && (
+            <span className="region-pill-secondary">
+              {otherKinds
+                .map((sector) => `${sectorLabel(sector.kind)} ${Math.round(sector.ratio * 100)}%`)
+                .join(" · ")}
+            </span>
+          )}
+        </div>
+      </div>
+    </foreignObject>
+  );
+}
+
+function sectorLabel(kind: SectorKind) {
+  switch (kind) {
+    case "food": return "crops";
+    case "drinking": return "drinking";
+    case "power": return "power";
+    case "storage": return "storage";
+    case "flow": return "outflow";
   }
-  const ratio = delivery.actualDelivery / delivery.totalTarget;
-  const level = stressLevel(ratio);
-  return {
-    level,
-    label: level === "critical" ? `Unmet ${label}` : level === "warning" ? `${label} pressure` : "",
-    value: `${Math.round(ratio * 100)}% served`,
-    radius: level === "critical" ? 66 : 52,
-  };
-}
-
-function reservoirStress(node: NileNode, result: NodePeriodResult | undefined) {
-  if (!node.capacity || !result) {
-    return { level: "none" as const, label: "", value: "", radius: 0 };
-  }
-  const ratio = result.endingStorage / node.capacity;
-  const level = ratio < 0.18 ? "critical" : ratio < 0.4 ? "warning" : "none";
-  return {
-    level,
-    label: level === "critical" ? "Low storage" : level === "warning" ? "Storage watch" : "",
-    value: `${Math.round(ratio * 100)}% full`,
-    radius: level === "critical" ? 74 : 58,
-  };
-}
-
-function flowStress(value: number, periods: PeriodResult[]) {
-  const max = Math.max(1, ...periods.map((period) => period.totalBasinExitFlow));
-  const ratio = value / max;
-  const level = stressLevel(ratio);
-  return {
-    level,
-    label: level === "critical" ? "Low downstream flow" : level === "warning" ? "Reduced downstream flow" : "",
-    value: `${Math.round(ratio * 100)}% of best period`,
-  };
-}
-
-function stressLevel(ratio: number): "none" | "warning" | "critical" {
-  if (ratio < 0.75) return "critical";
-  if (ratio < 0.97) return "warning";
-  return "none";
 }
 
 function MetricStack({ period }: { period: PeriodResult }) {
