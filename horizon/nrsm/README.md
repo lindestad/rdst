@@ -281,20 +281,25 @@ cargo run -p nrsm-cli -- data\generated\config.yaml --json --pretty
 The `assemble` command reads the checked-in canonical data bundle under
 `horizon/data` and writes simulator-ready files. The current MVP topology uses
 the 13 hydmod catchment nodes in `horizon/data/topology/nodes.csv`; catchment
-inflow comes from `horizon/data/hydmod/daily`. Evaporation is estimated from
-the `temp_c` column in `horizon/data/climate/era5_daily` and each node's
-configured lake area; ERA5 evaporation/PET fields are not used. The MVP formula
-is `evap_mm_day = max(0, 0.2301 * temp_c - 3.0550)`, then `m3/day` is
-`evap_mm_day * surface_area_km2_at_full * 1000`. Food and energy modules come
-from the agriculture and electricity-price folders. The assembler reads
+inflow comes from `horizon/data/hydmod/daily`. Evaporation prefers the direct
+per-node series in `horizon/data/evaporation/direct/<node_id>.csv` with column
+`evaporation_m3_day`. If that file or a requested date is missing, the assembler
+falls back to the older temperature regression using `temp_c` from
+`horizon/data/climate/era5_daily` and each node's configured lake area when that
+fallback date exists. The fallback formula is
+`evap_mm_day = max(0, 0.2301 * temp_c - 3.0550)`, then `m3/day` is
+`evap_mm_day * surface_area_km2_at_full * 1000`. ERA5 evaporation/PET fields are
+still not used by the fallback. Food and energy modules come from the
+agriculture and electricity-price folders. The assembler reads
 `effective_head_m` from `topology/nodes.csv`, writes it into each node's energy
 module, and uses the mean of the latest 365 daily records in
 `horizon/data/electricity_price/<node_id>.csv` as the node electricity price for
 hydropower valuation.
-Agriculture files supply `water_m3_day`, which the assembler writes as the
-food-production module with `water_coefficient: 1.0`; outputs therefore expose
-the agricultural water balance directly through `food_water_demand`,
-`food_water_met`, and `unmet_food_water`.
+Agriculture files supply either `water_m3_day` or `water_m3_s`; when the source
+uses `water_m3_s`, the assembler converts it with `water_m3_day = water_m3_s *
+86400`. It writes the result as the food-production module with
+`water_coefficient: 1.0`, so outputs expose the agricultural water balance
+directly through `food_water_demand`, `food_water_met`, and `unmet_food_water`.
 
 The older deterministic seed path is still available for tests and demos:
 
