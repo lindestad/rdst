@@ -66,6 +66,7 @@ Per-node columns:
 | `start_day` / `end_day_exclusive` | Day offsets from the start of the run. |
 | `duration_days` | Number of simulated days in the row. |
 | `node_id` | Node id from the scenario. |
+| `action` | Production-level fraction applied to this node for the period. Daily rows show the exact action; 30-day rows show the average action across the period. |
 | `reservoir_level` | End-of-period storage volume in m3. |
 | `total_inflow` | Local catchment plus upstream inflow volume over the period. |
 | `evaporation` | Water lost to evaporation over the period. |
@@ -83,6 +84,49 @@ energy fields across all nodes. Calendar dates are not emitted yet; consumers
 should treat `start_day` and `end_day_exclusive` as offsets from the scenario
 start date used by the data assembler.
 
+## Actions
+
+Each node can receive a per-day production action through
+`actions.production_level`. The value is a fraction in `[0, 1]` that scales the
+node's `max_production` release after drinking water and food production have
+already been served. Values outside `[0, 1]` are clamped by the simulator.
+
+Actions use the same constant-or-CSV `ModuleSeries` shape as the environmental
+modules:
+
+```yaml
+actions:
+  production_level:
+    type: csv
+    filepath: modules/victoria.actions.csv
+    column: scenario_1
+```
+
+The CSV shape is:
+
+```csv
+date,scenario_1,scenario_2
+2005-01-01,1.0,0.75
+2005-01-02,0.6,0.25
+```
+
+If a node has no `actions` block, the simulator falls back to
+`settings.production_level_fraction` for backward compatibility. The canonical
+data assembler writes one default `<node_id>.actions.csv` per node with full
+production (`1.0`) so policy and optimizer code can replace those time series
+without changing the scenario structure.
+
+External policy code can also pass an action directory at runtime:
+
+```powershell
+cargo run -p nrsm-cli -- data\generated\config.yaml --json --results-dir data\results\policy-a --actions-dir data\policy-a\actions --action-column scenario_1
+```
+
+`--actions-dir` expects one CSV for every node. Files are matched as either
+`<node_id>.actions.csv` or `<node_id>.csv`; each file must have `date` plus the
+selected action column. Runtime overrides replace the scenario's configured
+`actions.production_level` series before the simulator loads CSV data.
+
 ## Assemble Canonical Data
 
 ```powershell
@@ -91,9 +135,13 @@ cargo run -p nrsm-dataloader -- assemble --input ..\data --output data\generated
 cargo run -p nrsm-cli -- data\generated\config.yaml --json --pretty
 ```
 
-The `assemble` command reads the Python dataloader's checked-in CSV bundle under
-`horizon/data` and writes simulator-ready files. The older deterministic seed
-path is still available for tests and demos:
+The `assemble` command reads the checked-in canonical data bundle under
+`horizon/data` and writes simulator-ready files. The current MVP topology uses
+the 13 hydmod catchment nodes in `horizon/data/topology/nodes.csv`; catchment
+inflow and evaporation come from `horizon/data/hydmod/daily`, while food and
+energy modules come from the agriculture and electricity-price folders.
+
+The older deterministic seed path is still available for tests and demos:
 
 ```powershell
 cargo run -p nrsm-dataloader -- seed --output data/generated --start-date 2020-01-01 --end-date 2020-01-31 --scenarios 3

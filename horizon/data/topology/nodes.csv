@@ -1,20 +1,14 @@
-node_id,name,node_type,country,latitude,longitude,upstream,downstream,catchment_area_km2,storage_capacity_mcm,surface_area_km2_at_full,area_ha_baseline,population_baseline
-lake_victoria_outlet,Lake Victoria outlet (Jinja),source,UG,0.42,33.19,,white_nile_to_sudd,195000.0,,,,
-white_nile_to_sudd,White Nile reach to Sudd,reach,SS,5.0,31.5,lake_victoria_outlet,sudd,,,,,
-sudd,Sudd wetland,wetland,SS,7.5,30.5,white_nile_to_sudd,malakal,,,,,
-malakal,Malakal (post-Sudd),confluence,SS,9.53,31.65,sudd,khartoum,,,,,
-lake_tana_outlet,Lake Tana outlet,source,ET,11.6,37.38,,blue_nile_to_gerd,15000.0,,,,
-blue_nile_to_gerd,Blue Nile reach to GERD,reach,ET,11.0,35.1,lake_tana_outlet,gerd,,,,,
-gerd,Grand Ethiopian Renaissance Dam,reservoir,ET,11.22,35.09,blue_nile_to_gerd,blue_nile_to_khartoum,,74000.0,1874.0,,
-blue_nile_to_khartoum,Blue Nile reach (Roseires → Khartoum),reach,SD,13.5,34.0,gerd,gezira_irr,,,,,
-gezira_irr,Gezira irrigation scheme,demand_irrigation,SD,14.4,33.0,blue_nile_to_khartoum,khartoum,,,,900000.0,
-khartoum,Khartoum confluence,confluence,SD,15.6,32.53,malakal;gezira_irr,khartoum_muni;atbara_confluence,,,,,
-khartoum_muni,Khartoum municipal demand,demand_municipal,SD,15.58,32.53,khartoum,atbara_confluence,,,,,5500000.0
-atbara_source,Atbara River (Ethiopian highlands),source,ET,13.5,37.0,,atbara_confluence,112000.0,,,,
-atbara_confluence,Atbara confluence,confluence,SD,17.67,33.97,khartoum_muni;atbara_source,merowe,,,,,
-merowe,Merowe Dam,reservoir,SD,18.68,31.93,atbara_confluence,main_nile_to_aswan,,12500.0,800.0,,
-main_nile_to_aswan,Main Nile reach to Aswan,reach,EG,22.0,32.0,merowe,aswan,,,,,
-aswan,Aswan High Dam / Lake Nasser,reservoir,EG,23.97,32.88,main_nile_to_aswan,egypt_ag,,162000.0,5250.0,,
-egypt_ag,Egypt agriculture (Delta + Valley),demand_irrigation,EG,30.0,31.0,aswan,cairo_muni,,,,3500000.0,
-cairo_muni,Cairo municipal demand,demand_municipal,EG,30.05,31.25,egypt_ag,delta,,,,,20000000.0
-delta,Nile Delta / Mediterranean,sink,EG,31.5,31.5,cairo_muni,,,,,,
+node_id,name,node_type,country,latitude,longitude,upstream,downstream,catchment_area_km2,storage_capacity_mcm,initial_storage_mcm,surface_area_km2_at_full,area_ha_baseline,population_baseline,effective_head_m,agri_area_km2,max_production_m3_day,hydmod_area_km2,hydmod_lake_area_km2
+victoria,Victoria,catchment,,-1.0,33.0,,southwest,238900.0,350000.0,280000.0,68000,7000000.0,40000000.0,30.0,70000.0,50000000.0,263804,68000
+southwest,SouthWest,catchment,,8.5,29.5,victoria,karthoum,580000.0,10000.0,6000.0,24426,2000000.0,8000000.0,5.0,20000.0,0.0,1221321,24426
+karthoum,Karthoum,catchment,,15.6,32.6,southwest,merowe,45000.0,12000.0,8000.0,5662,500000.0,7000000.0,35.0,5000.0,25000000.0,188740,5662
+merowe,Merowe,catchment,,18.7,32.0,karthoum;singa;kashm,aswand,85000.0,18000.0,12000.0,7452,300000.0,1000000.0,67.0,3000.0,40000000.0,248410,7452
+aswand,Aswand,catchment,,24.0,32.9,merowe,cairo,145000.0,170000.0,140000.0,5250,200000.0,1500000.0,111.0,2000.0,60000000.0,536191,5250
+cairo,Cairo,sink,,30.8,31.0,aswand,,22000.0,60000.0,40000.0,1978,1500000.0,25000000.0,15.0,15000.0,30000000.0,197840,1978
+singa,Singa,catchment,,13.2,34.0,roseires,merowe,75000.0,15000.0,9000.0,3525,1500000.0,2000000.0,45.0,15000.0,20000000.0,117490,3525
+roseires,Roseires,catchment,,11.9,34.4,gerd,singa,82000.0,11000.0,7000.0,132,1000000.0,1500000.0,68.0,10000.0,30000000.0,13243,132
+gerd,GERD,catchment,,11.2,35.1,tana,roseires,172000.0,74000.0,45000.0,1880,6000000.0,18000000.0,145.0,60000.0,90000000.0,164452,1880
+tana,Tana,catchment,,12.0,37.3,,gerd,16000.0,25000.0,20000.0,183,800000.0,3000000.0,50.0,8000.0,15000000.0,18260,183
+kashm,Kashm,catchment,,14.9,35.9,tsengh,merowe,68000.0,4000.0,2500.0,745,1200000.0,2000000.0,60.0,12000.0,15000000.0,24834,745
+tsengh,Tsengh,catchment,,14.0,36.5,ozentari,kashm,31000.0,2500.0,1500.0,636,500000.0,800000.0,188.0,5000.0,10000000.0,63558,636
+ozentari,Ozentari,catchment,,13.5,37.2,,tsengh,19000.0,1800.0,1000.0,252,300000.0,400000.0,50.0,3000.0,8000000.0,25231,252

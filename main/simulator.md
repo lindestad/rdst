@@ -21,6 +21,8 @@ starts.
 | `timestep_days` | — | Simulation timestep in days (default `1.0`; overrides `settings.timestep_days` in the YAML) |
 | `scenario` | — | Scenario column name to use from every module CSV (default `scenario_1`) |
 | `initial_levels` | — | Per-node override of starting reservoir volume in m³; any node not listed uses the value from `config.yaml` |
+| `actions_dir` | — | Optional directory of external action CSVs, one per node, replacing `actions.production_level` in the config |
+| `action_column` | — | Scenario column to read from action CSVs (default `scenario_1`) |
 
 ---
 
@@ -72,6 +74,35 @@ Each timestep every node receives a **production level fraction** — a float in
 `(T × N)` matrix (T timesteps, N nodes) indexed by `[t, node_id]`. Values
 outside `[0, 1]` are clamped. If no action matrix is supplied (simulation-only
 mode) all nodes default to `action = 1.0` (full production).
+
+In the YAML contract, each node supplies this matrix column as
+`actions.production_level`. It accepts the same constant-or-CSV series shape as
+modules:
+
+```yaml
+actions:
+  production_level:
+    type: csv
+    filepath: modules/gerd.actions.csv
+    column: scenario_1
+```
+
+The action CSV is daily and scenario-column based:
+
+```csv
+date,scenario_1,scenario_2
+2005-01-01,1.0,0.75
+2005-01-02,0.4,0.2
+```
+
+This action only controls the controlled hydropower/production release. It does
+not directly reduce drinking-water withdrawal or food-production allocation,
+which still run first in the node water balance.
+
+Runtime callers may provide an `actions_dir` instead of editing `config.yaml`.
+The simulator expects one file per node named either `<node_id>.actions.csv` or
+`<node_id>.csv`, with daily rows and the selected `action_column`. Missing node
+action files are treated as an input error when `actions_dir` is supplied.
 
 ### Upstream inflow
 

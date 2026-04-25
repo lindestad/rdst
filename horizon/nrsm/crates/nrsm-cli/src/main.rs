@@ -4,7 +4,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use nrsm_sim_core::{NodeResult, PeriodResult, Scenario, SimulationResult, simulate};
+use nrsm_sim_core::{
+    ModuleSeries, ModuleSourceType, NodeActions, NodeResult, PeriodResult, Scenario,
+    SimulationResult, simulate,
+};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = parse_args()?;
@@ -15,6 +18,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .parent()
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("."));
+    if let Some(actions_dir) = &cli.actions_dir {
+        apply_action_overrides(&mut scenario, actions_dir, &cli.action_column)?;
+    }
     scenario.load_module_csvs(base_dir)?;
     let result = simulate(&scenario)?;
 
@@ -42,6 +48,8 @@ struct Cli {
     output: OutputFormat,
     pretty: bool,
     results_dir: Option<PathBuf>,
+    actions_dir: Option<PathBuf>,
+    action_column: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -56,6 +64,8 @@ fn parse_args() -> Result<Cli, Box<dyn std::error::Error>> {
     let mut output = OutputFormat::Yaml;
     let mut pretty = false;
     let mut results_dir = None;
+    let mut actions_dir = None;
+    let mut action_column = "scenario_1".to_string();
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -73,6 +83,18 @@ fn parse_args() -> Result<Cli, Box<dyn std::error::Error>> {
                     return Err("missing value for --results-dir".into());
                 };
                 results_dir = Some(PathBuf::from(value));
+            }
+            "--actions-dir" => {
+                let Some(value) = args.next() else {
+                    return Err("missing value for --actions-dir".into());
+                };
+                actions_dir = Some(PathBuf::from(value));
+            }
+            "--action-column" => {
+                let Some(value) = args.next() else {
+                    return Err("missing value for --action-column".into());
+                };
+                action_column = value;
             }
             "--help" | "-h" => {
                 print_help();
@@ -100,6 +122,8 @@ fn parse_args() -> Result<Cli, Box<dyn std::error::Error>> {
         output,
         pretty,
         results_dir,
+        actions_dir,
+        action_column,
     })
 }
 
@@ -113,8 +137,54 @@ fn parse_output_format(value: &str) -> Result<OutputFormat, Box<dyn std::error::
 
 fn print_help() {
     eprintln!(
-        "Usage: nrsm-cli <SCENARIO_PATH> [--output yaml|json] [--json] [--yaml] [--pretty] [--results-dir DIR]"
+        "Usage: nrsm-cli <SCENARIO_PATH> [--output yaml|json] [--json] [--yaml] [--pretty] [--results-dir DIR] [--actions-dir DIR] [--action-column COLUMN]"
     );
+}
+
+fn apply_action_overrides(
+    scenario: &mut Scenario,
+    actions_dir: &Path,
+    action_column: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let actions_dir = if actions_dir.is_absolute() {
+        actions_dir.to_path_buf()
+    } else {
+        std::env::current_dir()?.join(actions_dir)
+    };
+
+    for node in &mut scenario.nodes {
+        let actions_path = action_path_for_node(&actions_dir, &node.id).ok_or_else(|| {
+            format!(
+                "missing action CSV for node `{}` in {}; expected `{}` or `{}`",
+                node.id,
+                actions_dir.display(),
+                actions_dir
+                    .join(format!("{}.actions.csv", node.id))
+                    .display(),
+                actions_dir.join(format!("{}.csv", node.id)).display()
+            )
+        })?;
+        node.actions = Some(NodeActions {
+            production_level: ModuleSeries {
+                source_type: Some(ModuleSourceType::Csv),
+                value: None,
+                filepath: Some(actions_path),
+                column: action_column.to_string(),
+                values: Vec::new(),
+            },
+        });
+    }
+
+    Ok(())
+}
+
+fn action_path_for_node(actions_dir: &Path, node_id: &str) -> Option<PathBuf> {
+    [
+        actions_dir.join(format!("{node_id}.actions.csv")),
+        actions_dir.join(format!("{node_id}.csv")),
+    ]
+    .into_iter()
+    .find(|path| path.exists())
 }
 
 fn write_result_csvs(
@@ -153,7 +223,7 @@ fn write_result_csvs(
     Ok(outputs)
 }
 
-const NODE_RESULT_HEADER: &str = "period_index,start_day,end_day_exclusive,duration_days,node_id,reservoir_level,total_inflow,evaporation,drink_water_met,unmet_drink_water,food_produced,production_release,spill,release_for_routing,downstream_release,routing_loss,energy_value";
+const NODE_RESULT_HEADER: &str = "period_index,start_day,end_day_exclusive,duration_days,node_id,action,reservoir_level,total_inflow,evaporation,drink_water_met,unmet_drink_water,food_produced,production_release,spill,release_for_routing,downstream_release,routing_loss,energy_value";
 
 fn render_node_result_row(period: &PeriodResult, node: &NodeResult) -> String {
     let duration_days = period.end_day_exclusive - period.start_day;
@@ -165,6 +235,7 @@ fn render_node_result_row(period: &PeriodResult, node: &NodeResult) -> String {
         period.end_day_exclusive.to_string(),
         duration_days.to_string(),
         node.node_id.clone(),
+        node.action.to_string(),
         node.reservoir_level.to_string(),
         node.total_inflow.to_string(),
         node.evaporation.to_string(),
@@ -265,7 +336,7 @@ mod tests {
         simulate,
     };
 
-    use super::write_result_csvs;
+    use super::{apply_action_overrides, write_result_csvs};
 
     #[test]
     fn writes_per_node_and_summary_csvs() {
@@ -313,6 +384,51 @@ mod tests {
         fs::remove_dir_all(&dir).expect("temporary directory should be removed");
     }
 
+    #[test]
+    fn applies_external_action_csv_directory() {
+        let unique = format!(
+            "nrsm-cli-actions-dir-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system time should be after epoch")
+                .as_nanos()
+        );
+        let dir = std::env::temp_dir().join(unique);
+        fs::create_dir_all(&dir).expect("temporary directory should be created");
+        fs::write(
+            dir.join("upper.actions.csv"),
+            "date,scenario_1,policy\n2020-01-01,1.0,0.5\n",
+        )
+        .expect("upper actions should be written");
+        fs::write(
+            dir.join("lower.actions.csv"),
+            "date,scenario_1,policy\n2020-01-01,1.0,0.25\n",
+        )
+        .expect("lower actions should be written");
+
+        let mut scenario = Scenario {
+            settings: SimulationSettings {
+                horizon_days: Some(1),
+                ..SimulationSettings::default()
+            },
+            nodes: vec![node("upper", 100.0, vec![]), node("lower", 100.0, vec![])],
+        };
+
+        apply_action_overrides(&mut scenario, &dir, "policy")
+            .expect("action overrides should apply");
+        scenario
+            .load_module_csvs(".")
+            .expect("action CSVs should load");
+        let result = simulate(&scenario).expect("simulation should succeed");
+
+        assert_eq!(result.periods[0].node_results[0].action, 0.5);
+        assert_eq!(result.periods[0].node_results[0].production_release, 50.0);
+        assert_eq!(result.periods[0].node_results[1].action, 0.25);
+        assert_eq!(result.periods[0].node_results[1].production_release, 25.0);
+
+        fs::remove_dir_all(&dir).expect("temporary directory should be removed");
+    }
+
     fn node(id: &str, inflow: f64, connections: Vec<ConnectionConfig>) -> NodeConfig {
         NodeConfig {
             id: id.to_string(),
@@ -320,10 +436,11 @@ mod tests {
                 initial_level: 0.0,
                 max_capacity: 1_000.0,
             },
-            max_production: 1_000.0,
+            max_production: 100.0,
             catchment_inflow: ModuleSeries::constant(inflow),
             connections,
             modules: Default::default(),
+            actions: None,
         }
     }
 }
