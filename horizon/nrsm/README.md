@@ -47,6 +47,42 @@ Those choices keep the first implementation compact while leaving room for:
 cargo run -p nrsm-cli -- scenarios/nile-mvp/scenario.yaml
 ```
 
+Write visualization-ready time series CSVs while running a scenario:
+
+```powershell
+cargo run -p nrsm-cli -- scenarios/nile-mvp/scenario.yaml --json --results-dir data\results\nile-mvp
+```
+
+The results directory contains one CSV per node, named `<node_id>.csv`, plus a
+network-wide `summary.csv`. Per-node CSV rows follow the simulator reporting
+frequency (`daily` by default, or 30-day periods when `settings.reporting` is
+`monthly30_day`).
+
+Per-node columns:
+
+| Column | Meaning |
+| --- | --- |
+| `period_index` | Zero-based output period index. |
+| `start_day` / `end_day_exclusive` | Day offsets from the start of the run. |
+| `duration_days` | Number of simulated days in the row. |
+| `node_id` | Node id from the scenario. |
+| `reservoir_level` | End-of-period storage volume in m3. |
+| `total_inflow` | Local catchment plus upstream inflow volume over the period. |
+| `evaporation` | Water lost to evaporation over the period. |
+| `drink_water_met` / `unmet_drink_water` | Drinking-water demand served and shortfall. |
+| `food_produced` | Food units produced by the node. |
+| `production_release` | Controlled hydropower/production release volume. |
+| `spill` | Uncontrolled reservoir overflow volume. |
+| `release_for_routing` | `production_release + spill`, before edge fractions are applied. |
+| `downstream_release` | Routed volume sent to downstream nodes after connection fractions. |
+| `routing_loss` | `release_for_routing - downstream_release`, useful for plotting reach losses. |
+| `energy_value` | Hydropower value proxy for the period. |
+
+`summary.csv` uses the same period columns and aggregates the water, food, and
+energy fields across all nodes. Calendar dates are not emitted yet; consumers
+should treat `start_day` and `end_day_exclusive` as offsets from the scenario
+start date used by the data assembler.
+
 ## Assemble Canonical Data
 
 ```powershell
