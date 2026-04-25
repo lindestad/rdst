@@ -6,6 +6,7 @@ TIMESERIES_DIR = DATA_DIR / "timeseries"
 OVERLAYS_DIR = DATA_DIR / "overlays" / "ndvi"
 TILES_DIR = DATA_DIR / "tiles" / "ndvi"
 STATIC_DIR = DATA_DIR / "static"
+CSV_DIR = DATA_DIR / "csv"
 
 NODES_GEOJSON = DATA_DIR / "nodes.geojson"
 NODE_CONFIG_YAML = DATA_DIR / "node_config.yaml"
