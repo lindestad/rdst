@@ -33,11 +33,26 @@ The objectives are minimized:
 | `unmet_drink_water` | Total drinking-water shortage. |
 | `unmet_food_water` | Total irrigation water shortage. |
 | `spill` | Total uncontrolled spill. |
-| `terminal_storage_regret` | Baseline terminal reservoir storage minus candidate terminal storage. |
+| `storage_depletion` | Initial reservoir storage minus terminal reservoir storage. |
 
-The selected compromise is the Pareto candidate with the smallest normalized
-sum of these objectives. The full frontier is written so humans can choose a
-different policy afterwards.
+The `full_production` policy is seeded into the initial NSGA-II population and
+also appended as an explicit baseline candidate after the Pareto search. This
+is important because the current action only controls production release after
+drinking and irrigation water have already been allocated at a node. Full
+production is therefore often the right answer for an energy-and-food
+preference, and the optimizer should be allowed to select it honestly.
+
+The selected compromise is the Pareto candidate with the smallest weighted,
+normalized sum of these objectives. Use `--compromise-mode` to choose that
+weighting:
+
+| Mode | Use When |
+| --- | --- |
+| `energy_food` | Prefer energy value and service reliability; this often selects full or near-full production. |
+| `balanced` | Keep energy, food, spill, and storage depletion all visible. |
+| `storage_safe` | Heavily favor ending the run with more water in reservoirs. |
+
+The full frontier is written so humans can choose a different policy afterwards.
 
 ## Setup
 
@@ -60,7 +75,8 @@ uv run nrsm-optimize `
   --output-dir runs\2005-q1-pareto `
   --interval-days 14 `
   --generations 30 `
-  --population-size 48
+  --population-size 48 `
+  --compromise-mode energy_food
 ```
 
 For a faster smoke run, use fewer generations and a smaller population:
@@ -81,13 +97,14 @@ uv run nrsm-optimize `
 The output directory contains:
 
 - `pareto_candidates.csv`: objective values and simulator summaries for every
-  candidate on the final frontier.
+  candidate on the final frontier, plus the explicit `full_production_baseline`
+  candidate.
 - `selected_action_segments.csv`: compressed actions for the selected
   compromise candidate.
 - `actions/<node_id>.actions.csv`: daily action CSVs compatible with
   `nrsm-cli --actions-dir`.
 - `optimizer_manifest.json`: node order, objective names, baseline metrics, and
-  selected candidate metrics.
+  selected candidate metrics, including the compromise mode.
 
 You can replay the selected policy through the CLI:
 
