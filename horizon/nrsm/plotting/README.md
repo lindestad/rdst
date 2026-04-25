@@ -25,15 +25,20 @@ The plotter writes:
 
 - `network_water_balance.png`: basin-wide inflow, routed release, evaporation,
   drinking water, food-water demand, food-water served, and routing loss.
+- `system_water_accounting.png`: whole-system water accounting over time,
+  including accounted outflows, storage change, and balance residual.
 - `network_service_reliability.png`: unmet drinking and food-water demand over
   time, plus cumulative reliability.
 - `network_energy.png`: energy-value proxy over time and cumulative energy
   value.
 - `node_totals.png`: per-node totals for inflow, release, evaporation, food
   water, shortages, and energy value.
+- `node_water_balance.png`: per-node water-balance residuals over time.
 - `node_shortage_heatmap.png`: per-node shortage intensity over time.
 - `nodes/<node_id>.png`: node-level storage, action, inflow/release, sector
   water, shortage, and energy diagnostics.
+- `nodes/<node_id>.water_balance.png`: node-level accounting terms and balance
+  residual over time.
 - `node_metrics.csv`: per-node totals and simple reliability ratios used by the
   plots.
 - `plot_manifest.json`: paths and metadata for downstream visualization tools.
@@ -66,4 +71,3 @@ debugging old runs, and comparing action scenarios. The Python bindings remain
 the right path for optimizers that need fast repeated simulation, and this
 package can later add a `simulate-and-plot` command that calls `nrsm_py`
 directly.
-

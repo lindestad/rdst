@@ -53,9 +53,11 @@ def plot_all(
 
     plots: list[Path] = []
     plots.append(_network_water_balance(bundle, output, file_format, dpi))
+    plots.append(_system_water_accounting(bundle, node_ids, output, file_format, dpi))
     plots.append(_network_service_reliability(bundle, output, file_format, dpi))
     plots.append(_network_energy(bundle, output, file_format, dpi))
     plots.append(_node_totals(metrics, output, file_format, dpi))
+    plots.append(_node_water_balance_grid(bundle, node_ids, output, file_format, dpi))
     plots.append(_node_shortage_heatmap(bundle, node_ids, output, file_format, dpi))
 
     if include_node_plots:
@@ -63,6 +65,11 @@ def plot_all(
         node_dir.mkdir(exist_ok=True)
         for node_id in node_ids:
             plots.append(_node_detail(node_id, bundle.nodes[node_id], node_dir, file_format, dpi))
+            plots.append(
+                _node_water_balance_detail(
+                    node_id, bundle.nodes[node_id], node_dir, file_format, dpi
+                )
+            )
 
     manifest_json = output / "plot_manifest.json"
     manifest = {
@@ -160,6 +167,64 @@ def _network_water_balance(
 
     _finish_axes(axes)
     return _save(fig, output / f"network_water_balance.{file_format}", dpi)
+
+
+def _system_water_accounting(
+    bundle: ResultBundle,
+    node_ids: list[str],
+    output: Path,
+    file_format: str,
+    dpi: int,
+) -> Path:
+    balance = _system_water_balance_frame(bundle, node_ids)
+    x = balance["mid_day"]
+    fig, axes = plt.subplots(3, 1, figsize=(12, 10), sharex=True)
+
+    axes[0].plot(x, balance["inflow"], color=WATER_COLOR, label="Total node inflow")
+    axes[0].plot(x, balance["outflow"], color=RELEASE_COLOR, label="Accounted outflow")
+    axes[0].plot(
+        x,
+        balance["storage_change"],
+        color=STORAGE_COLOR,
+        label="Storage change",
+    )
+    axes[0].set_ylabel("m3")
+    axes[0].set_title("System Water Accounting")
+    axes[0].legend(loc="upper right", ncols=3)
+
+    axes[1].stackplot(
+        x,
+        balance["evaporation"],
+        balance["drink_water_met"],
+        balance["food_water_met"],
+        balance["release_for_routing"],
+        labels=[
+            "Evaporation",
+            "Drinking water",
+            "Food water",
+            "Release + spill",
+        ],
+        colors=[LOSS_COLOR, DRINK_COLOR, FOOD_COLOR, RELEASE_COLOR],
+        alpha=0.78,
+    )
+    axes[1].set_ylabel("m3")
+    axes[1].set_title("System Outflow Components")
+    axes[1].legend(loc="upper right", ncols=2)
+
+    axes[2].axhline(0.0, color="#111827", linewidth=1)
+    axes[2].plot(
+        x,
+        balance["residual"],
+        color="#B91C1C",
+        label="Balance residual",
+    )
+    axes[2].set_ylabel("m3")
+    axes[2].set_xlabel("Simulation day")
+    axes[2].set_title("Residual: inflow - uses/releases - storage change")
+    axes[2].legend(loc="upper right")
+
+    _finish_axes(axes)
+    return _save(fig, output / f"system_water_accounting.{file_format}", dpi)
 
 
 def _network_service_reliability(
@@ -286,6 +351,40 @@ def _node_totals(metrics: pd.DataFrame, output: Path, file_format: str, dpi: int
     return _save(fig, output / f"node_totals.{file_format}", dpi)
 
 
+def _node_water_balance_grid(
+    bundle: ResultBundle,
+    node_ids: list[str],
+    output: Path,
+    file_format: str,
+    dpi: int,
+) -> Path:
+    rows = max(1, (len(node_ids) + 1) // 2)
+    fig, axes = plt.subplots(rows, 2, figsize=(14, max(5, rows * 2.6)), sharex=True)
+    flat_axes = list(axes.flat) if hasattr(axes, "flat") else [axes]
+
+    for ax, node_id in zip(flat_axes, node_ids):
+        balance = _node_water_balance_frame(bundle.nodes[node_id])
+        ax.axhline(0.0, color="#111827", linewidth=0.8)
+        ax.plot(
+            balance["mid_day"],
+            balance["residual"],
+            color="#B91C1C",
+            linewidth=1.2,
+            label="Residual",
+        )
+        ax.set_title(node_id)
+        ax.set_ylabel("m3")
+
+    for ax in flat_axes[len(node_ids) :]:
+        ax.set_visible(False)
+    for ax in flat_axes[-2:]:
+        ax.set_xlabel("Simulation day")
+
+    fig.suptitle("Per-Node Water Balance Residuals", y=0.995)
+    _finish_axes([ax for ax in flat_axes if ax.get_visible()])
+    return _save(fig, output / f"node_water_balance.{file_format}", dpi)
+
+
 def _node_shortage_heatmap(
     bundle: ResultBundle,
     node_ids: list[str],
@@ -353,6 +452,97 @@ def _node_detail(
 
     _finish_axes(axes)
     return _save(fig, output / f"{node_id}.{file_format}", dpi)
+
+
+def _node_water_balance_detail(
+    node_id: str, frame: pd.DataFrame, output: Path, file_format: str, dpi: int
+) -> Path:
+    balance = _node_water_balance_frame(frame)
+    x = balance["mid_day"]
+    fig, axes = plt.subplots(3, 1, figsize=(12, 9), sharex=True)
+
+    axes[0].plot(x, balance["inflow"], color=WATER_COLOR, label="Inflow")
+    axes[0].plot(x, balance["outflow"], color=RELEASE_COLOR, label="Uses + releases")
+    axes[0].plot(x, balance["storage_change"], color=STORAGE_COLOR, label="Storage change")
+    axes[0].set_ylabel("m3")
+    axes[0].set_title(f"{node_id}: Water Balance Over Time")
+    axes[0].legend(loc="upper right", ncols=3)
+
+    axes[1].stackplot(
+        x,
+        balance["evaporation"],
+        balance["drink_water_met"],
+        balance["food_water_met"],
+        balance["release_for_routing"],
+        labels=["Evaporation", "Drinking water", "Food water", "Release + spill"],
+        colors=[LOSS_COLOR, DRINK_COLOR, FOOD_COLOR, RELEASE_COLOR],
+        alpha=0.78,
+    )
+    axes[1].set_ylabel("m3")
+    axes[1].set_title("Accounted Outflow Components")
+    axes[1].legend(loc="upper right", ncols=2)
+
+    axes[2].axhline(0.0, color="#111827", linewidth=1)
+    axes[2].plot(x, balance["residual"], color="#B91C1C", label="Balance residual")
+    axes[2].set_ylabel("m3")
+    axes[2].set_xlabel("Simulation day")
+    axes[2].set_title("Residual: inflow - uses/releases - storage change")
+    axes[2].legend(loc="upper right")
+
+    _finish_axes(axes)
+    return _save(fig, output / f"{node_id}.water_balance.{file_format}", dpi)
+
+
+def _system_water_balance_frame(bundle: ResultBundle, node_ids: list[str]) -> pd.DataFrame:
+    balances = [_node_water_balance_frame(bundle.nodes[node_id]) for node_id in node_ids]
+    combined = pd.concat(balances, ignore_index=True)
+    grouped = (
+        combined.groupby(["period_index", "mid_day"], as_index=False)[
+            [
+                "inflow",
+                "evaporation",
+                "drink_water_met",
+                "food_water_met",
+                "release_for_routing",
+                "storage_change",
+                "residual",
+            ]
+        ]
+        .sum()
+        .sort_values("period_index")
+        .reset_index(drop=True)
+    )
+    grouped["outflow"] = (
+        grouped["evaporation"]
+        + grouped["drink_water_met"]
+        + grouped["food_water_met"]
+        + grouped["release_for_routing"]
+    )
+    return grouped
+
+
+def _node_water_balance_frame(frame: pd.DataFrame) -> pd.DataFrame:
+    balance = pd.DataFrame(
+        {
+            "period_index": frame["period_index"],
+            "mid_day": frame["mid_day"],
+            "inflow": frame["total_inflow"],
+            "evaporation": frame["evaporation"],
+            "drink_water_met": frame["drink_water_met"],
+            "food_water_met": frame["food_water_met"],
+            "release_for_routing": frame["production_release"] + frame["spill"],
+            "storage_change": frame["reservoir_level"].diff(),
+        }
+    )
+    balance["outflow"] = (
+        balance["evaporation"]
+        + balance["drink_water_met"]
+        + balance["food_water_met"]
+        + balance["release_for_routing"]
+    )
+    balance["residual"] = balance["inflow"] - balance["outflow"] - balance["storage_change"]
+    balance.loc[balance["storage_change"].isna(), ["storage_change", "residual"]] = 0.0
+    return balance
 
 
 def _finish_axes(axes) -> None:

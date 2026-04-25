@@ -67,6 +67,5 @@ def test_plot_all_writes_manifest_and_metrics(tmp_path: Path) -> None:
 
     assert manifest.manifest_json.exists()
     assert manifest.metrics_csv.exists()
-    assert len(manifest.plots) == 7
+    assert len(manifest.plots) == 11
     assert all(path.exists() for path in manifest.plots)
-
