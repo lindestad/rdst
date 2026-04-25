@@ -99,6 +99,45 @@ cargo run -p nrsm-cli -- ..\data\generated\optimizer-smoke\config.yaml `
   --action-column optimized
 ```
 
+## Benchmark Policies
+
+Use `nrsm-benchmark` to compare simple policies against an optimizer run. It
+uses the same `nrsm_py` fast path as the optimizer, then writes standard
+simulator CSV result folders that the separate plotting package can read.
+
+```powershell
+uv run nrsm-benchmark `
+  --period ..\scenarios\nile-mvp\past\2005-jan-7d-baseline.yaml `
+  --data-dir ..\..\data `
+  --generated-dir ..\data\generated\benchmark-smoke `
+  --optimized-actions runs\smoke\actions `
+  --output-dir runs\benchmarks\smoke `
+  --nodes gerd aswand
+```
+
+The benchmark writes:
+
+- `benchmark_summary.csv`: one row per policy with summary metrics,
+  reliability ratios, and deltas versus `full_production`.
+- `benchmark_manifest.json`: machine-readable paths and summaries.
+- `policies/<policy>/actions`: replayable action CSVs.
+- `policies/<policy>/results`: standard NRSM result CSVs for plotting.
+
+Built-in policies:
+
+- `full_production`: action `1.0` at every node.
+- `no_production`: action `0.0` at every node.
+- `constant_50`: action `0.5` at every node.
+- `inflow_proxy`: action follows full-production inflow divided by observed
+  maximum release.
+- `storage_guardrail`: action is reduced where full-production storage falls
+  below guardrail levels.
+- `optimized`: optional action CSVs from `nrsm-optimize`.
+
+Benchmarking deliberately stays separate from plotting. The benchmark produces
+run folders and CSV contracts; `horizon/nrsm/plotting` should own comparison
+figures and dashboards.
+
 ## Why Not CMA-ES First?
 
 CMA-ES is a strong option once we agree on a single scalar loss. For the current

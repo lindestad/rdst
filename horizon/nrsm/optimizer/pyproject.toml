@@ -13,6 +13,7 @@ dependencies = [
 
 [project.scripts]
 nrsm-optimize = "nrsm_optimizer.cli:main"
+nrsm-benchmark = "nrsm_optimizer.benchmark_cli:main"
 
 [dependency-groups]
 dev = [

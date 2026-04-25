@@ -313,6 +313,21 @@ uv run nrsm-optimize `
   --population-size 48
 ```
 
+Compare the selected optimizer policy with simple baselines:
+
+```powershell
+uv run nrsm-benchmark `
+  --period ..\scenarios\nile-mvp\past\2005-q1-90d-baseline.yaml `
+  --data-dir ..\..\data `
+  --generated-dir ..\data\generated\benchmark-2005-q1 `
+  --optimized-actions runs\2005-q1-pareto\actions `
+  --output-dir runs\benchmarks\2005-q1
+```
+
+The benchmark writes standard per-policy result folders under
+`policies/<policy>/results` so comparison plots can stay in the external
+plotting package.
+
 ## Assemble Canonical Data
 
 ```powershell
