@@ -127,6 +127,47 @@ cargo run -p nrsm-cli -- data\generated\config.yaml --json --results-dir data\re
 selected action column. Runtime overrides replace the scenario's configured
 `actions.production_level` series before the simulator loads CSV data.
 
+## Optimizer API
+
+The CLI and action CSVs are the reproducible file-based path. Optimizers should
+use the in-memory API so the scenario is parsed, validated, CSV-loaded, and DAG
+compiled once:
+
+```rust
+let mut scenario: Scenario = serde_yaml::from_str(&config_yaml)?;
+scenario.load_module_csvs(config_dir)?;
+let prepared = PreparedScenario::try_new(scenario)?;
+
+let actions = vec![1.0; prepared.expected_action_len()];
+let result = prepared.simulate_with_actions(&actions)?;
+let summary = prepared.simulate_summary_with_actions(&actions)?;
+```
+
+The action matrix is a flat row-major `T x N` array:
+
+```text
+actions[day * node_count + node_index]
+```
+
+`prepared.node_ids()` returns the stable node order used for `node_index`.
+Action values are clamped to `[0, 1]`. Matrix actions override any
+`actions.production_level` series already present in the scenario.
+Use `simulate_summary_with_actions` for optimizer/loss loops that do not need
+per-node traces; it skips building the full result time series.
+
+Python bindings live in `crates/nrsm-py` and expose the same prepared simulator:
+
+```python
+import json
+import nrsm_py
+
+sim = nrsm_py.PreparedScenario.from_yaml("data/generated/config.yaml")
+actions = [1.0] * sim.expected_action_len()
+summary = json.loads(sim.run_actions_summary_json(actions))
+```
+
+Build the Python extension with maturin from `horizon/nrsm/crates/nrsm-py`.
+
 ## Assemble Canonical Data
 
 ```powershell

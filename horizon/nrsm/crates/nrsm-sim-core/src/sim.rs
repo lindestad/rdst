@@ -11,22 +11,141 @@ use crate::{
 const FLOAT_TOLERANCE: f64 = 1e-9;
 
 pub fn simulate(scenario: &Scenario) -> Result<SimulationResult, SimulationError> {
-    validate_scenario(scenario)?;
-    let compiled = CompiledNetwork::build(&scenario.nodes)?;
-    let daily_periods = simulate_daily_periods(scenario, &compiled);
-    let periods = aggregate_periods(&daily_periods, scenario.settings.reporting);
-    let summary = summarize(&periods);
-
-    Ok(SimulationResult {
-        engine_time_step: EngineTimeStep::Daily,
-        timestep_days: scenario.settings.timestep_days,
-        reporting: scenario.settings.reporting,
-        summary,
-        periods,
-    })
+    PreparedScenario::try_new(scenario.clone())?.simulate()
 }
 
-fn simulate_daily_periods(scenario: &Scenario, compiled: &CompiledNetwork) -> Vec<PeriodResult> {
+#[derive(Clone, Debug)]
+pub struct PreparedScenario {
+    scenario: Scenario,
+    compiled: CompiledNetwork,
+    horizon_days: usize,
+    node_ids: Vec<String>,
+}
+
+impl PreparedScenario {
+    pub fn try_new(scenario: Scenario) -> Result<Self, SimulationError> {
+        validate_scenario(&scenario)?;
+        let compiled = CompiledNetwork::build(&scenario.nodes)?;
+        let horizon_days = scenario.horizon_days();
+        let node_ids = scenario
+            .nodes
+            .iter()
+            .map(|node| node.id.clone())
+            .collect::<Vec<_>>();
+
+        Ok(Self {
+            scenario,
+            compiled,
+            horizon_days,
+            node_ids,
+        })
+    }
+
+    pub fn simulate(&self) -> Result<SimulationResult, SimulationError> {
+        self.simulate_with_optional_actions(None)
+    }
+
+    pub fn simulate_summary(&self) -> Result<SimulationSummary, SimulationError> {
+        Ok(simulate_daily_summary(&self.scenario, &self.compiled, None))
+    }
+
+    pub fn simulate_with_actions(
+        &self,
+        actions: &[f64],
+    ) -> Result<SimulationResult, SimulationError> {
+        self.validate_action_matrix(actions)?;
+        self.simulate_with_optional_actions(Some(actions))
+    }
+
+    pub fn simulate_summary_with_actions(
+        &self,
+        actions: &[f64],
+    ) -> Result<SimulationSummary, SimulationError> {
+        self.validate_action_matrix(actions)?;
+        Ok(simulate_daily_summary(
+            &self.scenario,
+            &self.compiled,
+            Some(actions),
+        ))
+    }
+
+    pub fn node_ids(&self) -> &[String] {
+        &self.node_ids
+    }
+
+    pub fn node_count(&self) -> usize {
+        self.node_ids.len()
+    }
+
+    pub fn horizon_days(&self) -> usize {
+        self.horizon_days
+    }
+
+    pub fn expected_action_len(&self) -> usize {
+        self.horizon_days * self.node_count()
+    }
+
+    fn simulate_with_optional_actions(
+        &self,
+        action_matrix: Option<&[f64]>,
+    ) -> Result<SimulationResult, SimulationError> {
+        let daily_periods = simulate_daily_periods(&self.scenario, &self.compiled, action_matrix);
+        let periods = aggregate_periods(&daily_periods, self.scenario.settings.reporting);
+        let summary = summarize(&periods);
+
+        Ok(SimulationResult {
+            engine_time_step: EngineTimeStep::Daily,
+            timestep_days: self.scenario.settings.timestep_days,
+            reporting: self.scenario.settings.reporting,
+            summary,
+            periods,
+        })
+    }
+
+    fn validate_action_matrix(&self, actions: &[f64]) -> Result<(), SimulationError> {
+        let expected = self.expected_action_len();
+        if actions.len() != expected {
+            return Err(SimulationError::Validation(format!(
+                "action matrix length must be horizon_days * node_count = {expected}, found {}",
+                actions.len()
+            )));
+        }
+        Ok(())
+    }
+}
+
+pub fn simulate_with_actions(
+    scenario: &Scenario,
+    actions: &[f64],
+) -> Result<SimulationResult, SimulationError> {
+    PreparedScenario::try_new(scenario.clone())?.simulate_with_actions(actions)
+}
+
+fn action_at(
+    scenario: &Scenario,
+    node: &NodeConfig,
+    node_index: usize,
+    day: usize,
+    node_count: usize,
+    action_matrix: Option<&[f64]>,
+) -> f64 {
+    let action = action_matrix
+        .map(|actions| actions[day * node_count + node_index])
+        .or_else(|| {
+            node.actions
+                .as_ref()
+                .map(|actions| actions.production_level.value_at(day))
+        })
+        .unwrap_or(scenario.settings.production_level_fraction);
+
+    action.clamp(0.0, 1.0)
+}
+
+fn simulate_daily_periods(
+    scenario: &Scenario,
+    compiled: &CompiledNetwork,
+    action_matrix: Option<&[f64]>,
+) -> Vec<PeriodResult> {
     let node_count = scenario.nodes.len();
     let horizon_days = scenario.horizon_days();
     let max_delay = compiled.max_delay;
@@ -67,12 +186,8 @@ fn simulate_daily_periods(scenario: &Scenario, compiled: &CompiledNetwork) -> Ve
                 .produce(available, day, dt_days);
             available -= food_water_consumed;
 
-            let action_fraction = node
-                .actions
-                .as_ref()
-                .map(|actions| actions.production_level.value_at(day))
-                .unwrap_or(scenario.settings.production_level_fraction)
-                .clamp(0.0, 1.0);
+            let action_fraction =
+                action_at(scenario, node, node_index, day, node_count, action_matrix);
             let max_release = (node.max_production * dt_days * action_fraction).max(0.0);
             let production_release = max_release.min(available);
             available -= production_release;
@@ -124,6 +239,93 @@ fn simulate_daily_periods(scenario: &Scenario, compiled: &CompiledNetwork) -> Ve
     }
 
     periods
+}
+
+fn simulate_daily_summary(
+    scenario: &Scenario,
+    compiled: &CompiledNetwork,
+    action_matrix: Option<&[f64]>,
+) -> SimulationSummary {
+    let node_count = scenario.nodes.len();
+    let horizon_days = scenario.horizon_days();
+    let max_delay = compiled.max_delay;
+    let dt_days = scenario.settings.timestep_days;
+    let mut reservoir_levels = scenario
+        .nodes
+        .iter()
+        .map(|node| node.reservoir.initial_level)
+        .collect::<Vec<_>>();
+    let mut scheduled_arrivals = vec![vec![0.0; node_count]; horizon_days + max_delay + 1];
+    let mut summary = SimulationSummary::default();
+
+    for day in 0..horizon_days {
+        let mut arrivals = scheduled_arrivals[day].clone();
+
+        for &node_index in &compiled.topological_order {
+            let node = &scenario.nodes[node_index];
+            let upstream_inflow = arrivals[node_index];
+            let catchment_inflow = node.catchment_inflow.value_at(day) * dt_days;
+            let total_inflow = catchment_inflow + upstream_inflow;
+            let mut available = reservoir_levels[node_index] + total_inflow;
+
+            let evaporation = (node.modules.evaporation.rate.value_at(day) * dt_days)
+                .max(0.0)
+                .min(available);
+            available -= evaporation;
+
+            let drink_water_demand =
+                (node.modules.drink_water.daily_demand.value_at(day) * dt_days).max(0.0);
+            let drink_water_met = drink_water_demand.min(available);
+            let unmet_drink_water = drink_water_demand - drink_water_met;
+            available -= drink_water_met;
+
+            let (food_produced, food_water_consumed) = node
+                .modules
+                .food_production
+                .produce(available, day, dt_days);
+            available -= food_water_consumed;
+
+            let action_fraction =
+                action_at(scenario, node, node_index, day, node_count, action_matrix);
+            let max_release = (node.max_production * dt_days * action_fraction).max(0.0);
+            let production_release = max_release.min(available);
+            available -= production_release;
+
+            let spill = (available - node.reservoir.max_capacity).max(0.0);
+            reservoir_levels[node_index] = available.clamp(0.0, node.reservoir.max_capacity);
+
+            let release_for_routing = production_release + spill;
+            let mut downstream_release = 0.0;
+
+            for &connection_index in &compiled.outgoing_connections[node_index] {
+                let connection = &compiled.connections[connection_index];
+                let routed = release_for_routing * connection.fraction;
+                downstream_release += routed;
+
+                if connection.delay == 0 {
+                    arrivals[connection.to_index] += routed;
+                } else {
+                    scheduled_arrivals[day + connection.delay][connection.to_index] += routed;
+                }
+            }
+
+            let energy_value =
+                production_release * node.modules.energy.price_per_unit.value_at(day);
+
+            summary.total_inflow += total_inflow;
+            summary.total_evaporation += evaporation;
+            summary.total_drink_water_met += drink_water_met;
+            summary.total_unmet_drink_water += unmet_drink_water;
+            summary.total_food_produced += food_produced;
+            summary.total_production_release += production_release;
+            summary.total_energy_value += energy_value;
+            summary.total_spill += spill;
+            summary.total_downstream_release += downstream_release;
+            summary.total_routing_loss += (release_for_routing - downstream_release).max(0.0);
+        }
+    }
+
+    summary
 }
 
 fn aggregate_periods(
@@ -357,6 +559,7 @@ struct CompiledConnection {
     delay: usize,
 }
 
+#[derive(Clone, Debug)]
 struct CompiledNetwork {
     topological_order: Vec<usize>,
     outgoing_connections: Vec<Vec<usize>>,
@@ -447,12 +650,13 @@ fn topological_order(
 #[cfg(test)]
 mod tests {
     use crate::{
+        PreparedScenario,
         model::{
             ConnectionConfig, DrinkWaterModule, EnergyModule, EvaporationModule,
             FoodProductionModule, ModuleSeries, ModuleSourceType, NodeActions, NodeConfig,
             NodeModules, ReportingFrequency, ReservoirConfig, Scenario, SimulationSettings,
         },
-        simulate,
+        simulate, simulate_with_actions,
     };
 
     fn node(id: &str, inflow: f64, connections: Vec<ConnectionConfig>) -> NodeConfig {
@@ -730,6 +934,59 @@ mod tests {
         assert_eq!(day_0.production_release, 25.0);
         assert_eq!(day_1.action, 0.75);
         assert_eq!(day_1.production_release, 75.0);
+    }
+
+    #[test]
+    fn prepared_scenario_accepts_flat_action_matrix() {
+        let scenario = Scenario {
+            settings: SimulationSettings {
+                horizon_days: Some(2),
+                production_level_fraction: 1.0,
+                ..SimulationSettings::default()
+            },
+            nodes: vec![
+                node("upper", 1_000.0, vec![]),
+                node("lower", 1_000.0, vec![]),
+            ],
+        };
+        let prepared = PreparedScenario::try_new(scenario.clone())
+            .expect("scenario should prepare once for repeated optimization runs");
+
+        assert_eq!(
+            prepared.node_ids(),
+            &["upper".to_string(), "lower".to_string()]
+        );
+        assert_eq!(prepared.expected_action_len(), 4);
+
+        let result = prepared
+            .simulate_with_actions(&[0.25, 0.5, 0.75, 1.0])
+            .expect("flat action matrix should simulate");
+
+        assert_eq!(result.periods[0].node_results[0].action, 0.25);
+        assert_eq!(result.periods[0].node_results[0].production_release, 250.0);
+        assert_eq!(result.periods[0].node_results[1].action, 0.5);
+        assert_eq!(result.periods[0].node_results[1].production_release, 500.0);
+        assert_eq!(result.periods[1].node_results[0].action, 0.75);
+        assert_eq!(result.periods[1].node_results[1].action, 1.0);
+
+        let one_shot = simulate_with_actions(&scenario, &[0.25, 0.5, 0.75, 1.0])
+            .expect("one-shot action matrix should still work");
+        assert_eq!(
+            one_shot.summary.total_production_release,
+            result.summary.total_production_release
+        );
+
+        let summary = prepared
+            .simulate_summary_with_actions(&[0.25, 0.5, 0.75, 1.0])
+            .expect("summary-only action matrix should simulate");
+        assert_eq!(
+            summary.total_production_release,
+            result.summary.total_production_release
+        );
+        assert_eq!(
+            summary.total_energy_value,
+            result.summary.total_energy_value
+        );
     }
 
     #[test]
