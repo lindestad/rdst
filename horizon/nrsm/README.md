@@ -210,6 +210,25 @@ cargo run -p nrsm-cli -- data\generated\config.yaml --json --results-dir data\re
 selected action column. Runtime overrides replace the scenario's configured
 `actions.production_level` series before the simulator loads CSV data.
 
+## Initial Levels
+
+By default, each node starts from `reservoir.initial_level` in the scenario YAML.
+To sweep starting storage without rewriting the generated scenario, pass a small
+override YAML:
+
+```yaml
+initial_levels:
+  gerd: 37000000000
+  aswan: 81000000000
+```
+
+```powershell
+cargo run -p nrsm-cli -- data\generated\config.yaml --json --initial-levels data\policy-a\initial-levels.yaml
+```
+
+Any node omitted from the override file keeps the scenario value. Unknown node
+ids fail fast so policy runs do not silently misspell a reservoir.
+
 ## Optimizer API
 
 The CLI and action CSVs are the reproducible file-based path. Optimizers should
@@ -262,10 +281,13 @@ cargo run -p nrsm-cli -- data\generated\config.yaml --json --pretty
 The `assemble` command reads the checked-in canonical data bundle under
 `horizon/data` and writes simulator-ready files. The current MVP topology uses
 the 13 hydmod catchment nodes in `horizon/data/topology/nodes.csv`; catchment
-inflow and evaporation come from `horizon/data/hydmod/daily`, while food and
-energy modules come from the agriculture and electricity-price folders. The
-assembler reads `effective_head_m` from `topology/nodes.csv`, writes it into
-each node's energy module, and uses the mean of the latest 365 daily records in
+inflow comes from `horizon/data/hydmod/daily`. Evaporation is estimated from
+`horizon/data/climate/era5_daily` temperature and each node's configured lake
+area using `evap_mm_day = max(0, 0.2301 * temp_c - 3.0550)`, then converted to
+`m3/day` with `evap_mm_day * surface_area_km2_at_full * 1000`. Food and energy
+modules come from the agriculture and electricity-price folders. The assembler
+reads `effective_head_m` from `topology/nodes.csv`, writes it into each node's
+energy module, and uses the mean of the latest 365 daily records in
 `horizon/data/electricity_price/<node_id>.csv` as the node electricity price for
 hydropower valuation.
 Agriculture files supply `water_m3_day`, which the assembler writes as the
