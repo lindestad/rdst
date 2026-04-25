@@ -429,12 +429,48 @@ def plot_energy_per_node_fan(results: dict, tag: str = "") -> None:
     fig.tight_layout()
 
 
-def run_all_plots(results: dict, tag: str = "") -> None:
-    """Run all seven plot functions for a loaded results dict."""
-    plot_outcome_trends(results, tag)
-    plot_seasonal_inflow_envelope(results, tag)
-    plot_reliability_fan(results, tag)
-    plot_reservoir_levels_fan(results, tag)
-    plot_inflow_per_node_fan(results, tag)
-    plot_water_demand_fan(results, tag)
-    plot_energy_per_node_fan(results, tag)
+def _slug(text: str) -> str:
+    """Convert a display tag to a safe filename fragment."""
+    import re
+    return re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_")
+
+
+def _save_figs(before: set, plots_dir: Path, name: str, tag: str) -> None:
+    """Save any figures created since `before` as PDF + PNG."""
+    plots_dir.mkdir(parents=True, exist_ok=True)
+    prefix = f"{_slug(tag)}_" if tag else ""
+    new_nums = sorted(set(plt.get_fignums()) - before)
+    for i, num in enumerate(new_nums):
+        fig   = plt.figure(num)
+        idx   = f"_{i + 1}" if len(new_nums) > 1 else ""
+        stem  = plots_dir / f"{prefix}{name}{idx}"
+        fig.savefig(stem.with_suffix(".pdf"), bbox_inches="tight")
+        fig.savefig(stem.with_suffix(".png"), dpi=150, bbox_inches="tight")
+        print(f"  Saved {stem.name}.(pdf|png)")
+
+
+def run_all_plots(
+    results: dict,
+    tag: str = "",
+    plots_dir: Path | None = None,
+    show: bool = True,
+) -> None:
+    """Run all seven plot functions; optionally save to plots_dir as PDF + PNG."""
+    steps = [
+        ("outcome_trends",          plot_outcome_trends),
+        ("seasonal_inflow",         plot_seasonal_inflow_envelope),
+        ("reliability_fan",         plot_reliability_fan),
+        ("reservoir_levels",        plot_reservoir_levels_fan),
+        ("inflow_per_node",         plot_inflow_per_node_fan),
+        ("water_demand",            plot_water_demand_fan),
+        ("energy_per_node",         plot_energy_per_node_fan),
+    ]
+
+    for name, fn in steps:
+        before = set(plt.get_fignums())
+        fn(results, tag)
+        if plots_dir is not None:
+            _save_figs(before, plots_dir, name, tag)
+
+    if show:
+        plt.show()
