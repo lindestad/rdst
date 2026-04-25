@@ -25,7 +25,7 @@ reservoir's capacity), and routes excess water downstream.
 ## Modules
 
 Each node has four pluggable modules that control time-varying behaviour.
-In the yaml file, this can either be constant with a value, e.g. `constant: 20.0`,
+In the yaml file, this can either be constant with a value, e.g. `contant: 20.0`,
 or it can point to a csv file. The time series has daily resolution, and
 one column for each scenario.
 
@@ -35,10 +35,8 @@ Natural water arriving from the local catchment into the reservoir, m^3/day.
 
 ### Evaporation
 
-Water lost from the node during the timestep. For a reservoir node this is
-normally reservoir-surface evaporation; for a reach or wetland node this may
-also represent reach-scale hydrologic loss if the data gatherer provides such
-an estimate. This loss is deducted before any other withdrawal or release.
+Water lost from the reservoir surface. Evaporation is deducted first, before
+any other withdrawal or release.
 
 ```
 evaporation = min(evaporation_rate(t, dt), available)
@@ -52,14 +50,21 @@ The withdrawal is satisfied before food production and before hydropower release
 
 ### Food Production
 
-Converts available reservoir water into food units. Production is capped by
-both the water available after drinking-water withdrawal and the module's
-maximum daily capacity. There is a minimum food production requirement, 
+Converts available reservoir water into food units and reports the water
+shortfall explicitly. Production is capped by both the water available after
+drinking-water withdrawal and the module's maximum daily capacity.
 
 ```
-food_produced  = min(water_available / water_coefficient, max_food_units × dt)
-water_consumed = food_produced × water_coefficient
+food_water_demand = max_food_units × dt × water_coefficient
+food_produced     = min(water_available / water_coefficient, max_food_units × dt)
+food_water_met    = food_produced × water_coefficient
+unmet_food_water  = food_water_demand − food_water_met
 ```
+
+For the canonical hydmod MVP, the data gatherer supplies agricultural
+`water_m3_day` values and sets `water_coefficient = 1.0`, so `food_produced` is
+a water-equivalent compatibility value while `food_water_*` fields are the
+primary agriculture accounting outputs.
 ### Energy Price
 
 Price received per m³ of water released for hydropower. Multiplied by
@@ -75,19 +80,11 @@ Each connection is a directed edge:
 | Field | Type | Description |
 |---|---|---|
 | `node_id` | string | ID of the downstream node to receive water |
-| `fraction` | float [0–1] | Share of water leaving this node that is routed to that downstream node |
+| `fraction` | float [0–1] | Share of `production_release + spill` routed to that node |
 | `delay` | int (timesteps) | Travel time before water arrives; `0` means the same timestep |
 
-The fractions across all outgoing connections must sum to ≤ 1. For in-basin
-routing, they should normally sum to `1.0`; values below `1.0` should be used
-only for water that intentionally leaves the modeled network, such as a sink,
-export, or explicitly out-of-model diversion.
-
-Hydrologic losses are part of the node's per-timestep water balance, not the
-edge between two nodes. When the data gatherer has an explicit reach-loss
-estimate, attach it to the relevant reach/wetland/reservoir node as a loss time
-series, currently represented through the evaporation module unless a dedicated
-loss module is added later.
+The fractions across all outgoing connections must sum to ≤ 1. Any remainder
+(1 − sum) is considered lost (evaporation, unmeasured discharge, etc.).
 
 Both the **controlled production release** and any **uncontrolled spill** travel
 through the same connections. Spill carries no energy value.
@@ -102,10 +99,6 @@ Each timestep, the node receives exactly one action:
   are clamped. The actual water released is `action × max_production × dt_days`,
   further capped by however much water is available in the reservoir.
 
-Current Rust support: one global `settings.production_level_fraction` is applied
-to every node and timestep. Planned support: per-node, per-date action schedules
-loaded from an action CSV.
-
 ---
 
 ## Per-Timestep Water Balance
@@ -115,7 +108,7 @@ Steps are executed in this fixed priority order:
 1. **Inflow accumulation**  
    `available = reservoir_level + catchment_inflow(t, dt) + upstream_inflow`
 
-2. **Node loss / evaporation**
+2. **Evaporation**  
    `evaporation = min(evaporation_rate(t, dt), available)`  
    `available -= evaporation`
 
@@ -124,8 +117,10 @@ Steps are executed in this fixed priority order:
    `available -= drink_water_met`
 
 4. **Food-production water allocation**  
-   `food_produced, water_consumed = food_production.produce(available, dt)`  
-   `available -= water_consumed`
+   `food_water_demand = food_production.water_demand(t, dt)`  
+   `food_produced, food_water_met = food_production.produce(available, dt)`  
+   `unmet_food_water = food_water_demand − food_water_met`  
+   `available -= food_water_met`
 
 5. **Hydropower production release**  
    `production_release = min(action × max_production × dt, available)`  
@@ -149,9 +144,13 @@ After each timestep the node returns the following values:
 
 | Field | Unit | Description |
 |---|---|---|
+| `action` | — | Production level fraction applied this timestep |
 | `reservoir_level` | m³ | Reservoir volume at end of timestep |
 | `production_release` | m³ | Water released for hydropower |
 | `energy_value` | currency | `production_release × energy_price` |
+| `food_water_demand` | m³ | Agricultural water demand this timestep |
+| `food_water_met` | m³ | Agricultural water actually withdrawn this timestep |
+| `unmet_food_water` | m³ | Agricultural water shortfall = `food_water_demand − food_water_met` |
 | `evaporation` | m³ | Water lost to evaporation this timestep |
 | `food_produced` | food units | Food units produced this timestep |
 | `drink_water_met` | m³ | Actual drinking-water withdrawn (may be < demand) |
@@ -205,14 +204,13 @@ nodes:
 
     connections:              # list of downstream edges; may be empty
       - node_id:  <string>    # ID of the downstream node
-        fraction: <float>     # share of water leaving this node routed there; 0–1
+        fraction: <float>     # share of (production_release + spill) routed there; 0–1
         delay:    <int>       # travel time in timesteps (default 0)
-                              # fractions across all connections must sum to ≤ 1;
-                              # use node modules, not edge fractions, for hydrologic loss
+                              # fractions across all connections must sum to ≤ 1
 
     modules:
       evaporation:
-        rate: <float>               # m³/day node loss / evaporation (constant)
+        rate: <float>               # m³/day (constant)
         # or: type: csv, filepath: <path>
 
       drink_water:
@@ -227,6 +225,11 @@ nodes:
       energy:
         price_per_unit: <float>     # currency/m³ (constant)
         # or: type: csv, filepath: <path>
+
+    actions:
+      production_level:
+        value: <float>              # constant fraction in [0, 1]
+        # or: type: csv, filepath: <path>, column: <scenario_N>
 ```
 
 ### Example — two-node cascade

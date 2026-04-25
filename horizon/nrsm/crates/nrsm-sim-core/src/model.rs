@@ -37,6 +37,12 @@ impl Scenario {
                 .energy
                 .price_per_unit
                 .load_csv(base_dir, &format!("node `{}` energy", node.id))?;
+            if let Some(actions) = &mut node.actions {
+                actions.production_level.load_csv(
+                    base_dir,
+                    &format!("node `{}` actions.production_level", node.id),
+                )?;
+            }
         }
 
         Ok(())
@@ -59,6 +65,9 @@ impl Scenario {
                     node.modules.drink_water.daily_demand.loaded_len(),
                     node.modules.food_production.max_food_units.loaded_len(),
                     node.modules.energy.price_per_unit.loaded_len(),
+                    node.actions
+                        .as_ref()
+                        .and_then(|actions| actions.production_level.loaded_len()),
                 ]
             })
             .flatten()
@@ -115,6 +124,8 @@ pub struct NodeConfig {
     pub connections: Vec<ConnectionConfig>,
     #[serde(default)]
     pub modules: NodeModules,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub actions: Option<NodeActions>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -141,6 +152,24 @@ pub struct NodeModules {
     pub food_production: FoodProductionModule,
     #[serde(default)]
     pub energy: EnergyModule,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct NodeActions {
+    #[serde(default = "default_production_level_series")]
+    pub production_level: ModuleSeries,
+}
+
+impl Default for NodeActions {
+    fn default() -> Self {
+        Self {
+            production_level: ModuleSeries::constant(1.0),
+        }
+    }
+}
+
+fn default_production_level_series() -> ModuleSeries {
+    ModuleSeries::constant(1.0)
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -235,12 +264,20 @@ fn default_water_coefficient() -> f64 {
 }
 
 impl FoodProductionModule {
+    pub fn water_demand(&self, day: usize, dt_days: f64) -> f64 {
+        if self.water_coefficient <= 0.0 {
+            return 0.0;
+        }
+
+        (self.max_food_units.value_at(day) * dt_days).max(0.0) * self.water_coefficient
+    }
+
     pub fn produce(&self, available_water: f64, day: usize, dt_days: f64) -> (f64, f64) {
         if self.water_coefficient <= 0.0 {
             return (0.0, 0.0);
         }
 
-        let max_food_units = self.max_food_units.value_at(day) * dt_days;
+        let max_food_units = (self.max_food_units.value_at(day) * dt_days).max(0.0);
         let food_produced = (available_water / self.water_coefficient).min(max_food_units);
         let water_consumed = food_produced * self.water_coefficient;
 
@@ -292,7 +329,8 @@ pub struct ModuleSeries {
         alias = "rate",
         alias = "daily_demand",
         alias = "max_food_units",
-        alias = "price_per_unit"
+        alias = "price_per_unit",
+        alias = "production_level"
     )]
     pub value: Option<f64>,
     #[serde(default)]
@@ -457,6 +495,9 @@ pub struct SimulationSummary {
     pub total_evaporation: f64,
     pub total_drink_water_met: f64,
     pub total_unmet_drink_water: f64,
+    pub total_food_water_demand: f64,
+    pub total_food_water_met: f64,
+    pub total_unmet_food_water: f64,
     pub total_food_produced: f64,
     pub total_production_release: f64,
     pub total_energy_value: f64,
@@ -476,10 +517,14 @@ pub struct PeriodResult {
 #[derive(Clone, Debug, Serialize)]
 pub struct NodeResult {
     pub node_id: String,
+    pub action: f64,
     pub reservoir_level: f64,
     pub production_release: f64,
     pub energy_value: f64,
     pub evaporation: f64,
+    pub food_water_demand: f64,
+    pub food_water_met: f64,
+    pub unmet_food_water: f64,
     pub food_produced: f64,
     pub drink_water_met: f64,
     pub unmet_drink_water: f64,
@@ -515,6 +560,11 @@ mod tests {
             "date,scenario_1,scenario_2\n2020-01-01,4,40\n2020-01-02,5,50\n",
         )
         .expect("food csv should be written");
+        fs::write(
+            dir.join("actions.csv"),
+            "date,scenario_1,scenario_2\n2020-01-01,0.1,0.6\n2020-01-02,0.2,0.7\n2020-01-03,0.3,0.8\n",
+        )
+        .expect("actions csv should be written");
 
         let mut scenario: Scenario = serde_yaml::from_str(
             r#"
@@ -534,6 +584,11 @@ nodes:
         filepath: food.csv
         column: scenario_2
         water_coefficient: 2.0
+    actions:
+      production_level:
+        type: csv
+        filepath: actions.csv
+        column: scenario_2
 "#,
         )
         .expect("scenario yaml should parse");
@@ -548,6 +603,14 @@ nodes:
         assert_eq!(
             node.modules.food_production.max_food_units.value_at(1),
             50.0
+        );
+        assert_eq!(
+            node.actions
+                .as_ref()
+                .expect("actions should exist")
+                .production_level
+                .value_at(1),
+            0.7
         );
         assert_eq!(scenario.horizon_days(), 2);
 

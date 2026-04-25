@@ -11,27 +11,145 @@ use crate::{
 const FLOAT_TOLERANCE: f64 = 1e-9;
 
 pub fn simulate(scenario: &Scenario) -> Result<SimulationResult, SimulationError> {
-    validate_scenario(scenario)?;
-    let compiled = CompiledNetwork::build(&scenario.nodes)?;
-    let daily_periods = simulate_daily_periods(scenario, &compiled);
-    let periods = aggregate_periods(&daily_periods, scenario.settings.reporting);
-    let summary = summarize(&periods);
-
-    Ok(SimulationResult {
-        engine_time_step: EngineTimeStep::Daily,
-        timestep_days: scenario.settings.timestep_days,
-        reporting: scenario.settings.reporting,
-        summary,
-        periods,
-    })
+    PreparedScenario::try_new(scenario.clone())?.simulate()
 }
 
-fn simulate_daily_periods(scenario: &Scenario, compiled: &CompiledNetwork) -> Vec<PeriodResult> {
+#[derive(Clone, Debug)]
+pub struct PreparedScenario {
+    scenario: Scenario,
+    compiled: CompiledNetwork,
+    horizon_days: usize,
+    node_ids: Vec<String>,
+}
+
+impl PreparedScenario {
+    pub fn try_new(scenario: Scenario) -> Result<Self, SimulationError> {
+        validate_scenario(&scenario)?;
+        let compiled = CompiledNetwork::build(&scenario.nodes)?;
+        let horizon_days = scenario.horizon_days();
+        let node_ids = scenario
+            .nodes
+            .iter()
+            .map(|node| node.id.clone())
+            .collect::<Vec<_>>();
+
+        Ok(Self {
+            scenario,
+            compiled,
+            horizon_days,
+            node_ids,
+        })
+    }
+
+    pub fn simulate(&self) -> Result<SimulationResult, SimulationError> {
+        self.simulate_with_optional_actions(None)
+    }
+
+    pub fn simulate_summary(&self) -> Result<SimulationSummary, SimulationError> {
+        Ok(simulate_daily_summary(&self.scenario, &self.compiled, None))
+    }
+
+    pub fn simulate_with_actions(
+        &self,
+        actions: &[f64],
+    ) -> Result<SimulationResult, SimulationError> {
+        self.validate_action_matrix(actions)?;
+        self.simulate_with_optional_actions(Some(actions))
+    }
+
+    pub fn simulate_summary_with_actions(
+        &self,
+        actions: &[f64],
+    ) -> Result<SimulationSummary, SimulationError> {
+        self.validate_action_matrix(actions)?;
+        Ok(simulate_daily_summary(
+            &self.scenario,
+            &self.compiled,
+            Some(actions),
+        ))
+    }
+
+    pub fn node_ids(&self) -> &[String] {
+        &self.node_ids
+    }
+
+    pub fn node_count(&self) -> usize {
+        self.node_ids.len()
+    }
+
+    pub fn horizon_days(&self) -> usize {
+        self.horizon_days
+    }
+
+    pub fn expected_action_len(&self) -> usize {
+        self.horizon_days * self.node_count()
+    }
+
+    fn simulate_with_optional_actions(
+        &self,
+        action_matrix: Option<&[f64]>,
+    ) -> Result<SimulationResult, SimulationError> {
+        let daily_periods = simulate_daily_periods(&self.scenario, &self.compiled, action_matrix);
+        let periods = aggregate_periods(&daily_periods, self.scenario.settings.reporting);
+        let summary = summarize(&periods);
+
+        Ok(SimulationResult {
+            engine_time_step: EngineTimeStep::Daily,
+            timestep_days: self.scenario.settings.timestep_days,
+            reporting: self.scenario.settings.reporting,
+            summary,
+            periods,
+        })
+    }
+
+    fn validate_action_matrix(&self, actions: &[f64]) -> Result<(), SimulationError> {
+        let expected = self.expected_action_len();
+        if actions.len() != expected {
+            return Err(SimulationError::Validation(format!(
+                "action matrix length must be horizon_days * node_count = {expected}, found {}",
+                actions.len()
+            )));
+        }
+        Ok(())
+    }
+}
+
+pub fn simulate_with_actions(
+    scenario: &Scenario,
+    actions: &[f64],
+) -> Result<SimulationResult, SimulationError> {
+    PreparedScenario::try_new(scenario.clone())?.simulate_with_actions(actions)
+}
+
+fn action_at(
+    scenario: &Scenario,
+    node: &NodeConfig,
+    node_index: usize,
+    day: usize,
+    node_count: usize,
+    action_matrix: Option<&[f64]>,
+) -> f64 {
+    let action = action_matrix
+        .map(|actions| actions[day * node_count + node_index])
+        .or_else(|| {
+            node.actions
+                .as_ref()
+                .map(|actions| actions.production_level.value_at(day))
+        })
+        .unwrap_or(scenario.settings.production_level_fraction);
+
+    action.clamp(0.0, 1.0)
+}
+
+fn simulate_daily_periods(
+    scenario: &Scenario,
+    compiled: &CompiledNetwork,
+    action_matrix: Option<&[f64]>,
+) -> Vec<PeriodResult> {
     let node_count = scenario.nodes.len();
     let horizon_days = scenario.horizon_days();
     let max_delay = compiled.max_delay;
     let dt_days = scenario.settings.timestep_days;
-    let action_fraction = scenario.settings.production_level_fraction.clamp(0.0, 1.0);
     let mut reservoir_levels = scenario
         .nodes
         .iter()
@@ -62,12 +180,16 @@ fn simulate_daily_periods(scenario: &Scenario, compiled: &CompiledNetwork) -> Ve
             let unmet_drink_water = drink_water_demand - drink_water_met;
             available -= drink_water_met;
 
-            let (food_produced, food_water_consumed) = node
+            let food_water_demand = node.modules.food_production.water_demand(day, dt_days);
+            let (food_produced, food_water_met) = node
                 .modules
                 .food_production
                 .produce(available, day, dt_days);
-            available -= food_water_consumed;
+            let unmet_food_water = food_water_demand - food_water_met;
+            available -= food_water_met;
 
+            let action_fraction =
+                action_at(scenario, node, node_index, day, node_count, action_matrix);
             let max_release = (node.max_production * dt_days * action_fraction).max(0.0);
             let production_release = max_release.min(available);
             available -= production_release;
@@ -96,10 +218,14 @@ fn simulate_daily_periods(scenario: &Scenario, compiled: &CompiledNetwork) -> Ve
 
             node_results.push(NodeResult {
                 node_id: node.id.clone(),
+                action: action_fraction,
                 reservoir_level,
                 production_release,
                 energy_value,
                 evaporation,
+                food_water_demand,
+                food_water_met,
+                unmet_food_water,
                 food_produced,
                 drink_water_met,
                 unmet_drink_water,
@@ -120,6 +246,98 @@ fn simulate_daily_periods(scenario: &Scenario, compiled: &CompiledNetwork) -> Ve
     periods
 }
 
+fn simulate_daily_summary(
+    scenario: &Scenario,
+    compiled: &CompiledNetwork,
+    action_matrix: Option<&[f64]>,
+) -> SimulationSummary {
+    let node_count = scenario.nodes.len();
+    let horizon_days = scenario.horizon_days();
+    let max_delay = compiled.max_delay;
+    let dt_days = scenario.settings.timestep_days;
+    let mut reservoir_levels = scenario
+        .nodes
+        .iter()
+        .map(|node| node.reservoir.initial_level)
+        .collect::<Vec<_>>();
+    let mut scheduled_arrivals = vec![vec![0.0; node_count]; horizon_days + max_delay + 1];
+    let mut summary = SimulationSummary::default();
+
+    for day in 0..horizon_days {
+        let mut arrivals = scheduled_arrivals[day].clone();
+
+        for &node_index in &compiled.topological_order {
+            let node = &scenario.nodes[node_index];
+            let upstream_inflow = arrivals[node_index];
+            let catchment_inflow = node.catchment_inflow.value_at(day) * dt_days;
+            let total_inflow = catchment_inflow + upstream_inflow;
+            let mut available = reservoir_levels[node_index] + total_inflow;
+
+            let evaporation = (node.modules.evaporation.rate.value_at(day) * dt_days)
+                .max(0.0)
+                .min(available);
+            available -= evaporation;
+
+            let drink_water_demand =
+                (node.modules.drink_water.daily_demand.value_at(day) * dt_days).max(0.0);
+            let drink_water_met = drink_water_demand.min(available);
+            let unmet_drink_water = drink_water_demand - drink_water_met;
+            available -= drink_water_met;
+
+            let food_water_demand = node.modules.food_production.water_demand(day, dt_days);
+            let (food_produced, food_water_met) = node
+                .modules
+                .food_production
+                .produce(available, day, dt_days);
+            let unmet_food_water = food_water_demand - food_water_met;
+            available -= food_water_met;
+
+            let action_fraction =
+                action_at(scenario, node, node_index, day, node_count, action_matrix);
+            let max_release = (node.max_production * dt_days * action_fraction).max(0.0);
+            let production_release = max_release.min(available);
+            available -= production_release;
+
+            let spill = (available - node.reservoir.max_capacity).max(0.0);
+            reservoir_levels[node_index] = available.clamp(0.0, node.reservoir.max_capacity);
+
+            let release_for_routing = production_release + spill;
+            let mut downstream_release = 0.0;
+
+            for &connection_index in &compiled.outgoing_connections[node_index] {
+                let connection = &compiled.connections[connection_index];
+                let routed = release_for_routing * connection.fraction;
+                downstream_release += routed;
+
+                if connection.delay == 0 {
+                    arrivals[connection.to_index] += routed;
+                } else {
+                    scheduled_arrivals[day + connection.delay][connection.to_index] += routed;
+                }
+            }
+
+            let energy_value =
+                production_release * node.modules.energy.price_per_unit.value_at(day);
+
+            summary.total_inflow += total_inflow;
+            summary.total_evaporation += evaporation;
+            summary.total_drink_water_met += drink_water_met;
+            summary.total_unmet_drink_water += unmet_drink_water;
+            summary.total_food_water_demand += food_water_demand;
+            summary.total_food_water_met += food_water_met;
+            summary.total_unmet_food_water += unmet_food_water;
+            summary.total_food_produced += food_produced;
+            summary.total_production_release += production_release;
+            summary.total_energy_value += energy_value;
+            summary.total_spill += spill;
+            summary.total_downstream_release += downstream_release;
+            summary.total_routing_loss += (release_for_routing - downstream_release).max(0.0);
+        }
+    }
+
+    summary
+}
+
 fn aggregate_periods(
     daily_periods: &[PeriodResult],
     reporting: ReportingFrequency,
@@ -137,16 +355,22 @@ fn aggregate_periods(
 fn aggregate_chunk(period_index: usize, chunk: &[PeriodResult]) -> PeriodResult {
     let mut node_positions = HashMap::<String, usize>::new();
     let mut node_results = Vec::<NodeResult>::new();
+    let mut node_counts = Vec::<usize>::new();
 
     for period in chunk {
         for node in &period.node_results {
             match node_positions.get(&node.node_id).copied() {
                 Some(position) => {
+                    node_counts[position] += 1;
                     let aggregate = &mut node_results[position];
+                    aggregate.action += node.action;
                     aggregate.reservoir_level = node.reservoir_level;
                     aggregate.production_release += node.production_release;
                     aggregate.energy_value += node.energy_value;
                     aggregate.evaporation += node.evaporation;
+                    aggregate.food_water_demand += node.food_water_demand;
+                    aggregate.food_water_met += node.food_water_met;
+                    aggregate.unmet_food_water += node.unmet_food_water;
                     aggregate.food_produced += node.food_produced;
                     aggregate.drink_water_met += node.drink_water_met;
                     aggregate.unmet_drink_water += node.unmet_drink_water;
@@ -158,9 +382,15 @@ fn aggregate_chunk(period_index: usize, chunk: &[PeriodResult]) -> PeriodResult 
                     let position = node_results.len();
                     node_positions.insert(node.node_id.clone(), position);
                     node_results.push(node.clone());
+                    node_counts.push(1);
                 }
             }
         }
+    }
+
+    for (index, aggregate) in node_results.iter_mut().enumerate() {
+        let count = node_counts.get(index).copied().unwrap_or(1);
+        aggregate.action /= count as f64;
     }
 
     PeriodResult {
@@ -186,6 +416,9 @@ fn summarize(periods: &[PeriodResult]) -> SimulationSummary {
             summary.total_evaporation += node.evaporation;
             summary.total_drink_water_met += node.drink_water_met;
             summary.total_unmet_drink_water += node.unmet_drink_water;
+            summary.total_food_water_demand += node.food_water_demand;
+            summary.total_food_water_met += node.food_water_met;
+            summary.total_unmet_food_water += node.unmet_food_water;
             summary.total_food_produced += node.food_produced;
             summary.total_production_release += node.production_release;
             summary.total_energy_value += node.energy_value;
@@ -325,6 +558,12 @@ fn validate_node(node: &NodeConfig) -> Result<(), SimulationError> {
         .price_per_unit
         .validate(&format!("node `{}` energy", node.id))
         .map_err(SimulationError::Validation)?;
+    if let Some(actions) = &node.actions {
+        actions
+            .production_level
+            .validate(&format!("node `{}` actions.production_level", node.id))
+            .map_err(SimulationError::Validation)?;
+    }
 
     Ok(())
 }
@@ -336,6 +575,7 @@ struct CompiledConnection {
     delay: usize,
 }
 
+#[derive(Clone, Debug)]
 struct CompiledNetwork {
     topological_order: Vec<usize>,
     outgoing_connections: Vec<Vec<usize>>,
@@ -426,12 +666,13 @@ fn topological_order(
 #[cfg(test)]
 mod tests {
     use crate::{
+        PreparedScenario,
         model::{
             ConnectionConfig, DrinkWaterModule, EnergyModule, EvaporationModule,
-            FoodProductionModule, ModuleSeries, NodeConfig, NodeModules, ReportingFrequency,
-            ReservoirConfig, Scenario, SimulationSettings,
+            FoodProductionModule, ModuleSeries, ModuleSourceType, NodeActions, NodeConfig,
+            NodeModules, ReportingFrequency, ReservoirConfig, Scenario, SimulationSettings,
         },
-        simulate,
+        simulate, simulate_with_actions,
     };
 
     fn node(id: &str, inflow: f64, connections: Vec<ConnectionConfig>) -> NodeConfig {
@@ -445,6 +686,7 @@ mod tests {
             catchment_inflow: ModuleSeries::constant(inflow),
             connections,
             modules: NodeModules::default(),
+            actions: None,
         }
     }
 
@@ -464,6 +706,7 @@ mod tests {
                 max_production: 10.0,
                 catchment_inflow: ModuleSeries::constant(20.0),
                 connections: vec![],
+                actions: None,
                 modules: NodeModules {
                     evaporation: EvaporationModule {
                         rate: ModuleSeries::constant(5.0),
@@ -487,6 +730,9 @@ mod tests {
 
         assert_eq!(node.evaporation, 5.0);
         assert_eq!(node.drink_water_met, 15.0);
+        assert_eq!(node.food_water_demand, 16.0);
+        assert_eq!(node.food_water_met, 16.0);
+        assert_eq!(node.unmet_food_water, 0.0);
         assert_eq!(node.food_produced, 8.0);
         assert_eq!(node.production_release, 10.0);
         assert_eq!(node.energy_value, 30.0);
@@ -510,6 +756,7 @@ mod tests {
                 max_production: 25.0,
                 catchment_inflow: ModuleSeries::constant(100.0),
                 connections: vec![],
+                actions: None,
                 modules: NodeModules {
                     evaporation: EvaporationModule {
                         rate: ModuleSeries::constant(10.0),
@@ -529,18 +776,136 @@ mod tests {
         let result = simulate(&scenario).expect("simulation should succeed");
         let node = &result.periods[0].node_results[0];
         let starting_storage = scenario.nodes[0].reservoir.initial_level;
-        let food_water_consumed = node.food_produced * water_coefficient;
         let water_in = starting_storage + node.total_inflow;
         let water_out = node.evaporation
             + node.drink_water_met
-            + food_water_consumed
+            + node.food_water_met
             + node.production_release
             + node.spill
             + node.reservoir_level;
 
         assert_approx_eq(water_in, water_out);
+        assert_eq!(node.food_water_demand, 30.0);
+        assert_eq!(node.food_water_met, 30.0);
+        assert_eq!(node.unmet_food_water, 0.0);
         assert_eq!(node.spill, 5.0);
         assert_eq!(node.reservoir_level, 40.0);
+    }
+
+    #[test]
+    fn reports_unmet_food_water_when_available_water_is_short() {
+        let scenario = Scenario {
+            settings: SimulationSettings {
+                horizon_days: Some(1),
+                ..SimulationSettings::default()
+            },
+            nodes: vec![NodeConfig {
+                id: "farm".to_string(),
+                reservoir: ReservoirConfig {
+                    initial_level: 5.0,
+                    max_capacity: 100.0,
+                },
+                max_production: 100.0,
+                catchment_inflow: ModuleSeries::constant(5.0),
+                connections: vec![],
+                actions: None,
+                modules: NodeModules {
+                    evaporation: EvaporationModule::default(),
+                    drink_water: DrinkWaterModule::default(),
+                    food_production: FoodProductionModule {
+                        water_coefficient: 2.0,
+                        max_food_units: ModuleSeries::constant(20.0),
+                    },
+                    energy: EnergyModule::default(),
+                },
+            }],
+        };
+
+        let result = simulate(&scenario).expect("food shortfall should simulate");
+        let node = &result.periods[0].node_results[0];
+
+        assert_eq!(node.food_water_demand, 40.0);
+        assert_eq!(node.food_water_met, 10.0);
+        assert_eq!(node.unmet_food_water, 30.0);
+        assert_eq!(node.food_produced, 5.0);
+        assert_eq!(node.production_release, 0.0);
+    }
+
+    #[test]
+    fn empty_reservoir_has_no_evaporation_or_release() {
+        let scenario = Scenario {
+            settings: SimulationSettings {
+                horizon_days: Some(1),
+                ..SimulationSettings::default()
+            },
+            nodes: vec![NodeConfig {
+                id: "dry".to_string(),
+                reservoir: ReservoirConfig {
+                    initial_level: 0.0,
+                    max_capacity: 100.0,
+                },
+                max_production: 100.0,
+                catchment_inflow: ModuleSeries::constant(0.0),
+                connections: vec![],
+                actions: None,
+                modules: NodeModules {
+                    evaporation: EvaporationModule {
+                        rate: ModuleSeries::constant(10.0),
+                    },
+                    drink_water: DrinkWaterModule::default(),
+                    food_production: FoodProductionModule::default(),
+                    energy: EnergyModule::default(),
+                },
+            }],
+        };
+
+        let result = simulate(&scenario).expect("empty reservoir should simulate");
+        let node = &result.periods[0].node_results[0];
+
+        assert_eq!(node.evaporation, 0.0);
+        assert_eq!(node.production_release, 0.0);
+        assert_eq!(node.spill, 0.0);
+        assert_eq!(node.reservoir_level, 0.0);
+    }
+
+    #[test]
+    fn evaporation_is_capped_by_available_water() {
+        let scenario = Scenario {
+            settings: SimulationSettings {
+                horizon_days: Some(1),
+                ..SimulationSettings::default()
+            },
+            nodes: vec![NodeConfig {
+                id: "nearly-dry".to_string(),
+                reservoir: ReservoirConfig {
+                    initial_level: 2.0,
+                    max_capacity: 100.0,
+                },
+                max_production: 100.0,
+                catchment_inflow: ModuleSeries::constant(3.0),
+                connections: vec![],
+                actions: None,
+                modules: NodeModules {
+                    evaporation: EvaporationModule {
+                        rate: ModuleSeries::constant(10.0),
+                    },
+                    drink_water: DrinkWaterModule {
+                        daily_demand: ModuleSeries::constant(10.0),
+                    },
+                    food_production: FoodProductionModule::default(),
+                    energy: EnergyModule::default(),
+                },
+            }],
+        };
+
+        let result = simulate(&scenario).expect("available-water cap should simulate");
+        let node = &result.periods[0].node_results[0];
+
+        assert_eq!(node.evaporation, 5.0);
+        assert_eq!(node.drink_water_met, 0.0);
+        assert_eq!(node.unmet_drink_water, 10.0);
+        assert_eq!(node.production_release, 0.0);
+        assert_eq!(node.reservoir_level, 0.0);
     }
 
     #[test]
@@ -667,6 +1032,98 @@ mod tests {
         let source = &result.periods[0].node_results[0];
 
         assert_eq!(source.production_release, 100.0);
+        assert_eq!(source.action, 1.0);
+    }
+
+    #[test]
+    fn applies_per_node_time_series_actions() {
+        let scenario = Scenario {
+            settings: SimulationSettings {
+                horizon_days: Some(2),
+                production_level_fraction: 1.0,
+                ..SimulationSettings::default()
+            },
+            nodes: vec![NodeConfig {
+                id: "source".to_string(),
+                reservoir: ReservoirConfig {
+                    initial_level: 0.0,
+                    max_capacity: 1_000.0,
+                },
+                max_production: 100.0,
+                catchment_inflow: ModuleSeries::constant(100.0),
+                connections: vec![],
+                modules: NodeModules::default(),
+                actions: Some(NodeActions {
+                    production_level: ModuleSeries {
+                        source_type: Some(ModuleSourceType::Csv),
+                        values: vec![0.25, 0.75],
+                        ..ModuleSeries::constant(1.0)
+                    },
+                }),
+            }],
+        };
+
+        let result = simulate(&scenario).expect("time-series actions should simulate");
+        let day_0 = &result.periods[0].node_results[0];
+        let day_1 = &result.periods[1].node_results[0];
+
+        assert_eq!(day_0.action, 0.25);
+        assert_eq!(day_0.production_release, 25.0);
+        assert_eq!(day_1.action, 0.75);
+        assert_eq!(day_1.production_release, 75.0);
+    }
+
+    #[test]
+    fn prepared_scenario_accepts_flat_action_matrix() {
+        let scenario = Scenario {
+            settings: SimulationSettings {
+                horizon_days: Some(2),
+                production_level_fraction: 1.0,
+                ..SimulationSettings::default()
+            },
+            nodes: vec![
+                node("upper", 1_000.0, vec![]),
+                node("lower", 1_000.0, vec![]),
+            ],
+        };
+        let prepared = PreparedScenario::try_new(scenario.clone())
+            .expect("scenario should prepare once for repeated optimization runs");
+
+        assert_eq!(
+            prepared.node_ids(),
+            &["upper".to_string(), "lower".to_string()]
+        );
+        assert_eq!(prepared.expected_action_len(), 4);
+
+        let result = prepared
+            .simulate_with_actions(&[0.25, 0.5, 0.75, 1.0])
+            .expect("flat action matrix should simulate");
+
+        assert_eq!(result.periods[0].node_results[0].action, 0.25);
+        assert_eq!(result.periods[0].node_results[0].production_release, 250.0);
+        assert_eq!(result.periods[0].node_results[1].action, 0.5);
+        assert_eq!(result.periods[0].node_results[1].production_release, 500.0);
+        assert_eq!(result.periods[1].node_results[0].action, 0.75);
+        assert_eq!(result.periods[1].node_results[1].action, 1.0);
+
+        let one_shot = simulate_with_actions(&scenario, &[0.25, 0.5, 0.75, 1.0])
+            .expect("one-shot action matrix should still work");
+        assert_eq!(
+            one_shot.summary.total_production_release,
+            result.summary.total_production_release
+        );
+
+        let summary = prepared
+            .simulate_summary_with_actions(&[0.25, 0.5, 0.75, 1.0])
+            .expect("summary-only action matrix should simulate");
+        assert_eq!(
+            summary.total_production_release,
+            result.summary.total_production_release
+        );
+        assert_eq!(
+            summary.total_energy_value,
+            result.summary.total_energy_value
+        );
     }
 
     #[test]

@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo/logo.svg" alt="RDST logo" width="420">
+</p>
+
 # RDST
 
 **A Nile-focused river systems simulator and visualizer for CASSINI's Space for Water track.**

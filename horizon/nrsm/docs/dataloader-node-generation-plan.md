@@ -8,6 +8,8 @@ contract:
 - generate node configuration from sourced topology, reservoirs, demand zones,
   and routing assumptions
 - generate daily module CSVs for each node and scenario column
+- generate default daily action CSVs so policy and optimizer code can replace
+  per-node hydropower production fractions without changing topology
 - keep CASSINI/Copernicus data prominent, with Galileo/GNSS included as a
   defensible EU-space source lane
 - supplement with Nile-specific and FAO data where Copernicus does not provide
@@ -71,6 +73,7 @@ horizon/nrsm/data/generated/
 - `nodes[].modules.drink_water`
 - `nodes[].modules.food_production`
 - `nodes[].modules.energy`
+- `nodes[].actions.production_level`
 
 Every generated scalar or CSV should carry provenance through a staging table.
 
@@ -186,6 +189,7 @@ series with transparent multipliers until richer climate scenarios land.
 | `food_production.water_coefficient` | WaPOR/AQUASTAT crop-water productivity inverse |
 | `food_production.max_food_units` | irrigated area and seasonal crop calendar |
 | `energy.price_per_unit` | normalized value proxy; constant unless policy layer adds pricing |
+| `actions.production_level` | default `1.0` full-production policy; replace with optimizer or scenario actions |
 
 ## Source Adapters
 
