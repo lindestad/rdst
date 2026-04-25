@@ -298,8 +298,9 @@ through the `nrsm_py` binding and writes action CSVs that can be replayed with
 The optimizer compresses the action space into piecewise-constant intervals, for
 example one action per node per 14 or 30 days, then expands the candidate policy
 to the simulator's daily `T x N` action matrix. It minimizes separate objectives
-for energy regret, drinking-water shortage, food-water shortage, and spill so
-the tradeoff frontier remains visible.
+for energy regret, drinking-water shortage, food-water shortage, spill, and
+storage depletion so the tradeoff frontier remains visible. The full-production
+policy is always included as an explicit selectable baseline.
 
 ```powershell
 cd optimizer
@@ -310,7 +311,8 @@ uv run nrsm-optimize `
   --output-dir runs\2005-q1-pareto `
   --interval-days 14 `
   --generations 30 `
-  --population-size 48
+  --population-size 48 `
+  --compromise-mode energy_food
 ```
 
 Compare the selected optimizer policy with simple baselines:
