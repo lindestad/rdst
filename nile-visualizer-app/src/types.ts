@@ -20,7 +20,6 @@ export type NileEdge = {
   from: string;
   to: string;
   label: string;
-  lossFraction: number;
   path: string;
   gradient: {
     x1: number;
@@ -43,13 +42,13 @@ export type Irrigation = {
   foodProduced: number;
 };
 
+// Hydropower is an output of the simulator (production_release × kWh/m³),
+// not a demand. NRSM has no "energy target" — we only surface what was
+// generated and its EUR value.
 export type Hydropower = {
-  turbineFlow: number;
-  energyGenerated: number;
-  totalTargetEnergy: number;
-  totalMinimumEnergy: number;
-  shortfallToTarget: number;
-  shortfallToMinimum: number;
+  turbineFlow: number; // m³ released through turbines
+  energyGenerated: number; // MWh
+  valueEur: number; // monetary value of generated electricity
 };
 
 export type NodePeriodResult = {
@@ -68,9 +67,7 @@ export type NodePeriodResult = {
 
 export type EdgePeriodResult = {
   edgeId: string;
-  totalRoutedFlow: number;
-  totalLostFlow: number;
-  totalReceivedFlow: number;
+  totalFlow: number;
 };
 
 export type PeriodResult = {
@@ -80,7 +77,6 @@ export type PeriodResult = {
   endDayExclusive: number;
   totalIncomingFlow: number;
   totalLocalInflow: number;
-  totalEdgeLoss: number;
   totalBasinExitFlow: number;
   nodeResults: NodePeriodResult[];
   edgeResults: EdgePeriodResult[];

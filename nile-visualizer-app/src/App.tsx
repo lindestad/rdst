@@ -63,22 +63,25 @@ function App() {
   } = state;
 
   const { metadata, nodes, edges, periods } = dataset;
-  const period = periods[activePeriodIndex];
-  const selectedNode = nodes.find((node) => node.id === selectedNodeId) ?? nodes[0];
-  const selectedNodeResult = period.nodeResults.find((node) => node.nodeId === selectedNode.id);
-  const selectedEdge = edges.find((edge) => edge.id === selectedEdgeId) ?? edges[0];
-  const selectedEdgeResult = period.edgeResults.find((edge) => edge.edgeId === selectedEdge.id);
+  const hasData = periods.length > 0 && nodes.length > 0;
+  const period = hasData ? periods[activePeriodIndex] : undefined;
+  const selectedNode = hasData ? (nodes.find((node) => node.id === selectedNodeId) ?? nodes[0]) : undefined;
+  const selectedNodeResult = period && selectedNode
+    ? period.nodeResults.find((node) => node.nodeId === selectedNode.id)
+    : undefined;
+  const selectedEdge = edges.length > 0
+    ? (edges.find((edge) => edge.id === selectedEdgeId) ?? edges[0])
+    : undefined;
+  const selectedEdgeResult = period && selectedEdge
+    ? period.edgeResults.find((edge) => edge.edgeId === selectedEdge.id)
+    : undefined;
 
   const maxEdgeFlow = useMemo(
-    () => Math.max(1, ...periods.flatMap((item) => item.edgeResults.map((edge) => edge.totalRoutedFlow))),
+    () => Math.max(1, ...periods.flatMap((item) => item.edgeResults.map((edge) => edge.totalFlow))),
     [periods],
   );
   const maxNodeAvailable = useMemo(
     () => Math.max(1, ...periods.flatMap((item) => item.nodeResults.map((node) => node.totalAvailableWater))),
-    [periods],
-  );
-  const maxLoss = useMemo(
-    () => Math.max(1, ...periods.flatMap((item) => item.edgeResults.map((edge) => edge.totalLostFlow))),
     [periods],
   );
 
@@ -201,6 +204,11 @@ function App() {
         <PitchPage onOpenVisualization={() => navigate("visualization")} />
       ) : page === "team" ? (
         <TeamPage onOpenVisualization={() => navigate("visualization")} />
+      ) : !hasData || !period || !selectedNode || !selectedEdge ? (
+        <section className="empty-state" role="status">
+          <h2>No simulator data loaded.</h2>
+          <p>Pick a packaged run, upload an NRSM JSON, or load a results-dir of CSVs to begin.</p>
+        </section>
       ) : (
         <section className="workspace">
           <LeftRail
@@ -238,7 +246,6 @@ function App() {
             periods={periods}
             activePeriodIndex={activePeriodIndex}
             period={period}
-            maxLoss={maxLoss}
           />
         </section>
       )}

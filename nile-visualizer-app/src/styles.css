@@ -223,6 +223,22 @@ h3 {
   text-transform: uppercase;
 }
 
+.empty-state {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 8px;
+  min-height: 60vh;
+  padding: 32px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.empty-state h2 {
+  color: var(--ink);
+  font-size: 22px;
+}
+
 .provenance-badge {
   display: inline-flex;
   align-items: center;
@@ -913,6 +929,10 @@ h3 {
 
 .region-risk.critical {
   stroke-dasharray: 6 5;
+}
+
+.impact-zone {
+  transition: opacity 600ms ease-out;
 }
 
 .impact-zone-wash {

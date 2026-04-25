@@ -2,6 +2,19 @@ import { useMemo } from "react";
 import { Locate, Minus, Plus } from "lucide-react";
 import { VIEWBOX_H, VIEWBOX_W, ZOOM_BUTTON_FACTOR } from "../config";
 import { osmTiles } from "../lib/geo";
+
+function legendNote(lens: Lens): string {
+  switch (lens) {
+    case "stress":
+      return "Hatched regions show downstream zones whose drinking or food deliveries are running short this period.";
+    case "water":
+      return "Hatched regions show wetlands and headwaters whose through-flow drops below their best period.";
+    case "storage":
+      return "Reservoir rings (around dam nodes) show storage running low. No region scribbling on this lens.";
+    case "production":
+      return "Hatched regions show hydropower facilities generating below their best period.";
+  }
+}
 import { useMapView } from "../hooks/useMapView";
 import { CountryLabels, ImpactZoneOverlay, RegionAnnotations } from "./MapOverlays";
 import { edgeLabel, edgeStops, edgeWidth, nodeFill, nodeRadius } from "./mapStyling";
@@ -70,17 +83,13 @@ export function BasinMap({
       <div className="map-toolbar">
         <div>
           <p className="control-label">Active window</p>
-          <strong>
-            Days {period.startDay + 1}-{period.endDayExclusive}
-          </strong>
+          <strong>{period.label}</strong>
         </div>
-        <div className="legend">
-          <span className="legend-item flow">Runoff / release</span>
-          <span className="legend-item warning-swatch">Allocation strain</span>
-          <span className="legend-item critical-swatch">Severe shortage</span>
-          <span className="risk-note">
-            Scribbled areas mark regions where this preset creates water, food, storage, or power stress.
-          </span>
+        <div className="legend" aria-label="Map legend">
+          <span className="legend-item flow">Routed flow</span>
+          <span className="legend-item warning-swatch">Strain</span>
+          <span className="legend-item critical-swatch">Severe</span>
+          <span className="risk-note">{legendNote(lens)}</span>
         </div>
       </div>
 
@@ -119,13 +128,19 @@ export function BasinMap({
         viewBox={`0 0 ${VIEWBOX_W} ${VIEWBOX_H}`}
         preserveAspectRatio="xMidYMin meet"
         role="img"
-        aria-label="Nile simulator graph"
+        aria-label="Nile basin simulator graph"
+        aria-describedby="basin-map-desc"
         ref={svgRef}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
       >
+        <desc id="basin-map-desc">
+          {period.label}. Edge thickness encodes routed flow magnitude. Node color
+          encodes the active lens (shortage, runoff, storage, or output). Hatched
+          regions mark stress hotspots. Click a node or reach to inspect details.
+        </desc>
         <defs>
           <clipPath id="basin-clip">
             <rect x="24" y="18" width="992" height="684" rx="8" />
@@ -185,7 +200,7 @@ export function BasinMap({
             ))}
           </g>
 
-          <ImpactZoneOverlay nodes={nodes} period={period} periods={periods} />
+          <ImpactZoneOverlay nodes={nodes} period={period} periods={periods} lens={lens} />
 
           <CountryLabels />
 

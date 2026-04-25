@@ -1,35 +1,57 @@
 import { STORAGE_CRITICAL_RATIO, STORAGE_WARNING_RATIO } from "../config";
 import { smoothPolygonFromGeo } from "../lib/geo";
-import { impactZones } from "../lib/riverPaths";
+import { impactZones, type ImpactDimension } from "../lib/riverPaths";
 import { computeZoneRisk, regions } from "../lib/risk";
-import type { NileNode, NodePeriodResult, PeriodResult } from "../types";
+import type { Lens, NileNode, NodePeriodResult, PeriodResult } from "../types";
+
+const LENS_DIMENSIONS: Record<Lens, ImpactDimension[]> = {
+  // Shortage lens — show downstream consequences of delivery shortfalls.
+  stress: ["delivery"],
+  // Runoff lens — show flow-driven impact regions (wetlands, headwaters).
+  water: ["flow"],
+  // Storage lens — reservoir rings handle this; polygons would triple-count.
+  storage: [],
+  // Output lens — power footprints around hydropower facilities.
+  production: ["power"],
+};
 
 export function ImpactZoneOverlay({
   nodes,
   period,
   periods,
+  lens,
 }: {
   nodes: NileNode[];
   period: PeriodResult;
   periods: PeriodResult[];
+  lens: Lens;
 }) {
+  const dimensions = LENS_DIMENSIONS[lens];
+  if (dimensions.length === 0) return null;
   const resultById = new Map(period.nodeResults.map((result) => [result.nodeId, result]));
 
   return (
     <g className="impact-zone-layer" pointerEvents="none">
-      {impactZones.map((zone) => {
-        const risk = computeZoneRisk(zone, nodes, resultById, periods);
-        if (risk.level === "none") return null;
-        const path = smoothPolygonFromGeo(zone.geo);
-        if (!path) return null;
-        const scribble = risk.level === "critical" ? "url(#scribble-critical)" : "url(#scribble-warning)";
-        return (
-          <g className={`impact-zone ${risk.level}`} key={`zone-${zone.id}`}>
-            <path className="impact-zone-wash" d={path} />
-            <path className="impact-zone-scribble" d={path} fill={scribble} />
-          </g>
-        );
-      })}
+      {impactZones
+        .filter((zone) => dimensions.includes(zone.dimension))
+        .map((zone) => {
+          const risk = computeZoneRisk(zone, nodes, resultById, periods);
+          if (risk.level === "none" || risk.intensity <= 0.05) return null;
+          const path = smoothPolygonFromGeo(zone.geo);
+          if (!path) return null;
+          const scribble = risk.level === "critical" ? "url(#scribble-critical)" : "url(#scribble-warning)";
+          // Continuous opacity so 50% delivery looks worse than 80%.
+          const opacity = Math.min(1, 0.35 + risk.intensity * 0.65);
+          return (
+            <g className={`impact-zone ${risk.level}`} key={`zone-${zone.id}`} style={{ opacity }}>
+              <title>
+                {`${zone.label} · ${Math.round(risk.ratio * 100)}% of best period`}
+              </title>
+              <path className="impact-zone-wash" d={path} />
+              <path className="impact-zone-scribble" d={path} fill={scribble} />
+            </g>
+          );
+        })}
     </g>
   );
 }

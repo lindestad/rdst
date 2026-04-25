@@ -54,7 +54,6 @@ function edge(id: string, fromId: string, toId: string, label: string): NileEdge
     from: fromId,
     to: toId,
     label,
-    lossFraction: 0,
     path: pathBetweenNodes(from, to),
     gradient: {
       x1: from?.x ?? 0,

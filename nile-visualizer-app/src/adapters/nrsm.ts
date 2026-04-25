@@ -4,8 +4,6 @@ import { pathBetweenNodes } from "../lib/geo";
 import type {
   Delivery,
   EdgePeriodResult,
-  Hydropower,
-  Irrigation,
   NileEdge,
   NileNode,
   NodePeriodResult,
@@ -56,12 +54,17 @@ const ResultCsvRowSchema = z
     evaporation: NumericField,
     drink_water_met: NumericField,
     unmet_drink_water: NumericField,
+    food_water_demand: NumericField,
+    food_water_met: NumericField,
+    unmet_food_water: NumericField,
     food_produced: NumericField,
     production_release: NumericField,
     spill: NumericField,
     release_for_routing: NumericField,
     downstream_release: NumericField,
-    routing_loss: NumericField,
+    generated_electricity_kwh: NumericField,
+    generated_electricity_mwh: NumericField,
+    water_value_eur_per_m3: NumericField,
     energy_value: NumericField,
   })
   .passthrough();
@@ -72,7 +75,7 @@ const REQUIRED_CSV_COLUMNS = ["period_index", "start_day", "end_day_exclusive"] 
 
 type RawGraph = {
   nodes?: Array<Partial<NileNode> & { id: string; label?: string; type?: string }>;
-  edges?: Array<Partial<NileEdge> & { id?: string; from: string; to: string; fraction?: number }>;
+  edges?: Array<Partial<NileEdge> & { id?: string; from: string; to: string }>;
 };
 
 type RawGraphNode = NonNullable<RawGraph["nodes"]>[number];
@@ -83,8 +86,12 @@ type RawRustNodeResult = {
   reservoir_level?: number;
   production_release?: number;
   energy_value?: number;
+  generated_electricity_kwh?: number;
+  generated_electricity_mwh?: number;
   evaporation?: number;
   food_produced?: number;
+  food_water_met?: number;
+  unmet_food_water?: number;
   drink_water_met?: number;
   unmet_drink_water?: number;
   spill?: number;
@@ -351,7 +358,6 @@ function normalizeEdges(rawEdges: RawGraph["edges"], nodes: NileNode[]): NileEdg
       from: raw.from,
       to: raw.to,
       label: raw.label ?? fallback?.label ?? `${titleFromId(raw.from)} to ${titleFromId(raw.to)}`,
-      lossFraction: raw.lossFraction ?? fallback?.lossFraction ?? Math.max(0, 1 - (raw.fraction ?? 1)),
       path,
       gradient: raw.gradient ?? fallback?.gradient ?? {
         x1: from?.x ?? 0,
@@ -372,15 +378,16 @@ function rustPeriodToVisualizerPeriod(
   const byNode = new Map((period.node_results ?? []).map((node) => [node.node_id, node]));
   const nodeResults = nodes.map((node) => rustNodeToVisualizerNode(node, byNode.get(node.id), index, edges));
   const edgeResults = edges.map((edge) => edgeResultFromNodes(edge, byNode, edges));
+  const startDay = period.start_day ?? index;
+  const endDayExclusive = period.end_day_exclusive ?? index + 1;
 
   return {
     periodIndex: period.period_index ?? index,
-    label: `Period ${index + 1}`,
-    startDay: period.start_day ?? index,
-    endDayExclusive: period.end_day_exclusive ?? index + 1,
+    label: periodLabel(index, startDay, endDayExclusive),
+    startDay,
+    endDayExclusive,
     totalIncomingFlow: sum(nodeResults, (node) => node.totalIncomingFlow),
     totalLocalInflow: sum(nodeResults, (node) => node.totalLocalInflow),
-    totalEdgeLoss: sum(edgeResults, (edge) => edge.totalLostFlow),
     totalBasinExitFlow: sum(nodeResults, (node) => node.totalBasinExitOutflow),
     nodeResults,
     edgeResults,
@@ -399,9 +406,18 @@ function rustNodeToVisualizerNode(
   const outgoingCount = edges.filter((edge) => edge.from === node.id).length;
   const isTerminal = outgoingCount === 0 || terminalKinds.has(node.kind);
   const releaseForExit = numeric(result?.production_release) + numeric(result?.spill);
-  const drinkTarget = numeric(result?.drink_water_met) + numeric(result?.unmet_drink_water);
+  const drinkMet = numeric(result?.drink_water_met);
+  const drinkTarget = drinkMet + numeric(result?.unmet_drink_water);
+  const foodWaterMet = numeric(result?.food_water_met);
+  const foodWaterDemand = foodWaterMet + numeric(result?.unmet_food_water);
   const foodProduced = numeric(result?.food_produced);
-  const energy = numeric(result?.energy_value);
+  const turbineFlow = numeric(result?.production_release);
+  // RawRust JSON path: prefer MWh if present, else convert kWh; fall back to
+  // EUR `energy_value` only when the simulator hasn't surfaced electricity.
+  const mwh = numeric(result?.generated_electricity_mwh);
+  const kwh = numeric(result?.generated_electricity_kwh);
+  const energyMwh = mwh > 0 ? mwh : kwh > 0 ? kwh / 1000 : 0;
+  const energyValueEur = numeric(result?.energy_value);
 
   return {
     nodeId: node.id,
@@ -412,9 +428,15 @@ function rustNodeToVisualizerNode(
     totalAvailableWater: totalInflow + storage,
     totalDownstreamOutflow: downstream,
     totalBasinExitOutflow: isTerminal ? downstream || releaseForExit : 0,
-    drinkingWater: drinkTarget > 0 ? delivery(numeric(result?.drink_water_met), drinkTarget) : null,
-    irrigation: foodProduced > 0 ? irrigation(foodProduced) : null,
-    hydropower: energy > 0 ? hydropower(numeric(result?.production_release), energy) : null,
+    drinkingWater: drinkTarget > 0 ? delivery(drinkMet, drinkTarget) : null,
+    irrigation:
+      foodWaterDemand > 0 || foodProduced > 0
+        ? { water: delivery(foodWaterMet, foodWaterDemand), foodProduced }
+        : null,
+    hydropower:
+      energyMwh > 0 || turbineFlow > 0
+        ? { turbineFlow, energyGenerated: energyMwh, valueEur: energyValueEur }
+        : null,
   };
 }
 
@@ -426,13 +448,9 @@ function edgeResultFromNodes(
   const from = byNode.get(edge.from);
   const outgoing = edges.filter((candidate) => candidate.from === edge.from);
   const share = outgoing.length > 0 ? 1 / outgoing.length : 1;
-  const sent = numeric(from?.downstream_release) * share;
-  const received = sent * (1 - edge.lossFraction);
   return {
     edgeId: edge.id,
-    totalRoutedFlow: sent,
-    totalLostFlow: Math.max(0, sent - received),
-    totalReceivedFlow: received,
+    totalFlow: numeric(from?.downstream_release) * share,
   };
 }
 
@@ -452,15 +470,16 @@ function csvRowsToPeriod(
   const first = Array.from(rowByNode.values())[0];
   const nodeResults = nodes.map((node) => csvRowToNodeResult(node, rowByNode.get(node.id), index, edges));
   const edgeResults = edges.map((edge) => edgeResultFromCsv(edge, rowByNode, edges));
+  const startDay = numberFrom(first?.start_day, index);
+  const endDayExclusive = numberFrom(first?.end_day_exclusive, index + 1);
 
   return {
     periodIndex,
-    label: `Period ${periodIndex + 1}`,
-    startDay: numberFrom(first?.start_day, index),
-    endDayExclusive: numberFrom(first?.end_day_exclusive, index + 1),
+    label: periodLabel(index, startDay, endDayExclusive),
+    startDay,
+    endDayExclusive,
     totalIncomingFlow: sum(nodeResults, (node) => node.totalIncomingFlow),
     totalLocalInflow: sum(nodeResults, (node) => node.totalLocalInflow),
-    totalEdgeLoss: sum(edgeResults, (edge) => edge.totalLostFlow),
     totalBasinExitFlow: sum(nodeResults, (node) => node.totalBasinExitOutflow),
     nodeResults,
     edgeResults,
@@ -477,11 +496,14 @@ function csvRowToNodeResult(
   const totalInflow = numberFrom(row?.total_inflow);
   const downstream = numberFrom(row?.downstream_release);
   const outgoingCount = edges.filter((edge) => edge.from === node.id).length;
-  const releaseForRouting = numberFrom(row?.release_for_routing)
-    || numberFrom(row?.production_release) + numberFrom(row?.spill);
-  const drinkTarget = numberFrom(row?.drink_water_met) + numberFrom(row?.unmet_drink_water);
+  const drinkMet = numberFrom(row?.drink_water_met);
+  const drinkTarget = drinkMet + numberFrom(row?.unmet_drink_water);
+  const foodWaterMet = numberFrom(row?.food_water_met);
+  const foodWaterDemand = foodWaterMet + numberFrom(row?.unmet_food_water);
   const foodProduced = numberFrom(row?.food_produced);
-  const energy = numberFrom(row?.energy_value);
+  const turbineFlow = numberFrom(row?.production_release);
+  const energyMwh = pickEnergyMwh(row);
+  const energyValueEur = numberFrom(row?.energy_value);
 
   return {
     nodeId: node.id,
@@ -492,10 +514,23 @@ function csvRowToNodeResult(
     totalAvailableWater: totalInflow + storage,
     totalDownstreamOutflow: downstream,
     totalBasinExitOutflow: outgoingCount === 0 ? totalInflow - numberFrom(row?.evaporation) : 0,
-    drinkingWater: drinkTarget > 0 ? delivery(numberFrom(row?.drink_water_met), drinkTarget) : null,
-    irrigation: foodProduced > 0 ? irrigation(foodProduced) : null,
-    hydropower: energy > 0 ? hydropower(numberFrom(row?.production_release), energy) : null,
+    drinkingWater: drinkTarget > 0 ? delivery(drinkMet, drinkTarget) : null,
+    irrigation:
+      foodWaterDemand > 0 || foodProduced > 0
+        ? { water: delivery(foodWaterMet, foodWaterDemand), foodProduced }
+        : null,
+    hydropower:
+      energyMwh > 0 || turbineFlow > 0
+        ? { turbineFlow, energyGenerated: energyMwh, valueEur: energyValueEur }
+        : null,
   };
+}
+
+function pickEnergyMwh(row: ResultCsvRow | undefined): number {
+  const mwh = numberFrom(row?.generated_electricity_mwh);
+  if (mwh > 0) return mwh;
+  const kwh = numberFrom(row?.generated_electricity_kwh);
+  return kwh > 0 ? kwh / 1000 : 0;
 }
 
 function edgeResultFromCsv(
@@ -506,13 +541,9 @@ function edgeResultFromCsv(
   const from = rowByNode.get(edge.from);
   const outgoing = edges.filter((candidate) => candidate.from === edge.from);
   const share = outgoing.length > 0 ? 1 / outgoing.length : 1;
-  const sent = numberFrom(from?.downstream_release) * share;
-  const loss = numberFrom(from?.routing_loss) * share;
   return {
     edgeId: edge.id,
-    totalRoutedFlow: sent,
-    totalLostFlow: loss,
-    totalReceivedFlow: Math.max(0, sent - loss),
+    totalFlow: numberFrom(from?.downstream_release) * share,
   };
 }
 
@@ -526,22 +557,10 @@ function delivery(actualDelivery: number, totalTarget: number): Delivery {
   };
 }
 
-function irrigation(foodProduced: number): Irrigation {
-  return {
-    water: delivery(foodProduced, foodProduced),
-    foodProduced,
-  };
-}
-
-function hydropower(turbineFlow: number, energyGenerated: number): Hydropower {
-  return {
-    turbineFlow,
-    energyGenerated,
-    totalTargetEnergy: energyGenerated,
-    totalMinimumEnergy: energyGenerated,
-    shortfallToTarget: 0,
-    shortfallToMinimum: 0,
-  };
+function periodLabel(_index: number, startDay: number, endDayExclusive: number): string {
+  const start = Math.round(startDay) + 1;
+  const end = Math.round(endDayExclusive);
+  return start === end ? `Day ${start}` : `Days ${start}–${end}`;
 }
 
 function normalizeKind(value: unknown): NileNode["kind"] {

@@ -89,13 +89,17 @@ export function LeftRail({
       <MetricStack period={period} />
 
       <div className="control-group compact">
-        <p className="control-label">Monthly trend</p>
+        <p className="control-label">Period trend</p>
         <div className="spark-grid">
           <Sparkline label="Exit flow" values={periods.map((item) => item.totalBasinExitFlow)} activeIndex={activePeriodIndex} />
-          <Sparkline label="Edge loss" values={periods.map((item) => item.totalEdgeLoss)} activeIndex={activePeriodIndex} />
           <Sparkline
             label="Energy"
             values={periods.map((item) => sumNodes(item.nodeResults, (node) => node.hydropower?.energyGenerated ?? 0))}
+            activeIndex={activePeriodIndex}
+          />
+          <Sparkline
+            label="Drinking"
+            values={periods.map((item) => sumNodes(item.nodeResults, (node) => node.drinkingWater?.actualDelivery ?? 0))}
             activeIndex={activePeriodIndex}
           />
         </div>
@@ -109,15 +113,16 @@ function MetricStack({ period }: { period: PeriodResult }) {
   const irrigation = sumNodes(period.nodeResults, (node) => node.irrigation?.water.actualDelivery ?? 0);
   const food = sumNodes(period.nodeResults, (node) => node.irrigation?.foodProduced ?? 0);
   const energy = sumNodes(period.nodeResults, (node) => node.hydropower?.energyGenerated ?? 0);
+  const storage = sumNodes(period.nodeResults, (node) => node.endingStorage);
 
   return (
     <div className="metric-stack">
-      <Metric label="Exit flow" value={format(period.totalBasinExitFlow)} unit="water units" accent="blue" />
-      <Metric label="Edge loss" value={format(period.totalEdgeLoss)} unit="water units" accent="red" />
-      <Metric label="Food" value={format(food)} unit="food units" accent="green" />
-      <Metric label="Energy" value={format(energy)} unit="kWh" accent="yellow" />
-      <Metric label="Drinking" value={format(drinking)} unit="water units" accent="cyan" />
-      <Metric label="Irrigation" value={format(irrigation)} unit="water units" accent="violet" />
+      <Metric label="Basin exit" value={format(period.totalBasinExitFlow)} unit="m³" accent="blue" />
+      <Metric label="Storage" value={format(storage)} unit="m³" accent="cyan" />
+      <Metric label="Drinking" value={format(drinking)} unit="m³" accent="cyan" />
+      <Metric label="Irrigation" value={format(irrigation)} unit="m³" accent="violet" />
+      <Metric label="Food" value={format(food)} unit="units" accent="green" />
+      <Metric label="Energy" value={format(energy)} unit="MWh" accent="yellow" />
     </div>
   );
 }

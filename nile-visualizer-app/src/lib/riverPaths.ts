@@ -105,187 +105,256 @@ export const rivers: River[] = [
   },
 ];
 
-// Real Nile basin sub-region polygons (lon, lat) used as scribble-fill
-// "affected zones". These outline actual at-risk geography rather than
-// abstract circles around country centroids.
+// Impact zones are downstream consequence regions: places on the map whose
+// state depends on stress at one or more upstream nodes. The scribble pattern
+// represents the impact, not the cause — the cause is shown by node color
+// (lens) and reservoir rings. This decoupling is intentional, so each visual
+// layer has exactly one job.
+//
+// `dimension` lets the overlay gate zones by the active lens:
+//   - "delivery": lights up under the Shortage (stress) lens
+//   - "flow":     lights up under the Runoff (water) lens
+//   - "power":    lights up under the Output (production) lens
+// Storage stress is handled by reservoir rings, not polygons.
+//
+// `causedBy` lists upstream node ids whose deficits propagate here. Use only
+// canonical hydmod node ids — legacy digital-twin names never match real runs.
+// `deliveryNodes` lists nodes inside the zone whose own demand-met ratios
+// also drive the zone (only meaningful for the "delivery" dimension).
+export type ImpactDimension = "delivery" | "flow" | "power";
+
+export type DeliveryKind = "drinking" | "food";
+
 export type ImpactZone = {
   id: string;
   region: string;
   label: string;
-  trigger: { kind: "food" | "drinking" | "power" | "storage" | "flow"; nodeIds: string[] };
+  dimension: ImpactDimension;
+  causedBy: string[];
+  // Required for `dimension === "delivery"`. Limits which demand-met signal
+  // at `deliveryNodes` drives the zone (so a Gezira food zone and a Khartoum
+  // drinking zone can both look at karthoum without firing on each other).
+  deliveryKind?: DeliveryKind;
+  deliveryNodes?: string[];
   geo: Coord[];
 };
 
+// Polygon vertices are real geographic landmarks (longitude, latitude). The
+// `smoothPolygonFromGeo` helper converts these to projected viewport coords
+// and applies Catmull-Rom smoothing (tension 0.18), so vertices outline the
+// shape's "skeleton"; rounded corners and bulges come from the smoother. Use
+// more vertices for organic shapes (lakes, wetlands), fewer for compact ones.
 export const impactZones: ImpactZone[] = [
   {
-    id: "nile-delta",
+    id: "egypt-agriculture",
     region: "Egypt",
-    label: "Nile Delta agriculture",
-    trigger: { kind: "food", nodeIds: ["nile_delta", "delta", "egypt_ag", "cairo"] },
+    label: "Egyptian Nile valley & delta",
+    dimension: "delivery",
+    deliveryKind: "food",
+    // The cultivable strip along the Nile from Aswan to Cairo plus the delta
+    // fan to the Mediterranean. Less Aswan release → less irrigation reaching
+    // the valley; Cairo represents the demand sink at the basin tail.
+    causedBy: ["aswand"],
+    deliveryNodes: ["cairo"],
+    // Trace counterclockwise: up the east bank from Aswan, fan out across the
+    // delta to the Mediterranean coast, back down the west bank to Aswan.
     geo: [
-      [29.85, 30.70],
-      [30.10, 31.30],
-      [30.55, 31.55],
-      [31.10, 31.65],
-      [31.65, 31.60],
-      [32.20, 31.40],
-      [32.45, 31.05],
-      [32.05, 30.55],
-      [31.40, 30.10],
-      [30.65, 30.20],
-      [30.10, 30.45],
-    ],
-  },
-  {
-    id: "egypt-valley",
-    region: "Egypt",
-    label: "Aswan–Cairo valley",
-    trigger: { kind: "food", nodeIds: ["aswan", "aswand", "egypt_ag", "cairo"] },
-    geo: [
-      [32.55, 24.05],
-      [32.95, 24.20],
-      [33.10, 25.20],
-      [32.55, 25.95],
-      [32.10, 27.05],
-      [31.55, 28.30],
-      [31.10, 29.20],
-      [30.85, 30.05],
-      [30.65, 30.05],
-      [30.95, 28.95],
-      [31.40, 27.45],
-      [31.85, 26.30],
-      [32.30, 25.40],
-      [32.45, 24.40],
-    ],
-  },
-  {
-    id: "lake-nasser",
-    region: "Egypt",
-    label: "Lake Nasser reservoir",
-    trigger: { kind: "storage", nodeIds: ["aswan", "aswand"] },
-    geo: [
-      [31.95, 22.05],
-      [32.45, 22.05],
-      [33.00, 22.45],
-      [33.30, 23.20],
-      [33.15, 23.85],
-      [32.90, 24.05],
-      [32.50, 23.85],
-      [32.05, 23.30],
-      [31.75, 22.65],
-    ],
-  },
-  {
-    id: "high-aswan-power",
-    region: "Egypt",
-    label: "Aswan hydropower",
-    trigger: { kind: "power", nodeIds: ["aswan", "aswand"] },
-    geo: [
-      [32.55, 23.65],
-      [33.15, 23.70],
-      [33.15, 24.20],
-      [32.55, 24.20],
+      [33.05, 24.05], // Aswan, east bank
+      [32.85, 25.10], // east of Edfu/Esna
+      [32.60, 26.20], // east of Qena bend
+      [32.20, 27.40], // east of Asyut
+      [31.65, 28.55], // east of Minya
+      [31.30, 29.55], // east approach to Cairo
+      [31.50, 30.05], // Cairo, east of river
+      [31.95, 30.45], // east delta apex
+      [32.30, 30.95],
+      [32.40, 31.30], // Port Said
+      [31.85, 31.55], // Damietta coast
+      [31.10, 31.55], // Rosetta coast
+      [30.45, 31.45],
+      [29.85, 31.20], // Alexandria
+      [30.05, 30.70],
+      [30.55, 30.35], // west delta apex
+      [30.95, 30.05], // Cairo, west of river
+      [31.15, 29.55], // west of Beni Suef
+      [31.50, 28.55],
+      [32.10, 27.40],
+      [32.50, 26.20],
+      [32.75, 25.10],
+      [32.85, 24.05], // Aswan, west bank
     ],
   },
   {
     id: "gezira",
     region: "Sudan",
-    label: "Gezira irrigation",
-    trigger: { kind: "food", nodeIds: ["gezira_irr", "khartoum", "karthoum", "singa"] },
+    label: "Gezira irrigation scheme",
+    dimension: "delivery",
+    deliveryKind: "food",
+    // Triangular plain between the Blue and White Niles south of Khartoum.
+    // Roseires/Sennar releases feed the canal system; Khartoum holds the
+    // consolidated irrigation demand for the scheme.
+    causedBy: ["roseires", "singa"],
+    deliveryNodes: ["karthoum"],
     geo: [
-      [32.35, 13.40],
-      [33.65, 13.40],
-      [33.95, 14.30],
-      [33.65, 15.10],
-      [32.95, 15.50],
-      [32.35, 15.10],
-      [32.20, 14.20],
+      [32.50, 15.55], // Khartoum confluence (apex)
+      [33.05, 14.85], // east bulge along Blue Nile
+      [33.55, 13.55], // Sennar / Singa
+      [33.30, 13.40],
+      [32.80, 13.30],
+      [32.40, 13.40], // Kosti, on White Nile
+      [32.30, 14.10],
+      [32.35, 14.95],
+      [32.40, 15.40],
     ],
   },
   {
     id: "khartoum-muni",
     region: "Sudan",
     label: "Khartoum drinking water",
-    trigger: { kind: "drinking", nodeIds: ["khartoum", "khartoum_muni", "karthoum"] },
+    dimension: "delivery",
+    deliveryKind: "drinking",
+    causedBy: [],
+    deliveryNodes: ["karthoum"],
+    // Greater Khartoum (Khartoum / Omdurman / Khartoum North) at the
+    // Blue/White Nile confluence — about 25 km radius.
     geo: [
-      [32.25, 15.40],
-      [32.85, 15.40],
-      [32.95, 15.80],
-      [32.55, 16.00],
-      [32.20, 15.85],
-    ],
-  },
-  {
-    id: "merowe-power",
-    region: "Sudan",
-    label: "Merowe hydropower",
-    trigger: { kind: "power", nodeIds: ["merowe"] },
-    geo: [
-      [31.55, 18.45],
-      [32.20, 18.50],
-      [32.40, 18.95],
-      [31.95, 19.15],
-      [31.45, 18.95],
+      [32.30, 15.50],
+      [32.45, 15.42],
+      [32.70, 15.42],
+      [32.88, 15.50],
+      [32.92, 15.68],
+      [32.78, 15.88],
+      [32.55, 15.92],
+      [32.32, 15.82],
+      [32.25, 15.65],
     ],
   },
   {
     id: "sudd",
     region: "South Sudan",
     label: "Sudd wetlands",
-    trigger: { kind: "flow", nodeIds: ["sudd", "malakal", "white_nile_to_sudd", "southwest"] },
+    dimension: "flow",
+    // World's largest tropical wetland — the Bahr el Jebel splays out across
+    // ~30,000 km² before reforming as the White Nile at Malakal. Extent
+    // depends on through-flow from Lake Victoria via southwest.
+    causedBy: ["victoria", "southwest"],
     geo: [
-      [29.50, 6.65],
-      [30.40, 6.30],
-      [31.40, 6.85],
-      [32.00, 7.95],
-      [32.05, 9.10],
-      [31.55, 9.85],
-      [30.65, 9.55],
-      [29.85, 8.55],
-      [29.40, 7.55],
+      [28.80, 7.40],
+      [29.30, 6.40],
+      [30.20, 5.95], // near Bor, southern reach
+      [31.10, 6.30],
+      [31.75, 7.20],
+      [32.10, 8.20],
+      [32.20, 9.10],
+      [31.75, 9.75], // Malakal exit
+      [31.10, 10.05],
+      [30.30, 9.90],
+      [29.55, 9.45],
+      [28.95, 8.55],
+      [28.65, 7.95],
     ],
   },
   {
-    id: "tana-basin",
+    id: "tana-headwaters",
     region: "Ethiopia",
     label: "Lake Tana basin",
-    trigger: { kind: "flow", nodeIds: ["lake_tana_outlet", "blue_nile_headwaters", "tana"] },
+    dimension: "flow",
+    // Lake Tana ≈ 84 km × 66 km, source of the Blue Nile in the Ethiopian
+    // highlands. Roughly oval, slightly elongated south-to-north.
+    causedBy: ["tana"],
     geo: [
-      [36.85, 11.40],
-      [37.35, 11.10],
-      [37.85, 11.40],
-      [37.85, 12.10],
-      [37.40, 12.45],
-      [36.95, 12.30],
-      [36.75, 11.85],
+      [37.00, 11.55],
+      [37.30, 11.45],
+      [37.60, 11.55],
+      [37.78, 11.85],
+      [37.65, 12.20],
+      [37.30, 12.32],
+      [36.98, 12.20],
+      [36.88, 11.90],
+    ],
+  },
+  {
+    id: "victoria-headwaters",
+    region: "Uganda",
+    label: "Lake Victoria outflow",
+    dimension: "flow",
+    // Lake Victoria's northern half (the south is below the visible map).
+    // The basin frame clips at lat -1.2°, so vertices stay above that line.
+    // Outflow at Jinja's Owen Falls drives the entire White Nile.
+    causedBy: ["victoria"],
+    geo: [
+      [31.65, -1.10],
+      [32.30, -1.18],
+      [33.10, -1.18],
+      [33.85, -1.05],
+      [34.00, -0.40],
+      [33.85, 0.15],
+      [33.40, 0.50],
+      [32.80, 0.55],
+      [32.10, 0.30],
+      [31.65, -0.20],
+      [31.55, -0.65],
     ],
   },
   {
     id: "gerd-power",
     region: "Ethiopia",
-    label: "GERD hydropower",
-    trigger: { kind: "power", nodeIds: ["gerd"] },
+    label: "GERD reservoir",
+    dimension: "power",
+    // Grand Ethiopian Renaissance Dam reservoir on the Blue Nile near the
+    // Sudanese border. Long thin shape filling the river canyon.
+    causedBy: ["gerd"],
     geo: [
-      [34.55, 10.95],
-      [35.55, 10.85],
-      [35.65, 11.45],
-      [34.85, 11.60],
-      [34.45, 11.35],
+      [34.65, 11.10],
+      [35.00, 10.95],
+      [35.30, 10.95],
+      [35.50, 11.10],
+      [35.55, 11.30],
+      [35.40, 11.50],
+      [35.05, 11.55],
+      [34.80, 11.50],
+      [34.60, 11.30],
     ],
   },
   {
-    id: "victoria-basin",
-    region: "Uganda",
-    label: "Victoria headwaters",
-    trigger: { kind: "flow", nodeIds: ["white_nile_headwaters", "lake_victoria_outlet", "victoria"] },
+    id: "merowe-power",
+    region: "Sudan",
+    label: "Merowe reservoir",
+    dimension: "power",
+    // Merowe Dam at ~31.83°E, 18.69°N. Reservoir extends upstream along the
+    // Nile fourth-cataract bend.
+    causedBy: ["merowe"],
     geo: [
-      [31.85, -1.05],
-      [33.05, -1.05],
-      [33.95, -0.30],
-      [33.95, 0.95],
-      [33.05, 1.50],
-      [31.95, 1.05],
-      [31.55, 0.05],
+      [31.45, 18.55],
+      [31.85, 18.45],
+      [32.20, 18.50],
+      [32.40, 18.75],
+      [32.30, 19.00],
+      [31.95, 19.10],
+      [31.55, 19.00],
+      [31.40, 18.80],
+    ],
+  },
+  {
+    id: "high-aswan-power",
+    region: "Egypt",
+    label: "Lake Nasser",
+    dimension: "power",
+    // Reservoir behind the High Aswan Dam — ~5,250 km² spanning ~500 km
+    // south from the dam (32.88°E, 23.97°N) into Sudan as Lake Nubia. Shown
+    // as a long narrow N-S lake.
+    causedBy: ["aswand"],
+    geo: [
+      [32.65, 23.95],
+      [32.95, 23.80],
+      [33.00, 22.80],
+      [32.95, 21.80],
+      [32.60, 21.20],
+      [32.10, 21.05],
+      [31.80, 21.55],
+      [31.70, 22.60],
+      [31.85, 23.40],
+      [32.20, 23.85],
     ],
   },
 ];

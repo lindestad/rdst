@@ -25,7 +25,7 @@ export function edgeStops(
   periods: PeriodResult[],
 ): ReactNode {
   const baseline = periods[0].edgeResults.find((item) => item.edgeId === edge.id);
-  const flowRatio = result && baseline ? result.totalReceivedFlow / Math.max(1, baseline.totalReceivedFlow) : 1;
+  const flowRatio = result && baseline ? result.totalFlow / Math.max(1, baseline.totalFlow) : 1;
   const stressColor =
     flowRatio < STRESS_CRITICAL_RATIO
       ? COLOR_CRITICAL
@@ -81,16 +81,16 @@ export function edgeLabel(
 
   if (lens === "stress") {
     const baseline = periods[0].edgeResults.find((item) => item.edgeId === edge.id);
-    const ratio = baseline ? result.totalReceivedFlow / Math.max(1, baseline.totalReceivedFlow) : 1;
+    const ratio = baseline ? result.totalFlow / Math.max(1, baseline.totalFlow) : 1;
     return `${Math.round(ratio * 100)}% of baseline`;
   }
 
-  return `${format(result.totalReceivedFlow)} received`;
+  return `${format(result.totalFlow)} flow`;
 }
 
 export function edgeWidth(result: EdgePeriodResult | undefined, max: number) {
   if (!result) return 3;
-  return 2.5 + (result.totalRoutedFlow / max) * 7;
+  return 2.5 + (result.totalFlow / max) * 7;
 }
 
 export function nodeRadius(node: NileNode, result: NodePeriodResult | undefined, max: number) {
@@ -139,9 +139,9 @@ function worstDeliveryRatio(result: NodePeriodResult) {
   if (result.irrigation && result.irrigation.water.totalTarget > 0) {
     ratios.push(result.irrigation.water.actualDelivery / result.irrigation.water.totalTarget);
   }
-  if (result.hydropower && result.hydropower.totalTargetEnergy > 0) {
-    ratios.push(result.hydropower.energyGenerated / result.hydropower.totalTargetEnergy);
-  }
+  // NRSM has no hydropower demand target — generation is whatever turbines
+  // produce given storage and constraints. So power doesn't contribute to a
+  // "shortage" stress score; flow retention does.
   const baseline = result.totalIncomingFlow > 0 ? result.totalDownstreamOutflow / Math.max(1, result.totalIncomingFlow) : 1;
   ratios.push(Math.min(1, baseline));
   return Math.min(1, ...ratios);
