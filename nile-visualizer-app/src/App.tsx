@@ -1,18 +1,42 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
+  BarChart3,
+  BookOpen,
   Droplets,
+  FileJson,
+  Github,
   GlassWater,
+  Globe2,
+  MapPinned,
+  Network,
   Pause,
   Play,
+  RotateCcw,
+  Satellite,
+  ShieldCheck,
+  Target,
   TrendingUp,
+  Users,
   Waves,
   Wheat,
   Zap,
   type LucideIcon,
 } from "lucide-react";
-import { edges, nodes, periods } from "./data/nile";
-import type { EdgePeriodResult, Lens, NileEdge, NileNode, NodePeriodResult } from "./types";
+import { datasetFromCsvFiles, datasetFromFile } from "./adapters/nrsm";
+import { sampleDataset } from "./data/nile";
+import type {
+  EdgePeriodResult,
+  Delivery,
+  Lens,
+  NileEdge,
+  NileNode,
+  NodePeriodResult,
+  PeriodResult,
+  VisualizerDataset,
+} from "./types";
+
+type SitePage = "visualization" | "pitch" | "team";
 
 const lensOptions: Array<{ id: Lens; label: string; Icon: LucideIcon }> = [
   { id: "flow", label: "Flow", Icon: Waves },
@@ -23,42 +47,111 @@ const lensOptions: Array<{ id: Lens; label: string; Icon: LucideIcon }> = [
   { id: "drinking", label: "Drinking", Icon: GlassWater },
 ];
 
-const scenarioSummary = {
-  name: "Nile MVP Demo",
-  horizon: "90 days",
-  reporting: "30-day months",
-  nodes: nodes.length,
-  edges: edges.length,
-};
+const sitePages: Array<{ id: SitePage; label: string; Icon: LucideIcon }> = [
+  { id: "visualization", label: "Visualization", Icon: Network },
+  { id: "pitch", label: "Pitch", Icon: BookOpen },
+  { id: "team", label: "Team", Icon: Users },
+];
+
+const pitchCards: Array<{ title: string; body: string; Icon: LucideIcon }> = [
+  {
+    title: "The problem",
+    body: "Water allocation decisions are often discussed through separate spreadsheets, maps, and sector models. That makes tradeoffs hard to see and harder to explain.",
+    Icon: Globe2,
+  },
+  {
+    title: "The solution",
+    body: "Fairwater turns simulator runs into a shared visual workspace for river flow, reservoir releases, agriculture, municipal demand, and energy output.",
+    Icon: Target,
+  },
+  {
+    title: "The evidence layer",
+    body: "A Rust simulation core produces reproducible outputs, while the web interface translates those outputs into plots, basin state, and sector indicators.",
+    Icon: Satellite,
+  },
+  {
+    title: "The outcome",
+    body: "Teams can compare scenarios, identify stress points, and communicate the consequences of policy choices without hiding the underlying model assumptions.",
+    Icon: ShieldCheck,
+  },
+];
+
+const teamMembers = [
+  {
+    tag: "01",
+    name: "Member 1",
+    role: "Project lead / pitch",
+    focus: "Fill in name, role, affiliation, and contribution.",
+  },
+  {
+    tag: "02",
+    name: "Member 2",
+    role: "Simulation lead",
+    focus: "Fill in name, role, affiliation, and contribution.",
+  },
+  {
+    tag: "03",
+    name: "Member 3",
+    role: "Data and Earth observation",
+    focus: "Fill in name, role, affiliation, and contribution.",
+  },
+  {
+    tag: "04",
+    name: "Member 4",
+    role: "Visualization and UX",
+    focus: "Fill in name, role, affiliation, and contribution.",
+  },
+  {
+    tag: "05",
+    name: "Member 5",
+    role: "Validation / domain insight",
+    focus: "Fill in name, role, affiliation, and contribution.",
+  },
+];
 
 function App() {
+  const [page, setPage] = useState<SitePage>(readPageFromHash);
+  const [dataset, setDataset] = useState<VisualizerDataset>(sampleDataset);
   const [lens, setLens] = useState<Lens>("flow");
   const [periodIndex, setPeriodIndex] = useState(0);
-  const [selectedNodeId, setSelectedNodeId] = useState("gerd");
-  const [selectedEdgeId, setSelectedEdgeId] = useState("aswan_to_delta");
+  const [selectedNodeId, setSelectedNodeId] = useState(sampleDataset.nodes[0].id);
+  const [selectedEdgeId, setSelectedEdgeId] = useState(sampleDataset.edges[0].id);
   const [isPlaying, setIsPlaying] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const period = periods[periodIndex];
+  const { metadata, nodes, edges, periods } = dataset;
+  const activePeriodIndex = Math.min(periodIndex, periods.length - 1);
+
+  const period = periods[activePeriodIndex];
   const selectedNode = nodes.find((node) => node.id === selectedNodeId) ?? nodes[0];
   const selectedNodeResult = period.nodeResults.find((node) => node.nodeId === selectedNode.id);
   const selectedEdge = edges.find((edge) => edge.id === selectedEdgeId) ?? edges[0];
   const selectedEdgeResult = period.edgeResults.find((edge) => edge.edgeId === selectedEdge.id);
 
   const maxEdgeFlow = useMemo(
-    () => Math.max(...periods.flatMap((item) => item.edgeResults.map((edge) => edge.totalRoutedFlow))),
-    [],
+    () => Math.max(1, ...periods.flatMap((item) => item.edgeResults.map((edge) => edge.totalRoutedFlow))),
+    [periods],
   );
   const maxNodeAvailable = useMemo(
-    () => Math.max(...periods.flatMap((item) => item.nodeResults.map((node) => node.totalAvailableWater))),
-    [],
+    () => Math.max(1, ...periods.flatMap((item) => item.nodeResults.map((node) => node.totalAvailableWater))),
+    [periods],
   );
   const maxLoss = useMemo(
-    () => Math.max(...periods.flatMap((item) => item.edgeResults.map((edge) => edge.totalLostFlow))),
-    [],
+    () => Math.max(1, ...periods.flatMap((item) => item.edgeResults.map((edge) => edge.totalLostFlow))),
+    [periods],
   );
 
   useEffect(() => {
-    if (!isPlaying) {
+    const sync = () => setPage(readPageFromHash());
+    window.addEventListener("hashchange", sync);
+    if (!window.location.hash) {
+      window.history.replaceState(null, "", "#/visualization");
+    }
+    return () => window.removeEventListener("hashchange", sync);
+  }, []);
+
+  useEffect(() => {
+    if (!isPlaying || page !== "visualization") {
       return;
     }
 
@@ -67,25 +160,119 @@ function App() {
     }, 2200);
 
     return () => window.clearInterval(timer);
-  }, [isPlaying]);
+  }, [isPlaying, page, periods.length]);
+
+  useEffect(() => {
+    setPeriodIndex(0);
+    setSelectedNodeId(dataset.nodes[0]?.id ?? "");
+    setSelectedEdgeId(dataset.edges[0]?.id ?? "");
+  }, [dataset]);
+
+  async function loadFile(file: File | null) {
+    if (!file) return;
+    try {
+      const next = await datasetFromFile(file);
+      setDataset(next);
+      setLoadError(null);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Could not load simulator output.");
+    }
+  }
+
+  async function loadCsvFiles(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    try {
+      const next = await datasetFromCsvFiles(files);
+      setDataset(next);
+      setLoadError(null);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Could not load NRSM CSV results.");
+    }
+  }
+
+  function navigate(nextPage: SitePage) {
+    window.location.hash = `/${nextPage}`;
+    setPage(nextPage);
+  }
 
   return (
     <main className="app-shell">
       <header className="topbar">
-        <div>
-          <p className="app-kicker">NRSM Visualizer</p>
-          <h1>Nile basin run</h1>
+        <div className="brand-block">
+          <p className="app-kicker">Fairwater</p>
+          <h1>River basin decisions made visible</h1>
+          <nav className="site-nav" aria-label="Site pages">
+            {sitePages.map(({ id, label, Icon }) => (
+              <button
+                className={page === id ? "active" : ""}
+                key={id}
+                onClick={() => navigate(id)}
+                type="button"
+              >
+                <Icon size={16} />
+                <span>{label}</span>
+              </button>
+            ))}
+          </nav>
         </div>
 
-        <div className="scenario-strip" aria-label="Scenario summary">
-          <SummaryItem label="Scenario" value={scenarioSummary.name} />
-          <SummaryItem label="Horizon" value={scenarioSummary.horizon} />
-          <SummaryItem label="Reporting" value={scenarioSummary.reporting} />
-          <SummaryItem label="Graph" value={`${scenarioSummary.nodes} nodes / ${scenarioSummary.edges} edges`} />
-        </div>
+        {page === "visualization" ? (
+          <div className="scenario-strip" aria-label="Scenario summary">
+            <SummaryItem label="Scenario" value={metadata.name} />
+            <SummaryItem label="Source" value={metadata.source} />
+            <SummaryItem label="Reporting" value={metadata.reporting} />
+            <SummaryItem label="Graph" value={`${nodes.length} nodes / ${edges.length} edges`} />
+          </div>
+        ) : (
+          <div className="site-summary">
+            <SummaryItem label="Project" value="Fairwater" />
+            <SummaryItem label="Focus" value="Water, food, energy" />
+            <SummaryItem label="Engine" value="NRSM Rust" />
+          </div>
+        )}
+
+        {page === "visualization" && <div className="file-tools">
+          <label className="file-button secondary" title="Load NRSM --results-dir CSV files">
+            <FileJson size={18} />
+            <span>Load CSVs</span>
+            <input
+              accept=".csv,text/csv"
+              multiple
+              onChange={(event) => void loadCsvFiles(event.currentTarget.files)}
+              type="file"
+              {...({ webkitdirectory: "" } as Record<string, string>)}
+            />
+          </label>
+          <label className="file-button" title="Load NRSM JSON output">
+            <FileJson size={18} />
+            <span>Load JSON</span>
+            <input
+              accept="application/json,.json"
+              onChange={(event) => void loadFile(event.currentTarget.files?.[0] ?? null)}
+              type="file"
+            />
+          </label>
+          <button
+            className="icon-button"
+            onClick={() => {
+              setDataset(sampleDataset);
+              setLoadError(null);
+            }}
+            title="Reset to sample run"
+            type="button"
+          >
+            <RotateCcw size={17} />
+          </button>
+        </div>}
       </header>
+      {loadError && <div className="load-error">{loadError}</div>}
 
-      <section className="workspace">
+      {page === "pitch" ? (
+        <PitchPage onOpenVisualization={() => navigate("visualization")} />
+      ) : page === "team" ? (
+        <TeamPage onOpenVisualization={() => navigate("visualization")} />
+      ) : (
+        <section className="workspace">
         <aside className="left-rail" aria-label="Simulation controls">
           <div className="control-group">
             <p className="control-label">Lens</p>
@@ -118,22 +305,20 @@ function App() {
               >
                 {isPlaying ? <Pause size={18} /> : <Play size={18} />}
               </button>
-              <div className="segmented" role="tablist" aria-label="Reporting period">
-                {periods.map((item) => (
-                  <button
-                    className={item.periodIndex === periodIndex ? "active" : ""}
-                    key={item.periodIndex}
-                    onClick={() => {
-                      setPeriodIndex(item.periodIndex);
-                      setIsPlaying(false);
-                    }}
-                    role="tab"
-                    aria-selected={item.periodIndex === periodIndex}
-                    type="button"
-                  >
-                    {item.label}
-                  </button>
-                ))}
+              <div className="period-slider">
+                <strong>{period.label}</strong>
+                <input
+                  aria-label="Reporting period"
+                  max={periods.length - 1}
+                  min={0}
+                  onChange={(event) => {
+                    setPeriodIndex(Number(event.currentTarget.value));
+                    setIsPlaying(false);
+                  }}
+                  step={1}
+                  type="range"
+                  value={activePeriodIndex}
+                />
               </div>
             </div>
           </div>
@@ -143,18 +328,18 @@ function App() {
           <div className="control-group compact">
             <p className="control-label">Monthly trend</p>
             <div className="spark-grid">
-              <Sparkline label="Exit flow" values={periods.map((item) => item.totalBasinExitFlow)} activeIndex={periodIndex} />
-              <Sparkline label="Edge loss" values={periods.map((item) => item.totalEdgeLoss)} activeIndex={periodIndex} />
+              <Sparkline label="Exit flow" values={periods.map((item) => item.totalBasinExitFlow)} activeIndex={activePeriodIndex} />
+              <Sparkline label="Edge loss" values={periods.map((item) => item.totalEdgeLoss)} activeIndex={activePeriodIndex} />
               <Sparkline
                 label="Energy"
                 values={periods.map((item) => sumNodes(item.nodeResults, (node) => node.hydropower?.energyGenerated ?? 0))}
-                activeIndex={periodIndex}
+                activeIndex={activePeriodIndex}
               />
             </div>
           </div>
         </aside>
 
-        <section className="map-surface" aria-label="Nile basin network">
+        <section className="map-surface" aria-label="Nile basin decision map">
           <div className="map-toolbar">
             <div>
               <p className="control-label">Active window</p>
@@ -163,14 +348,26 @@ function App() {
               </strong>
             </div>
             <div className="legend">
-              <span className="legend-item sent">Sent</span>
-              <span className="legend-item received">Received</span>
-              <span className="legend-item loss">Loss / delta</span>
+              <span className="legend-item flow">River flow</span>
+              <span className="legend-item warning">Moderate risk</span>
+              <span className="legend-item critical">High risk</span>
+              <span className="risk-note">Risk areas show where allocation choices constrain food, cities, storage, or Delta flow.</span>
             </div>
           </div>
 
-          <svg className="basin-map" viewBox="0 0 1040 620" role="img" aria-label="Nile simulator graph">
+          <svg className="basin-map" viewBox="0 0 1040 720" role="img" aria-label="Nile simulator graph">
             <defs>
+              <filter id="risk-blur" x="-30%" y="-30%" width="160%" height="160%">
+                <feGaussianBlur stdDeviation="12" />
+              </filter>
+              <pattern id="warning-risk-pattern" width="16" height="16" patternTransform="rotate(35)" patternUnits="userSpaceOnUse">
+                <rect fill="#d89b24" height="16" opacity="0.58" width="16" />
+                <path d="M0 0 L0 16" stroke="#9b6816" strokeWidth="4" opacity="0.44" />
+              </pattern>
+              <pattern id="critical-risk-pattern" width="16" height="16" patternTransform="rotate(35)" patternUnits="userSpaceOnUse">
+                <rect fill="#d4483c" height="16" opacity="0.66" width="16" />
+                <path d="M0 0 L0 16" stroke="#8d3028" strokeWidth="4" opacity="0.5" />
+              </pattern>
               {edges.map((edge) => {
                 const edgeResult = period.edgeResults.find((result) => result.edgeId === edge.id);
                 return (
@@ -183,16 +380,27 @@ function App() {
                     y1={edge.gradient.y1}
                     y2={edge.gradient.y2}
                   >
-                    {edgeStops(lens, edge, edgeResult)}
+                    {edgeStops(lens, edge, edgeResult, periods)}
                   </linearGradient>
                 );
               })}
             </defs>
 
             <g className="basin-basemap">
-              <path d="M80 108 C180 70 330 72 444 132 C564 194 650 160 770 104 C864 60 942 88 980 164 C1014 232 990 310 932 378 C856 468 782 512 654 512 C526 514 476 442 374 456 C264 470 166 446 112 374 C56 298 38 178 80 108 Z" />
-              <path d="M86 520 C205 462 290 540 396 514 C520 482 568 552 704 544 C812 538 890 478 976 430" />
+              <rect x="70" y="42" width="900" height="626" rx="8" />
+              <path className="country-boundary" d="M250 82 L266 214 L240 338 L302 484 L450 652" />
+              <path className="country-boundary" d="M430 120 L456 294 L438 360 L356 486" />
+              <path className="country-boundary" d="M610 138 L612 286 L532 392 L662 458 L882 450" />
+              <path className="country-boundary" d="M252 82 C346 106 388 108 430 120" />
+              <path className="country-boundary" d="M438 360 C498 316 560 290 612 286" />
+              <text x="332" y="102">Egypt</text>
+              <text x="438" y="322">Sudan</text>
+              <text x="720" y="390">Ethiopia</text>
+              <text x="320" y="522">South Sudan</text>
+              <text x="510" y="638">Uganda</text>
             </g>
+
+            <ImpactOverlays nodes={nodes} period={period} periods={periods} />
 
             <g className="edge-layer">
               {edges.map((edge) => {
@@ -211,7 +419,7 @@ function App() {
                     />
                     <text className="edge-loss-label">
                       <textPath href={`#edge-label-${edge.id}`} startOffset="50%">
-                        {edgeLabel(lens, edge, edgeResult)}
+                        {edgeLabel(lens, edge, edgeResult, periods)}
                       </textPath>
                     </text>
                     <path className="edge-label-path" d={edge.path} id={`edge-label-${edge.id}`} />
@@ -224,7 +432,7 @@ function App() {
               {nodes.map((node) => {
                 const nodeResult = period.nodeResults.find((result) => result.nodeId === node.id);
                 const radius = nodeRadius(node, nodeResult, maxNodeAvailable);
-                const fill = nodeFill(lens, node, nodeResult);
+                const fill = nodeFill(lens, node, nodeResult, periods);
 
                 return (
                   <g
@@ -250,12 +458,147 @@ function App() {
         </section>
 
         <aside className="right-rail" aria-label="Selected details">
+          <PlotPanel periods={periods} activeIndex={activePeriodIndex} />
           <NodeInspector node={selectedNode} result={selectedNodeResult} />
           <EdgeInspector edge={selectedEdge} result={selectedEdgeResult} maxLoss={maxLoss} />
           <RunBalance period={period} />
         </aside>
       </section>
+      )}
     </main>
+  );
+}
+
+function PitchPage({ onOpenVisualization }: { onOpenVisualization: () => void }) {
+  return (
+    <section className="content-page pitch-page">
+      <div className="content-hero">
+        <div>
+          <p className="app-kicker">Fairwater pitch</p>
+          <h2>Transparent scenario planning for shared river basins</h2>
+          <p>
+            Fairwater helps decision-makers and technical teams explore how
+            reservoir operations, drought stress, irrigation demand, and
+            municipal needs affect downstream flow, food production, and energy.
+          </p>
+          <div className="hero-actions">
+            <button className="file-button" onClick={onOpenVisualization} type="button">
+              <BarChart3 size={18} />
+              <span>Open visualization</span>
+            </button>
+            <a className="text-link-button" href="https://github.com/lindestad/rdst" rel="noreferrer" target="_blank">
+              <Github size={18} />
+              <span>Repository</span>
+            </a>
+          </div>
+        </div>
+        <div className="pitch-visual" aria-label="Basin concept visual">
+          <svg viewBox="0 0 520 320" role="img">
+            <path className="land" d="M34 78 C112 28 206 44 276 76 C352 112 422 82 484 132 C538 176 498 258 410 278 C318 300 270 248 196 268 C114 290 38 236 26 162 C20 126 18 96 34 78 Z" />
+            <path className="river-main" d="M64 246 C134 198 176 206 226 172 C280 134 314 142 366 106 C402 80 444 80 482 58" />
+            <path className="river-branch" d="M74 80 C136 116 160 152 226 172" />
+            <path className="river-branch" d="M162 282 C190 230 210 204 226 172" />
+            <circle className="map-node source" cx="74" cy="80" r="13" />
+            <circle className="map-node reservoir" cx="264" cy="146" r="18" />
+            <circle className="map-node city" cx="366" cy="106" r="13" />
+            <circle className="map-node farm" cx="196" cy="254" r="15" />
+            <circle className="map-node delta" cx="482" cy="58" r="16" />
+          </svg>
+        </div>
+      </div>
+
+      <div className="pitch-grid">
+        {pitchCards.map(({ title, body, Icon }) => (
+          <article className="story-card" key={title}>
+            <Icon size={22} />
+            <h3>{title}</h3>
+            <p>{body}</p>
+          </article>
+        ))}
+      </div>
+
+      <section className="wide-band">
+        <div>
+          <p className="app-kicker">Pitch</p>
+          <h2>From simulator output to shared evidence</h2>
+        </div>
+        <p>
+          The current prototype converts NRSM outputs into a browser-based basin
+          view. Line widths show routed water, panels surface sector outcomes,
+          and plots summarize basin balance. The product direction is a simple
+          web workspace where users can upload or select scenarios, inspect
+          tradeoffs, and export evidence for discussion.
+        </p>
+      </section>
+
+      <section className="pitch-outline">
+        <div>
+          <p className="app-kicker">Pitch skeleton</p>
+          <h2>Storyline to complete</h2>
+        </div>
+        <dl>
+          <div>
+            <dt>Problem</dt>
+            <dd>Fragmented water planning makes basin tradeoffs difficult to compare and communicate.</dd>
+          </div>
+          <div>
+            <dt>Users</dt>
+            <dd>Water agencies, energy planners, agriculture analysts, basin researchers, and public-interest teams.</dd>
+          </div>
+          <div>
+            <dt>Product</dt>
+            <dd>A lightweight web interface for simulation runs, maps, sector KPIs, and scenario evidence.</dd>
+          </div>
+          <div>
+            <dt>Data and model</dt>
+            <dd>NRSM simulator outputs today, with a path toward hydrology, climate, and Earth observation inputs.</dd>
+          </div>
+          <div>
+            <dt>Demo</dt>
+            <dd>Load a saved run, scrub the period, select a stress point, and explain flow, food, and energy impacts.</dd>
+          </div>
+          <div>
+            <dt>Next step</dt>
+            <dd>Finalize scenario export, add comparison mode, improve basin geometry, and publish under the Fairwater domain.</dd>
+          </div>
+        </dl>
+      </section>
+    </section>
+  );
+}
+
+function TeamPage({ onOpenVisualization }: { onOpenVisualization: () => void }) {
+  return (
+    <section className="content-page team-page">
+      <div className="content-hero compact-hero">
+        <div>
+          <p className="app-kicker">Team</p>
+          <h2>Fairwater team</h2>
+          <p>
+            Five contributors are building the simulator, data pathway,
+            visualization, validation, and pitch. Replace these cards with names,
+            roles, affiliations, and contact links when ready.
+          </p>
+        </div>
+        <button className="file-button" onClick={onOpenVisualization} type="button">
+          <MapPinned size={18} />
+          <span>View basin run</span>
+        </button>
+      </div>
+
+      <div className="team-grid">
+        {teamMembers.map((member) => (
+          <article className="team-card" key={member.name}>
+            <div className="avatar-mark">{member.tag}</div>
+            <div>
+              <h3>{member.name}</h3>
+              <strong>{member.role}</strong>
+              <p>{member.focus}</p>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -268,7 +611,179 @@ function SummaryItem({ label, value }: { label: string; value: string }) {
   );
 }
 
-function MetricStack({ period }: { period: (typeof periods)[number] }) {
+function ImpactOverlays({
+  nodes,
+  period,
+  periods,
+}: {
+  nodes: NileNode[];
+  period: PeriodResult;
+  periods: PeriodResult[];
+}) {
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const resultById = new Map(period.nodeResults.map((result) => [result.nodeId, result]));
+  const foodNodes = nodes.filter((node) => {
+    const result = resultById.get(node.id);
+    return Boolean(result?.irrigation) || /ag|irrigation|delta/i.test(node.id);
+  });
+  const municipalNodes = nodes.filter((node) => {
+    const result = resultById.get(node.id);
+    return Boolean(result?.drinkingWater) || /cairo|khartoum|municipal|delta/i.test(node.id);
+  });
+  const reservoirNodes = nodes.filter((node) => node.kind === "reservoir");
+  const deltaNode = nodeById.get("nile_delta") ?? nodeById.get("delta");
+  const deltaResult = deltaNode ? resultById.get(deltaNode.id) : undefined;
+  const deltaStress = deltaResult ? flowStress(deltaResult.totalBasinExitOutflow, periods) : null;
+
+  return (
+    <g className="impact-layer" pointerEvents="none">
+      {foodNodes.map((node) => {
+        const stress = foodStress(node.id, resultById.get(node.id), periods);
+        if (stress.level === "none") return null;
+        return (
+          <g className="risk-cluster" key={`food-${node.id}`}>
+            <ellipse
+              className={`impact-zone ${stress.level}`}
+              cx={node.x}
+              cy={node.y}
+              rx={stress.radiusX}
+              ry={stress.radiusY}
+            />
+            <text className="impact-label" x={node.x} y={node.y - stress.radiusY - 8}>
+              {stress.label}
+            </text>
+            <text className="impact-value" x={node.x} y={node.y + 5}>
+              {stress.value}
+            </text>
+          </g>
+        );
+      })}
+
+      {municipalNodes.map((node) => {
+        const stress = demandStress(resultById.get(node.id)?.drinkingWater ?? null, "water demand");
+        if (stress.level === "none") return null;
+        return (
+          <g className="risk-cluster" key={`municipal-${node.id}`}>
+            <circle className={`impact-ring ${stress.level}`} cx={node.x} cy={node.y} r={stress.radius} />
+            <text className="impact-label" x={node.x + stress.radius + 8} y={node.y + 4}>
+              {stress.label}
+            </text>
+            <text className="impact-value side" x={node.x + stress.radius + 8} y={node.y + 20}>
+              {stress.value}
+            </text>
+          </g>
+        );
+      })}
+
+      {reservoirNodes.map((node) => {
+        const stress = reservoirStress(node, resultById.get(node.id));
+        if (stress.level === "none") return null;
+        return (
+          <g className="risk-cluster" key={`reservoir-${node.id}`}>
+            <circle className={`impact-ring ${stress.level}`} cx={node.x} cy={node.y} r={stress.radius} />
+            <text className="impact-label" x={node.x + stress.radius + 8} y={node.y - 6}>
+              {stress.label}
+            </text>
+            <text className="impact-value side" x={node.x + stress.radius + 8} y={node.y + 10}>
+              {stress.value}
+            </text>
+          </g>
+        );
+      })}
+
+      {deltaNode && deltaStress && deltaStress.level !== "none" && (
+        <g className="risk-cluster">
+          <ellipse
+            className={`impact-zone ${deltaStress.level}`}
+            cx={deltaNode.x}
+            cy={deltaNode.y}
+            rx="118"
+            ry="60"
+          />
+          <text className="impact-label" x={deltaNode.x - 92} y={deltaNode.y + 84}>
+            {deltaStress.label}
+          </text>
+          <text className="impact-value side" x={deltaNode.x - 92} y={deltaNode.y + 102}>
+            {deltaStress.value}
+          </text>
+        </g>
+      )}
+    </g>
+  );
+}
+
+function foodStress(
+  nodeId: string,
+  result: NodePeriodResult | undefined,
+  periods: PeriodResult[],
+) {
+  const target = result?.irrigation?.water.totalTarget ?? 0;
+  const delivered = result?.irrigation?.water.actualDelivery ?? 0;
+  const currentFood = result?.irrigation?.foodProduced ?? 0;
+  const maxFood = Math.max(
+    0,
+    ...periods.map((period) => {
+      const node = period.nodeResults.find((candidate) => candidate.nodeId === nodeId);
+      return node?.irrigation?.foodProduced ?? 0;
+    }),
+  );
+  const ratio = target > 0 ? delivered / target : maxFood > 0 ? currentFood / maxFood : 1;
+  const level = stressLevel(ratio);
+  return {
+    level,
+    label: level === "critical" ? "Food production at risk" : level === "warning" ? "Food pressure" : "",
+    value: `${Math.round(ratio * 100)}% of reference`,
+    radiusX: /egypt|delta/i.test(nodeId) ? 148 : 100,
+    radiusY: /egypt|delta/i.test(nodeId) ? 72 : 58,
+  };
+}
+
+function demandStress(delivery: Delivery | null, label: string) {
+  if (!delivery || delivery.totalTarget <= 0) {
+    return { level: "none" as const, label: "", value: "", radius: 0 };
+  }
+  const ratio = delivery.actualDelivery / delivery.totalTarget;
+  const level = stressLevel(ratio);
+  return {
+    level,
+    label: level === "critical" ? `Unmet ${label}` : level === "warning" ? `${label} pressure` : "",
+    value: `${Math.round(ratio * 100)}% served`,
+    radius: level === "critical" ? 66 : 52,
+  };
+}
+
+function reservoirStress(node: NileNode, result: NodePeriodResult | undefined) {
+  if (!node.capacity || !result) {
+    return { level: "none" as const, label: "", value: "", radius: 0 };
+  }
+  const ratio = result.endingStorage / node.capacity;
+  const level = ratio < 0.18 ? "critical" : ratio < 0.4 ? "warning" : "none";
+  return {
+    level,
+    label: level === "critical" ? "Low storage" : level === "warning" ? "Storage watch" : "",
+    value: `${Math.round(ratio * 100)}% full`,
+    radius: level === "critical" ? 74 : 58,
+  };
+}
+
+function flowStress(value: number, periods: PeriodResult[]) {
+  const max = Math.max(1, ...periods.map((period) => period.totalBasinExitFlow));
+  const ratio = value / max;
+  const level = stressLevel(ratio);
+  return {
+    level,
+    label: level === "critical" ? "Low downstream flow" : level === "warning" ? "Reduced downstream flow" : "",
+    value: `${Math.round(ratio * 100)}% of best period`,
+  };
+}
+
+function stressLevel(ratio: number): "none" | "warning" | "critical" {
+  if (ratio < 0.75) return "critical";
+  if (ratio < 0.97) return "warning";
+  return "none";
+}
+
+function MetricStack({ period }: { period: PeriodResult }) {
   const drinking = sumNodes(period.nodeResults, (node) => node.drinkingWater?.actualDelivery ?? 0);
   const irrigation = sumNodes(period.nodeResults, (node) => node.irrigation?.water.actualDelivery ?? 0);
   const food = sumNodes(period.nodeResults, (node) => node.irrigation?.foodProduced ?? 0);
@@ -282,6 +797,76 @@ function MetricStack({ period }: { period: (typeof periods)[number] }) {
       <Metric label="Energy" value={format(energy)} accent="yellow" />
       <Metric label="Drinking" value={format(drinking)} accent="cyan" />
       <Metric label="Irrigation" value={format(irrigation)} accent="violet" />
+    </div>
+  );
+}
+
+function PlotPanel({ periods, activeIndex }: { periods: PeriodResult[]; activeIndex: number }) {
+  return (
+    <section className="inspector plot-panel">
+      <p className="control-label">Plots</p>
+      <LinePlot
+        activeIndex={activeIndex}
+        color="#1e96c8"
+        label="Basin exit"
+        values={periods.map((item) => item.totalBasinExitFlow)}
+      />
+      <LinePlot
+        activeIndex={activeIndex}
+        color="#d4483c"
+        label="Routing loss"
+        values={periods.map((item) => item.totalEdgeLoss)}
+      />
+      <LinePlot
+        activeIndex={activeIndex}
+        color="#20a66a"
+        label="Food"
+        values={periods.map((item) => sumNodes(item.nodeResults, (node) => node.irrigation?.foodProduced ?? 0))}
+      />
+    </section>
+  );
+}
+
+function LinePlot({
+  activeIndex,
+  color,
+  label,
+  values,
+}: {
+  activeIndex: number;
+  color: string;
+  label: string;
+  values: number[];
+}) {
+  const width = 280;
+  const height = 86;
+  const pad = 10;
+  const max = Math.max(1, ...values);
+  const points = values.map((value, index) => {
+    const x = values.length <= 1 ? width / 2 : pad + (index / (values.length - 1)) * (width - pad * 2);
+    const y = height - pad - (value / max) * (height - pad * 2);
+    return { x, y };
+  });
+  const active = points[activeIndex] ?? points[0];
+
+  return (
+    <div className="line-plot">
+      <div>
+        <span>{label}</span>
+        <strong>{format(values[activeIndex] ?? 0)}</strong>
+      </div>
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${label} trend`}>
+        <path d={`M ${pad} ${height - pad} H ${width - pad}`} />
+        <polyline
+          fill="none"
+          points={points.map((point) => `${point.x},${point.y}`).join(" ")}
+          stroke={color}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="3"
+        />
+        {active && <circle cx={active.x} cy={active.y} fill="#1f2732" r="4" />}
+      </svg>
     </div>
   );
 }
@@ -378,7 +963,7 @@ function EdgeInspector({ edge, result, maxLoss }: { edge: NileEdge; result: Edge
   );
 }
 
-function RunBalance({ period }: { period: (typeof periods)[number] }) {
+function RunBalance({ period }: { period: PeriodResult }) {
   const totalDemand = sumNodes(period.nodeResults, (node) => {
     return (node.drinkingWater?.totalTarget ?? 0) + (node.irrigation?.water.totalTarget ?? 0);
   });
@@ -426,7 +1011,12 @@ function SectorBar({ label, value, target, invert = false }: { label: string; va
   );
 }
 
-function edgeStops(lens: Lens, edge: NileEdge, result: EdgePeriodResult | undefined) {
+function edgeStops(
+  lens: Lens,
+  edge: NileEdge,
+  result: EdgePeriodResult | undefined,
+  periods: PeriodResult[],
+) {
   const baseline = periods[0].edgeResults.find((item) => item.edgeId === edge.id);
   const delta = result && baseline ? (result.totalReceivedFlow - baseline.totalReceivedFlow) / baseline.totalReceivedFlow : 0;
   const deltaColor = delta >= 0 ? "#20a66a" : "#d4483c";
@@ -488,7 +1078,12 @@ function edgeStops(lens: Lens, edge: NileEdge, result: EdgePeriodResult | undefi
   );
 }
 
-function edgeLabel(lens: Lens, edge: NileEdge, result: EdgePeriodResult | undefined) {
+function edgeLabel(
+  lens: Lens,
+  edge: NileEdge,
+  result: EdgePeriodResult | undefined,
+  periods: PeriodResult[],
+) {
   if (!result) {
     return "";
   }
@@ -508,21 +1103,26 @@ function edgeLabel(lens: Lens, edge: NileEdge, result: EdgePeriodResult | undefi
 
 function edgeWidth(result: EdgePeriodResult | undefined, max: number) {
   if (!result) {
-    return 8;
+    return 5;
   }
 
-  return 7 + (result.totalRoutedFlow / max) * 19;
+  return 4 + (result.totalRoutedFlow / max) * 15;
 }
 
 function nodeRadius(node: NileNode, result: NodePeriodResult | undefined, max: number) {
   if (!result) {
-    return node.kind === "reservoir" ? 34 : 29;
+    return node.kind === "reservoir" ? 15 : 11;
   }
 
-  return (node.kind === "reservoir" ? 31 : 27) + (result.totalAvailableWater / max) * 22;
+  return (node.kind === "reservoir" ? 13 : 9) + (result.totalAvailableWater / max) * 10;
 }
 
-function nodeFill(lens: Lens, node: NileNode, result: NodePeriodResult | undefined) {
+function nodeFill(
+  lens: Lens,
+  node: NileNode,
+  result: NodePeriodResult | undefined,
+  periods: PeriodResult[],
+) {
   if (!result) {
     return "#39414c";
   }
@@ -565,6 +1165,11 @@ function format(value: number) {
 function signed(value: number) {
   const rounded = format(Math.abs(value));
   return value >= 0 ? `+${rounded}` : `-${rounded}`;
+}
+
+function readPageFromHash(): SitePage {
+  const raw = window.location.hash.replace(/^#\/?/, "");
+  return sitePages.some((item) => item.id === raw) ? (raw as SitePage) : "visualization";
 }
 
 export default App;

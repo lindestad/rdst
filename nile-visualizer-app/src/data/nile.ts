@@ -7,25 +7,26 @@ import type {
   NileNode,
   NodePeriodResult,
   PeriodResult,
+  VisualizerDataset,
 } from "../types";
 
 export const nodes: NileNode[] = [
   {
     id: "white_nile_headwaters",
-    name: "White Nile Headwaters",
-    shortName: "White Nile",
+    name: "Lake Victoria Outlet",
+    shortName: "Victoria",
     kind: "river",
-    x: 120,
-    y: 150,
-    country: "SSD",
+    x: 497,
+    y: 642,
+    country: "UGA",
   },
   {
     id: "blue_nile_headwaters",
-    name: "Blue Nile Headwaters",
-    shortName: "Blue Nile",
+    name: "Lake Tana Outlet",
+    shortName: "Tana",
     kind: "river",
-    x: 160,
-    y: 450,
+    x: 878,
+    y: 435,
     country: "ETH",
   },
   {
@@ -33,8 +34,8 @@ export const nodes: NileNode[] = [
     name: "GERD",
     shortName: "GERD",
     kind: "reservoir",
-    x: 430,
-    y: 365,
+    x: 670,
+    y: 442,
     country: "ETH",
     capacity: 950,
     minStorage: 250,
@@ -45,8 +46,8 @@ export const nodes: NileNode[] = [
     name: "Khartoum Confluence",
     shortName: "Khartoum",
     kind: "river",
-    x: 465,
-    y: 255,
+    x: 437,
+    y: 361,
     country: "SDN",
   },
   {
@@ -54,8 +55,8 @@ export const nodes: NileNode[] = [
     name: "High Aswan",
     shortName: "Aswan",
     kind: "reservoir",
-    x: 760,
-    y: 170,
+    x: 469,
+    y: 206,
     country: "EGY",
     capacity: 1600,
     minStorage: 500,
@@ -66,8 +67,8 @@ export const nodes: NileNode[] = [
     name: "Nile Delta",
     shortName: "Delta",
     kind: "river",
-    x: 915,
-    y: 305,
+    x: 343,
+    y: 66,
     country: "EGY",
   },
 ];
@@ -79,8 +80,8 @@ export const edges: NileEdge[] = [
     to: "khartoum",
     label: "White Nile to Khartoum",
     lossFraction: 0.02,
-    path: "M 120 150 C 230 175 325 230 465 255",
-    gradient: { x1: 120, y1: 150, x2: 465, y2: 255 },
+    path: "M 497 642 C 378 555 346 452 437 361",
+    gradient: { x1: 497, y1: 642, x2: 437, y2: 361 },
   },
   {
     id: "blue_to_gerd",
@@ -88,8 +89,8 @@ export const edges: NileEdge[] = [
     to: "gerd",
     label: "Blue Nile to GERD",
     lossFraction: 0.01,
-    path: "M 160 450 C 265 430 350 395 430 365",
-    gradient: { x1: 160, y1: 450, x2: 430, y2: 365 },
+    path: "M 878 435 C 778 429 724 438 670 442",
+    gradient: { x1: 878, y1: 435, x2: 670, y2: 442 },
   },
   {
     id: "gerd_to_khartoum",
@@ -97,8 +98,8 @@ export const edges: NileEdge[] = [
     to: "khartoum",
     label: "GERD to Khartoum",
     lossFraction: 0.015,
-    path: "M 430 365 C 470 340 485 300 465 255",
-    gradient: { x1: 430, y1: 365, x2: 465, y2: 255 },
+    path: "M 670 442 C 590 403 512 386 437 361",
+    gradient: { x1: 670, y1: 442, x2: 437, y2: 361 },
   },
   {
     id: "khartoum_to_aswan",
@@ -106,8 +107,8 @@ export const edges: NileEdge[] = [
     to: "aswan",
     label: "Khartoum to Aswan",
     lossFraction: 0.025,
-    path: "M 465 255 C 570 225 660 190 760 170",
-    gradient: { x1: 465, y1: 255, x2: 760, y2: 170 },
+    path: "M 437 361 C 526 302 418 254 469 206",
+    gradient: { x1: 437, y1: 361, x2: 469, y2: 206 },
   },
   {
     id: "aswan_to_delta",
@@ -115,8 +116,8 @@ export const edges: NileEdge[] = [
     to: "nile_delta",
     label: "Aswan to Delta",
     lossFraction: 0.03,
-    path: "M 760 170 C 835 185 895 225 915 305",
-    gradient: { x1: 760, y1: 170, x2: 915, y2: 305 },
+    path: "M 469 206 C 410 154 358 112 343 66",
+    gradient: { x1: 469, y1: 206, x2: 343, y2: 66 },
   },
 ];
 
@@ -239,6 +240,19 @@ export const periods: PeriodResult[] = [
     ],
   },
 ];
+
+export const sampleDataset: VisualizerDataset = {
+  metadata: {
+    name: "Nile MVP Demo",
+    source: "Packaged sample",
+    horizon: "90 days",
+    reporting: "30-day periods",
+    units: "NRSM water units",
+  },
+  nodes,
+  edges,
+  periods,
+};
 
 function delivery(actualDelivery: number, totalTarget: number, totalMinimumTarget: number): Delivery {
   return {
