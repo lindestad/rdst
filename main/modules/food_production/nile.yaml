@@ -1,0 +1,387 @@
+nodes:
+
+  - id: victoria
+    latitude: -1.0      # degrees
+    longitude: 33.0     # degrees
+    area_ha: 43_500     # irrigated cropland (ha)
+
+    reservoir:
+      initial_level: 2.8e11   # m³
+      max_capacity:  3.5e11   # m³
+
+    max_production: 5.0e7     # m³/day
+
+    catchment_inflow:
+      type: constant
+      rate: 3.5e7             # m³/day
+
+    connections:
+      - node_id: southwest
+        fraction: 1.0
+        delay: 3              # days
+
+    modules:
+      evaporation: 1.2e7          # m³/day
+      drink_water: 1.0e6          # m³/day
+      food_production:
+        water_coefficient: 650    # m³ / food unit
+        max_food_units: 4000      # food units/day
+      energy:
+        price_per_unit: 0.045     # currency / m³
+
+
+  - id: southwest
+    latitude: 8.5
+    longitude: 29.5
+    area_ha: 29_000
+
+    reservoir:
+      initial_level: 6.0e9
+      max_capacity: 1.0e10
+
+    max_production: 0.0           # m³/day
+
+    catchment_inflow:
+      type: constant
+      rate: 2.2e7
+
+    connections:
+      - node_id: karthoum
+        fraction: 1.0
+        delay: 2
+
+    modules:
+      evaporation: 1.0e6          # m³/day
+      drink_water: 6.0e5          # m³/day
+      food_production:
+        water_coefficient: 700
+        max_food_units: 2500
+      energy:
+        price_per_unit: 0.0
+
+
+  - id: karthoum
+    latitude: 15.6
+    longitude: 32.6
+    area_ha: 25_500
+
+    reservoir:
+      initial_level: 8.0e9
+      max_capacity: 1.2e10
+
+    max_production: 2.5e7
+
+    catchment_inflow:
+      type: constant
+      rate: 1.8e7
+
+    connections:
+      - node_id: merowe
+        fraction: 1.0
+        delay: 1
+
+    modules:
+      evaporation: 1.5e6
+      drink_water: 1.2e6
+      food_production:
+        water_coefficient: 850
+        max_food_units: 1800
+      energy:
+        price_per_unit: 0.05
+
+
+  - id: merowe
+    latitude: 18.7
+    longitude: 32.0
+    area_ha: 19_000
+
+    reservoir:
+      initial_level: 1.2e10
+      max_capacity: 1.8e10
+
+    max_production: 4.0e7
+
+    catchment_inflow:
+      type: constant
+      rate: 1.2e7
+
+    connections:
+      - node_id: aswand
+        fraction: 1.0
+        delay: 2
+
+    modules:
+      evaporation: 2.0e6
+      drink_water: 8.0e5
+      food_production:
+        water_coefficient: 950
+        max_food_units: 1200
+      energy:
+        price_per_unit: 0.05
+
+
+  - id: aswand
+    latitude: 24.0
+    longitude: 32.9
+    area_ha: 25_000
+
+    reservoir:
+      initial_level: 1.4e11
+      max_capacity: 1.7e11
+
+    max_production: 6.0e7
+
+    catchment_inflow:
+      type: constant
+      rate: 2.0e7
+
+    connections:
+      - node_id: cairo
+        fraction: 1.0
+        delay: 3
+
+    modules:
+      evaporation: 8.0e6
+      drink_water: 1.5e6
+      food_production:
+        water_coefficient: 1000
+        max_food_units: 1500
+      energy:
+        price_per_unit: 0.055
+
+
+  - id: cairo
+    latitude: 30.8
+    longitude: 31.0
+    area_ha: 30_000
+
+    reservoir:
+      initial_level: 4.0e10
+      max_capacity: 6.0e10
+
+    max_production: 3.0e7
+
+    catchment_inflow:
+      type: constant
+      rate: 0.0                # m³/day (terminal node)
+
+    connections: []
+
+    modules:
+      evaporation: 3.0e6
+      drink_water: 4.0e6
+      food_production:
+        water_coefficient: 900
+        max_food_units: 2000
+      energy:
+        price_per_unit: 0.06
+
+
+  - id: singa
+    latitude: 13.2
+    longitude: 34.0
+    area_ha: 24_000
+
+    reservoir:
+      initial_level: 9.0e9
+      max_capacity: 1.5e10
+
+    max_production: 2.0e7
+
+    catchment_inflow:
+      type: constant
+      rate: 1.4e7
+
+    connections:
+      - node_id: merowe
+        fraction: 1.0
+        delay: 1
+
+    modules:
+      evaporation: 1.8e6
+      drink_water: 7.0e5
+      food_production:
+        water_coefficient: 900
+        max_food_units: 1600
+      energy:
+        price_per_unit: 0.048
+
+
+  - id: roseires
+    latitude: 11.9
+    longitude: 34.4
+    area_ha: 28_500
+
+    reservoir:
+      initial_level: 7.0e9
+      max_capacity: 1.1e10
+
+    max_production: 3.0e7
+
+    catchment_inflow:
+      type: constant
+      rate: 1.6e7
+
+    connections:
+      - node_id: singa
+        fraction: 1.0
+        delay: 2
+
+    modules:
+      evaporation: 1.5e6
+      drink_water: 5.0e5
+      food_production:
+        water_coefficient: 850
+        max_food_units: 2000
+      energy:
+        price_per_unit: 0.05
+
+
+  - id: gerd
+    latitude: 11.2
+    longitude: 35.1
+    area_ha: 29_500
+
+    reservoir:
+      initial_level: 4.5e10
+      max_capacity: 7.4e10
+
+    max_production: 9.0e7
+
+    catchment_inflow:
+      type: constant
+      rate: 3.0e7
+
+    connections:
+      - node_id: roseires
+        fraction: 1.0
+        delay: 2
+
+    modules:
+      evaporation: 2.5e6
+      drink_water: 3.0e5
+      food_production:
+        water_coefficient: 800
+        max_food_units: 2200
+      energy:
+        price_per_unit: 0.065
+
+
+  - id: tana
+    latitude: 12.0
+    longitude: 37.3
+    area_ha: 22_500
+
+    reservoir:
+      initial_level: 2.0e10
+      max_capacity: 2.5e10
+
+    max_production: 1.5e7
+
+    catchment_inflow:
+      type: constant
+      rate: 1.1e7
+
+    connections:
+      - node_id: gerd
+        fraction: 1.0
+        delay: 2
+
+    modules:
+      evaporation: 2.0e6
+      drink_water: 4.0e5
+      food_production:
+        water_coefficient: 750
+        max_food_units: 1800
+      energy:
+        price_per_unit: 0.04
+
+
+  - id: kashm
+    latitude: 14.9
+    longitude: 35.9
+    area_ha: 15_000
+
+    reservoir:
+      initial_level: 2.5e9
+      max_capacity:  4.0e9
+
+    max_production: 1.5e7
+
+    catchment_inflow:
+      type: constant
+      rate: 8.0e6             # m³/day
+
+    connections:
+      - node_id: merowe
+        fraction: 1.0
+        delay: 2
+
+    modules:
+      evaporation: 1.2e6
+      drink_water: 4.0e5
+      food_production:
+        water_coefficient: 900
+        max_food_units: 1000
+      energy:
+        price_per_unit: 0.05
+
+
+  - id: tsengh
+    latitude: 14.0
+    longitude: 36.5
+    area_ha: 11_500
+
+    reservoir:
+      initial_level: 1.5e9
+      max_capacity:  2.5e9
+
+    max_production: 1.0e7
+
+    catchment_inflow:
+      type: constant
+      rate: 6.0e6
+
+    connections:
+      - node_id: kashm
+        fraction: 1.0
+        delay: 1
+
+    modules:
+      evaporation: 9.0e5
+      drink_water: 3.0e5
+      food_production:
+        water_coefficient: 850
+        max_food_units: 800
+      energy:
+        price_per_unit: 0.048
+
+
+  - id: ozentari
+    latitude: 13.5
+    longitude: 37.2
+    area_ha: 8_000
+
+    reservoir:
+      initial_level: 1.0e9
+      max_capacity:  1.8e9
+
+    max_production: 8.0e6
+
+    catchment_inflow:
+      type: constant
+      rate: 5.0e6
+
+    connections:
+      - node_id: tsengh
+        fraction: 1.0
+        delay: 1
+
+    modules:
+      evaporation: 7.0e5
+      drink_water: 2.0e5
+      food_production:
+        water_coefficient: 800
+        max_food_units: 600
+      energy:
+        price_per_unit: 0.045

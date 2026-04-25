@@ -1,0 +1,150 @@
+# Nile Basin Crop Water Demand — Configuration
+# ===============================================
+# Used by nile_crop_water.py.
+#
+# crop_types:
+#   Templates referenced by zones.  kc_monthly is the monthly crop
+#   coefficient (Kc, FAO-56 definition; Jan=index 0).  food_productivity_kg_m3
+#   is the gross crop water productivity: kg of edible food produced per m³ of
+#   water *withdrawn* from the river (i.e. after irrigation losses).
+#
+# zones:
+#   One entry per node in nile.yaml, keyed by node id.
+#   irrigation_efficiency: fraction of withdrawn water that actually reaches
+#   the root zone (accounts for canal seepage, surface evaporation and runoff).
+#   Overriding kc_monthly or food_productivity_kg_m3 here takes precedence
+#   over the crop_type template.
+#
+# Water demand formulas
+# ---------------------
+#   ET_crop   [mm/day]  = Kc × ET₀
+#   V_net     [m³/day]  = ET_crop × 10 × area_ha   (net crop water consumption)
+#   V_gross   [m³/day]  = V_net / irrigation_efficiency  (river withdrawal)
+#   Q_gross   [m³/s]    = V_gross / 86 400
+#
+#   The difference (V_gross − V_net) is the evaporation/seepage/runoff loss
+#   during irrigation distribution.
+#
+# Sources
+# -------
+#   Kc values: FAO Irrigation and Drainage Paper 56 (Allen et al. 1998),
+#              adapted for Nile basin crop calendars.
+#   Irrigation efficiencies: FAO AQUASTAT, regional surveys.
+#   Food productivity: FAO AQUASTAT global water productivity database;
+#              values represent gross crop water productivity for the dominant
+#              crop mix in each zone.
+
+# ─── Crop type templates ──────────────────────────────────────────────────────
+crop_types:
+
+  mixed_tropical:
+    description: >
+      Mixed tropical crops: maize, banana, cassava, coffee, beans.
+      Year-round cultivation; perennial component (coffee/banana) keeps
+      Kc relatively stable.  Typical of the Lake Victoria basin.
+    kc_monthly: [0.88, 0.88, 0.85, 0.82, 0.82, 0.80, 0.82, 0.84, 0.87, 0.90, 0.90, 0.88]
+    food_productivity_kg_m3: 1.20
+
+  sorghum_millet:
+    description: >
+      Rainfed / irrigated sorghum and millet with a single main growing
+      season (May–October).  Fields are largely fallow Nov–Apr, giving
+      low Kc outside the season.
+    kc_monthly: [0.40, 0.40, 0.50, 0.65, 0.85, 1.05, 1.15, 1.10, 0.95, 0.80, 0.55, 0.40]
+    food_productivity_kg_m3: 0.52
+
+  highland_cereals:
+    description: >
+      Ethiopian highland crop mix: teff, wheat, barley, pulses.
+      Two overlapping seasons (long rains Mar–Sep; short rains Oct–Feb)
+      keep Kc fairly high year-round, peaking in the main harvest months.
+    kc_monthly: [0.90, 0.90, 0.85, 0.80, 0.75, 0.78, 0.85, 0.92, 0.95, 0.92, 0.90, 0.90]
+    food_productivity_kg_m3: 0.82
+
+  cotton_wheat:
+    description: >
+      Sudan Gezira-type rotation: winter wheat (Nov–Apr) and summer
+      cotton (May–Oct).  Wheat peaks Jan–Feb; cotton peaks Jul–Aug.
+      Kc dips between harvests (Apr, early May).
+    kc_monthly: [1.05, 1.10, 1.00, 0.60, 0.55, 0.95, 1.15, 1.20, 1.15, 0.95, 0.75, 0.90]
+    food_productivity_kg_m3: 0.65   # wheat grain equivalent; cotton fibre excluded
+
+  sorghum_sesame:
+    description: >
+      North-Sudanese and Kassala region: sorghum as staple, sesame as
+      cash crop.  Both planted after first rains (Jun); harvested
+      Oct–Nov.  Extended fallow Nov–May.
+    kc_monthly: [0.35, 0.40, 0.50, 0.70, 0.90, 1.05, 1.15, 1.15, 1.05, 0.85, 0.55, 0.35]
+    food_productivity_kg_m3: 0.55
+
+  wheat_dates:
+    description: >
+      Upper Egypt and northern Sudan: winter wheat (Oct–May) intercropped
+      with perennial date palms (year-round, Kc ≈ 0.90).  Wheat Kc peaks
+      in Jan–Feb; date-palm requirement keeps the annual minimum elevated.
+    kc_monthly: [1.00, 1.05, 0.95, 0.90, 0.90, 0.90, 0.90, 0.90, 0.90, 0.92, 0.95, 1.00]
+    food_productivity_kg_m3: 0.88
+
+  wheat_rice_cotton:
+    description: >
+      Nile Delta (Cairo) complex rotation: winter wheat (Nov–May),
+      summer rice (Jun–Sep), some cotton and vegetables.  Rice drives
+      the Jun–Aug Kc peak.  One of the most water-intensive calendars
+      in the basin.
+    kc_monthly: [0.95, 0.95, 0.90, 0.85, 0.80, 1.00, 1.10, 1.10, 1.05, 0.90, 0.90, 0.95]
+    food_productivity_kg_m3: 0.85
+
+# ─── Per-zone settings ────────────────────────────────────────────────────────
+zones:
+
+  victoria:
+    crop_type: mixed_tropical
+    irrigation_efficiency: 0.55   # small-scale surface & hand irrigation
+
+  southwest:
+    crop_type: sorghum_millet
+    irrigation_efficiency: 0.50   # flood / seasonal inundation schemes
+
+  gerd:
+    crop_type: highland_cereals
+    irrigation_efficiency: 0.60   # small highland terraced schemes
+
+  roseires:
+    crop_type: cotton_wheat
+    irrigation_efficiency: 0.55   # large canal surface schemes (Blue Nile)
+
+  tana:
+    crop_type: highland_cereals
+    irrigation_efficiency: 0.60
+
+  singa:
+    crop_type: cotton_wheat
+    irrigation_efficiency: 0.55   # Gezira / Managil extension
+
+  ozentari:
+    crop_type: highland_cereals
+    irrigation_efficiency: 0.60
+
+  tsengh:
+    crop_type: sorghum_millet
+    irrigation_efficiency: 0.55
+
+  kashm:
+    crop_type: sorghum_sesame
+    irrigation_efficiency: 0.50   # Atbara/Kassala traditional schemes
+
+  karthoum:
+    crop_type: cotton_wheat
+    irrigation_efficiency: 0.62   # improved Sudanese canal schemes
+
+  merowe:
+    crop_type: wheat_dates
+    irrigation_efficiency: 0.62
+
+  aswand:
+    crop_type: wheat_dates
+    irrigation_efficiency: 0.65   # mix of surface + partial drip (dates)
+
+  cairo:
+    crop_type: wheat_rice_cotton
+    irrigation_efficiency: 0.65   # modernised Delta canal system
