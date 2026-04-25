@@ -284,6 +284,15 @@ cargo run -p nrsm-dataloader -- assemble --input ..\data --output data\generated
 cargo run -p nrsm-cli -- data\generated\config.yaml --json --pretty
 ```
 
+You can also use an existing scenario YAML as a period spec while ignoring its
+hand-written node data. The assembler reads `settings.start_date` and
+`settings.end_date`, then loads all node inputs from `horizon/data`:
+
+```powershell
+cargo run -p nrsm-dataloader -- assemble --period scenarios\nile-mvp\past\1963-september-30d.yaml --input ..\data
+cargo run -p nrsm-cli -- data\generated\1963-september-30d\config.yaml --json --pretty
+```
+
 The `assemble` command reads the checked-in canonical data bundle under
 `horizon/data` and writes simulator-ready files. The current MVP topology uses
 the 13 hydmod catchment nodes in `horizon/data/topology/nodes.csv`; catchment
@@ -306,6 +315,10 @@ uses `water_m3_s`, the assembler converts it with `water_m3_day = water_m3_s *
 86400`. It writes the result as the food-production module with
 `water_coefficient: 1.0`, so outputs expose the agricultural water balance
 directly through `food_water_demand`, `food_water_met`, and `unmet_food_water`.
+The assembled real-data path requires source data for the requested dates,
+except for electricity price, which is currently collapsed to the latest
+365-record mean. Future windows will need an explicit extrapolation policy
+before they can assemble from historical CSVs.
 
 The older deterministic seed path is still available for tests and demos:
 

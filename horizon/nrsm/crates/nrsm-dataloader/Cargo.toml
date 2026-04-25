@@ -7,7 +7,7 @@ license.workspace = true
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
+serde_yaml.workspace = true
 
 [dev-dependencies]
 nrsm-sim-core = { path = "../nrsm-sim-core" }
-serde_yaml.workspace = true

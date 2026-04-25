@@ -40,6 +40,23 @@ Run any scenario from `horizon/nrsm`:
 cargo run -p nrsm-cli -- scenarios/nile-mvp/future/2030-full-year-growth.yaml --json --pretty
 ```
 
+## Run With Real Data
+
+The YAML files in this catalog are runnable demos with hand-written node inputs.
+To use one only as a date-window selector and load the actual node inputs from
+`horizon/data`, assemble it through the dataloader first:
+
+```powershell
+cargo run -p nrsm-dataloader -- assemble --period scenarios\nile-mvp\past\1963-september-30d.yaml --input ..\data
+cargo run -p nrsm-cli -- data\generated\1963-september-30d\config.yaml --json --pretty
+```
+
+`--period` reads `settings.start_date` and `settings.end_date` from the YAML and
+ignores the hand-written `nodes` block. Without `--output`, the generated
+scenario is written to `data/generated/<period-file-name>/`. Historical windows
+must be covered by the source CSVs; future windows will need extrapolated input
+data before this real-data path can assemble them.
+
 ## Create Your Own Scenario
 
 Start by copying the closest existing YAML, then change the `settings` block and
