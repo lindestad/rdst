@@ -25,7 +25,7 @@ reservoir's capacity), and routes excess water downstream.
 ## Modules
 
 Each node has four pluggable modules that control time-varying behaviour.
-In the yaml file, this can either be constant with a value, e.g. `contant: 20.0`,
+In the yaml file, this can either be constant with a value, e.g. `constant: 20.0`,
 or it can point to a csv file. The time series has daily resolution, and
 one column for each scenario.
 
@@ -35,8 +35,10 @@ Natural water arriving from the local catchment into the reservoir, m^3/day.
 
 ### Evaporation
 
-Water lost from the reservoir surface. Evaporation is deducted first, before
-any other withdrawal or release.
+Water lost from the node during the timestep. For a reservoir node this is
+normally reservoir-surface evaporation; for a reach or wetland node this may
+also represent reach-scale hydrologic loss if the data gatherer provides such
+an estimate. This loss is deducted before any other withdrawal or release.
 
 ```
 evaporation = min(evaporation_rate(t, dt), available)
@@ -73,11 +75,19 @@ Each connection is a directed edge:
 | Field | Type | Description |
 |---|---|---|
 | `node_id` | string | ID of the downstream node to receive water |
-| `fraction` | float [0–1] | Share of `production_release + spill` routed to that node |
+| `fraction` | float [0–1] | Share of water leaving this node that is routed to that downstream node |
 | `delay` | int (timesteps) | Travel time before water arrives; `0` means the same timestep |
 
-The fractions across all outgoing connections must sum to ≤ 1. Any remainder
-(1 − sum) is considered lost (evaporation, unmeasured discharge, etc.).
+The fractions across all outgoing connections must sum to ≤ 1. For in-basin
+routing, they should normally sum to `1.0`; values below `1.0` should be used
+only for water that intentionally leaves the modeled network, such as a sink,
+export, or explicitly out-of-model diversion.
+
+Hydrologic losses are part of the node's per-timestep water balance, not the
+edge between two nodes. When the data gatherer has an explicit reach-loss
+estimate, attach it to the relevant reach/wetland/reservoir node as a loss time
+series, currently represented through the evaporation module unless a dedicated
+loss module is added later.
 
 Both the **controlled production release** and any **uncontrolled spill** travel
 through the same connections. Spill carries no energy value.
@@ -92,6 +102,10 @@ Each timestep, the node receives exactly one action:
   are clamped. The actual water released is `action × max_production × dt_days`,
   further capped by however much water is available in the reservoir.
 
+Current Rust support: one global `settings.production_level_fraction` is applied
+to every node and timestep. Planned support: per-node, per-date action schedules
+loaded from an action CSV.
+
 ---
 
 ## Per-Timestep Water Balance
@@ -101,7 +115,7 @@ Steps are executed in this fixed priority order:
 1. **Inflow accumulation**  
    `available = reservoir_level + catchment_inflow(t, dt) + upstream_inflow`
 
-2. **Evaporation**  
+2. **Node loss / evaporation**
    `evaporation = min(evaporation_rate(t, dt), available)`  
    `available -= evaporation`
 
@@ -191,13 +205,14 @@ nodes:
 
     connections:              # list of downstream edges; may be empty
       - node_id:  <string>    # ID of the downstream node
-        fraction: <float>     # share of (production_release + spill) routed there; 0–1
+        fraction: <float>     # share of water leaving this node routed there; 0–1
         delay:    <int>       # travel time in timesteps (default 0)
-                              # fractions across all connections must sum to ≤ 1
+                              # fractions across all connections must sum to ≤ 1;
+                              # use node modules, not edge fractions, for hydrologic loss
 
     modules:
       evaporation:
-        rate: <float>               # m³/day (constant)
+        rate: <float>               # m³/day node loss / evaporation (constant)
         # or: type: csv, filepath: <path>
 
       drink_water:

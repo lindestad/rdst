@@ -2,12 +2,12 @@
 
 The simulator orchestrates a network of [nodes](node.md) over a time horizon,
 stepping forward one timestep at a time. Each node independently manages its
-own water balance (inflow, evaporation, drinking water, food production,
-hydropower release, and spill) and routes surplus water downstream through a
-directed acyclic graph (DAG). External time-varying inputs — inflow, evaporation
-rates, demand, food capacity, and energy prices — are supplied by
-[modules](modules.md) that write their data to CSV files before the simulation
-starts.
+own water balance (inflow, node loss/evaporation, drinking water, food
+production, hydropower release, and spill) and routes surplus water downstream
+through a directed acyclic graph (DAG). External time-varying inputs — inflow,
+node loss/evaporation rates, demand, food capacity, and energy prices — are
+supplied by [modules](modules.md) that write their data to CSV files before the
+simulation starts.
 
 ---
 
@@ -22,6 +22,27 @@ starts.
 | `scenario` | — | Scenario column name to use from every module CSV (default `scenario_1`) |
 | `initial_levels` | — | Per-node override of starting reservoir volume in m³; any node not listed uses the value from `config.yaml` |
 
+Generated simulator inputs should live at:
+
+```text
+horizon/nrsm/data/generated/config.yaml
+```
+
+Hand-authored examples may live under `horizon/nrsm/scenarios/<name>/`. Relative
+module file paths are resolved from the directory containing the selected config.
+
+Current Rust CLI:
+
+```powershell
+cargo run -p nrsm-cli -- data\generated\config.yaml --json --pretty
+```
+
+Planned Rust CLI:
+
+```powershell
+nrsm-cli data\generated\config.yaml --start-date 2020-01-01 --end-date 2020-12-31 --scenario scenario_2 --actions actions.csv --output-dir runs\scenario_2
+```
+
 ---
 
 ## Initialisation
@@ -30,16 +51,18 @@ Before the main loop runs, the simulator performs the following steps:
 
 1. **Parse config** — load and validate `config.yaml`. Every `id` must be
    unique; connection `node_id` values must reference existing nodes; all
-   connection fractions for a node must sum to ≤ 1.
+   connection fractions for a node must sum to ≤ 1. Connection fractions define
+   routing topology only; hydrologic loss belongs in the node water balance.
 
 2. **Build the DAG** — derive a topological ordering of nodes from the
    `connections` graph. This ordering is used in every timestep so that
    upstream nodes always step before their downstream neighbours.
 
 3. **Load module data** — for each node, load every CSV-backed module. The
-   CSV must contain a `date` column covering at least `[start_date, end_date]`
-   and a column matching the requested `scenario`. Constant-valued modules
-   require no file.
+   CSV must contain a `date` column and a column matching the requested
+   `scenario`. Target behavior is to validate coverage for
+   `[start_date, end_date]`; current Rust behavior consumes rows in file order.
+   Constant-valued modules require no file.
 
 4. **Apply initial levels** — set each node's `reservoir_level` to
    `initial_levels[node_id]` if provided, otherwise to
@@ -73,6 +96,22 @@ Each timestep every node receives a **production level fraction** — a float in
 outside `[0, 1]` are clamped. If no action matrix is supplied (simulation-only
 mode) all nodes default to `action = 1.0` (full production).
 
+Current Rust support uses `settings.production_level_fraction` as one global
+action value for every node and timestep. This is enough for a baseline run, but
+scenario work such as GERD filling should move to action CSVs.
+
+### Action CSV
+
+Planned shape:
+
+```csv
+date,gerd,aswan,merowe
+2020-01-01,0.65,1.00,1.00
+2020-01-02,0.65,1.00,1.00
+```
+
+Missing node columns default to `1.0`. Values outside `[0, 1]` are clamped.
+
 ### Upstream inflow
 
 Water dispatched from node `u` to node `v` with `delay = d` arrives exactly
@@ -98,11 +137,15 @@ over the horizon minus penalties for unmet drinking-water demand and unmet
 minimum food production. The simulator itself is stateless between calls; the
 optimiser is responsible for managing the search.
 
+Optimization is out of scope for the simulator binary itself. The simulator
+should expose stable inputs and deterministic outputs so an optimizer can call
+it repeatedly.
+
 ---
 
 ## Results
 
-The simulator writes one CSV file per node named `<node_id>.csv`. Each file
+Target behavior: the simulator writes one CSV file per node named `<node_id>.csv`. Each file
 contains one row per timestep:
 
 | Column | Unit | Description |
@@ -119,6 +162,10 @@ contains one row per timestep:
 | `spill` | m³ | Water that overflowed the reservoir |
 | `downstream_release` | m³ | Total water routed downstream |
 | `action` | — | Production level fraction applied this timestep |
+
+Current Rust behavior: results are returned as structured JSON or YAML with
+periods and node results. CSV result writing is the next compatibility step for
+the markdown contract.
 
 ### Aggregated summary
 
