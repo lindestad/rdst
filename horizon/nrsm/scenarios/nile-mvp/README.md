@@ -13,6 +13,7 @@ calendar-aware outputs.
 | --- | ---: | --- | ---: | --- |
 | `scenario.yaml` | 13 | 2020-01-01 to 2020-03-30 | 90 | default demo |
 | `few-nodes/blue-nile-2030-30d.yaml` | 3 | 2030-02-01 to 2030-03-02 | 30 | quick Blue Nile smoke test |
+| `past/1963-september-30d.yaml` | 13 | 1963-09-01 to 1963-09-30 | 30 | historic wet-season run |
 | `past/2005-jan-7d-baseline.yaml` | 13 | 2005-01-01 to 2005-01-07 | 7 | short baseline |
 | `past/2005-q1-90d-baseline.yaml` | 13 | 2005-01-01 to 2005-03-31 | 90 | quarterly baseline |
 | `past/2010-dry-season-180d.yaml` | 13 | 2010-04-01 to 2010-09-27 | 180 | lower inflow, higher evaporation |
