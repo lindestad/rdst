@@ -36,6 +36,8 @@ def monthly_forcings_from_era5(
     derived fields (PET). `source` is either a NetCDF path or an in-memory
     xarray Dataset — production opens files, tests pass Datasets directly."""
     ds = source if isinstance(source, xr.Dataset) else xr.open_dataset(source)
+    if "valid_time" in ds.coords or "valid_time" in ds.dims:
+        ds = ds.rename({"valid_time": "time"})
     ds = crop_bbox(ds, lat_min, lat_max, lon_min, lon_max)
     ds = _spatial_mean(ds)
 
@@ -44,7 +46,10 @@ def monthly_forcings_from_era5(
     temp_c = ds["t2m"] - 273.15                         # K → °C
     dew_c = ds["d2m"] - 273.15
     rad_mj_m2_day = ds["ssrd"] / 1e6                    # J/m² → MJ/m²
-    wind_ms = ds["si10"]
+    if "si10" in ds:
+        wind_ms = ds["si10"]
+    else:
+        wind_ms = np.hypot(ds["u10"], ds["v10"])
     runoff_mm_day = ds["ro"] * 1000.0                   # m → mm
 
     daily = xr.Dataset({

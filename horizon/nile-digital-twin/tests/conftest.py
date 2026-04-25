@@ -27,6 +27,8 @@ def era5_mini_ds():
             "d2m":  (("time", "latitude", "longitude"), 288.0 + rng.normal(0, 2, shape)),
             "ssrd": (("time", "latitude", "longitude"), rng.uniform(1.5e7, 2.5e7, shape)),
             "si10": (("time", "latitude", "longitude"), rng.uniform(1.5, 4.0, shape)),
+            "wind_u10": (("time", "latitude", "longitude"), rng.uniform(0.5, 3.0, shape)),
+            "wind_v10": (("time", "latitude", "longitude"), rng.uniform(0.5, 3.0, shape)),
             "ro":   (("time", "latitude", "longitude"), rng.uniform(0, 0.0005, shape)),
         },
         coords={"time": time, "latitude": lat, "longitude": lon},

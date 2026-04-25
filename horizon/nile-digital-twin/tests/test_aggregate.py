@@ -21,3 +21,17 @@ def test_monthly_forcings_has_spec_columns(era5_mini_ds):
     assert 20 < df["temp_c"].mean() < 30
     assert 0 < df["precip_mm"].mean() < 200
     assert df["historical_discharge_m3s"].isna().all()
+
+
+def test_monthly_forcings_accepts_valid_time_and_uv_wind(era5_mini_ds):
+    ds = era5_mini_ds.rename({"time": "valid_time"}).drop_vars("si10")
+    ds["u10"] = ds["wind_u10"]
+    ds["v10"] = ds["wind_v10"]
+
+    df = monthly_forcings_from_era5(
+        ds,
+        lat_min=14.0, lat_max=16.0, lon_min=32.0, lon_max=34.0,
+    )
+
+    assert len(df) == 2
+    assert (df["wind_ms"] > 0).all()
