@@ -19,6 +19,7 @@ workspace under `horizon/` so it can grow cleanly inside a larger monorepo.
 - `crates/nrsm-sim-core`: public simulation API and domain model
 - `crates/nrsm-cli`: command-line runner for YAML scenarios
 - `crates/nrsm-dataloader`: assembler for canonical `horizon/data` CSVs into simulator configs, module CSVs, and staging metadata
+- `optimizer`: uv-managed Python package for Pareto action optimization through `nrsm_py`
 - `contracts/scenario.schema.yaml`: machine-readable scenario contract
 - `scenarios/nile-mvp`: Nile-inspired demo and dated past/future scenario catalog
 - `docs/nile-dataloader-plan.md`: dataset research and visual loading plan
@@ -283,6 +284,30 @@ period dates and optional node subset from the YAML, assembles node inputs from
 CSV-backed config. Catalog files under `scenarios/` are period specs, not
 complete simulator configs. Build the Python extension with maturin from
 `horizon/nrsm/crates/nrsm-py`.
+
+## Optimize Actions
+
+`optimizer/` contains the first optimizer layer. It uses NSGA-II Pareto search
+through the `nrsm_py` binding and writes action CSVs that can be replayed with
+`nrsm-cli --actions-dir`.
+
+The optimizer compresses the action space into piecewise-constant intervals, for
+example one action per node per 14 or 30 days, then expands the candidate policy
+to the simulator's daily `T x N` action matrix. It minimizes separate objectives
+for energy regret, drinking-water shortage, food-water shortage, and spill so
+the tradeoff frontier remains visible.
+
+```powershell
+cd optimizer
+uv run nrsm-optimize `
+  --period ..\scenarios\nile-mvp\past\2005-q1-90d-baseline.yaml `
+  --data-dir ..\..\data `
+  --generated-dir ..\data\generated\optimizer-2005-q1 `
+  --output-dir runs\2005-q1-pareto `
+  --interval-days 14 `
+  --generations 30 `
+  --population-size 48
+```
 
 ## Assemble Canonical Data
 
