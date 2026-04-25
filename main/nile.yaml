@@ -1,9 +1,36 @@
+settings:
+  timestep_days: 1.0
+  # Hydraulic efficiency of turbines (used in EUR/kWh → EUR/m³ conversion)
+  hydro_efficiency: 0.85
+
+# Effective hydraulic head (m) at each node — proxy for average turbine head.
+# Used to convert electricity price (EUR/kWh) to water value (EUR/m³):
+#   EUR/m³ = EUR/kWh × ρ·g·h·η / 3 600 000
+# Sources: published dam heights / design heads.
+#   Victoria  – Nalubaale (Owen Falls) Dam, ~30 m net head
+#   southwest – Sudd swamp reach, White Nile gradient, ~5 m (no dam; used for
+#               social-value pricing only since max_production = 0)
+#   karthoum  – Jebel Aulia Dam Sudan, ~35 m
+#   merowe    – Merowe (Hamdab) Dam, ~67 m
+#   aswand    – High Aswan Dam (HAD), ~111 m
+#   cairo     – Nile Delta / low-head run-of-river, ~15 m
+#   singa     – Sennar Dam, ~45 m
+#   roseires  – Roseires Dam, ~68 m
+#   gerd      – Grand Ethiopian Renaissance Dam, ~145 m
+#   tana      – Tis Abay / Lake Tana falls scheme, ~50 m
+#   kashm     – Kashm el-Girba Dam, ~60 m
+#   tsengh    – Tekeze (Tekezze) Dam, ~188 m
+#   ozentari  – small headwater dam, ~50 m
+
 nodes:
 
   - id: victoria
     latitude: -1.0      # degrees
     longitude: 33.0     # degrees
     area: 238900        # km² — Lake Victoria drainage basin
+    effective_head_m: 30.0   # Nalubaale (Owen Falls) Dam
+    population: 4.0e7        # approx. — Lake Victoria basin (Uganda/Kenya/Tanzania)
+    agri_area_km2: 70000     # approx. — mixed cropland across Victoria basin
 
     reservoir:
       initial_level: 2.8e11   # m³
@@ -18,22 +45,29 @@ nodes:
     connections:
       - node_id: southwest
         fraction: 1.0
-        delay: 3              # days
+        delay: 18             # days
 
     modules:
-      evaporation: 1.2e7          # m³/day
-      drink_water: 1.0e6          # m³/day
+      evaporation: 1.2e7          # m³/day (constant)
+      drink_water: 1.0e6          # m³/day (constant)
       food_production:
+        type: csv
+        filepath: modules/food_production/nile_victoria_water.csv
+        column: water_m3_day
         water_coefficient: 650    # m³ / food unit
-        max_food_units: 4000      # food units/day
       energy:
-        price_per_unit: 0.045     # currency / m³
+        type: csv
+        filepath: modules/energy_price/price_csv/victoria.csv
+        column: price_eur_kwh
 
 
   - id: southwest
     latitude: 8.5
     longitude: 29.5
     area: 580000        # km² — Sudd / White Nile catchment
+    effective_head_m: 5.0    # White Nile gradient through Sudd (~5 m, used for social pricing)
+    population: 8.0e6        # approx. — South Sudan / Sudd region
+    agri_area_km2: 20000     # approx. — limited subsistence farming, Sudd margins
 
     reservoir:
       initial_level: 6.0e9
@@ -48,22 +82,29 @@ nodes:
     connections:
       - node_id: karthoum
         fraction: 1.0
-        delay: 2
+        delay: 13
 
     modules:
-      evaporation: 1.0e6          # m³/day
-      drink_water: 6.0e5          # m³/day
+      evaporation: 1.0e6          # m³/day (constant)
+      drink_water: 6.0e5          # m³/day (constant)
       food_production:
+        type: csv
+        filepath: modules/food_production/nile_southwest_water.csv
+        column: water_m3_day
         water_coefficient: 700
-        max_food_units: 2500
       energy:
-        price_per_unit: 0.0
+        type: csv
+        filepath: modules/energy_price/price_csv/southwest.csv
+        column: price_eur_kwh
 
 
   - id: karthoum
     latitude: 15.6
     longitude: 32.6
     area: 45000         # km² — local catchment around Khartoum confluence
+    effective_head_m: 35.0   # Jebel Aulia Dam area
+    population: 7.0e6        # approx. — Khartoum metropolitan area
+    agri_area_km2: 5000      # approx. — irrigated strips along the Nile near Khartoum
 
     reservoir:
       initial_level: 8.0e9
@@ -78,22 +119,29 @@ nodes:
     connections:
       - node_id: merowe
         fraction: 1.0
-        delay: 1
+        delay: 6
 
     modules:
-      evaporation: 1.5e6
-      drink_water: 1.2e6
+      evaporation: 1.5e6          # m³/day (constant)
+      drink_water: 1.2e6          # m³/day (constant)
       food_production:
+        type: csv
+        filepath: modules/food_production/nile_karthoum_water.csv
+        column: water_m3_day
         water_coefficient: 850
-        max_food_units: 1800
       energy:
-        price_per_unit: 0.05
+        type: csv
+        filepath: modules/energy_price/price_csv/karthoum.csv
+        column: price_eur_kwh
 
 
   - id: merowe
     latitude: 18.7
     longitude: 32.0
     area: 85000         # km² — Nubian Nile reach (largely arid)
+    effective_head_m: 67.0   # Merowe (Hamdab) Dam
+    population: 1.0e6        # approx. — Northern Sudan, sparse population
+    agri_area_km2: 3000      # approx. — narrow irrigated belt, largely arid
 
     reservoir:
       initial_level: 1.2e10
@@ -108,22 +156,29 @@ nodes:
     connections:
       - node_id: aswand
         fraction: 1.0
-        delay: 2
+        delay: 10
 
     modules:
-      evaporation: 2.0e6
-      drink_water: 8.0e5
+      evaporation: 2.0e6          # m³/day (constant)
+      drink_water: 8.0e5          # m³/day (constant)
       food_production:
+        type: csv
+        filepath: modules/food_production/nile_merowe_water.csv
+        column: water_m3_day
         water_coefficient: 950
-        max_food_units: 1200
       energy:
-        price_per_unit: 0.05
+        type: csv
+        filepath: modules/energy_price/price_csv/merowe.csv
+        column: price_eur_kwh
 
 
   - id: aswand
     latitude: 24.0
     longitude: 32.9
     area: 145000        # km² — Lake Nasser / Aswan reservoir basin
+    effective_head_m: 111.0  # High Aswan Dam (HAD)
+    population: 1.5e6        # approx. — Aswan governorate
+    agri_area_km2: 2000      # approx. — thin irrigated strip above Lake Nasser
 
     reservoir:
       initial_level: 1.4e11
@@ -138,22 +193,29 @@ nodes:
     connections:
       - node_id: cairo
         fraction: 1.0
-        delay: 3
+        delay: 13
 
     modules:
-      evaporation: 8.0e6
-      drink_water: 1.5e6
+      evaporation: 8.0e6          # m³/day (constant)
+      drink_water: 1.5e6          # m³/day (constant)
       food_production:
+        type: csv
+        filepath: modules/food_production/nile_aswand_water.csv
+        column: water_m3_day
         water_coefficient: 1000
-        max_food_units: 1500
       energy:
-        price_per_unit: 0.055
+        type: csv
+        filepath: modules/energy_price/price_csv/aswand.csv
+        column: price_eur_kwh
 
 
   - id: cairo
     latitude: 30.8
     longitude: 31.0
     area: 22000         # km² — Nile Delta and lower Egypt reach
+    effective_head_m: 15.0   # low-head run-of-river, Delta barrage area
+    population: 2.5e7        # approx. — Cairo metro + Nile Delta population
+    agri_area_km2: 15000     # approx. — highly productive Nile Delta cropland
 
     reservoir:
       initial_level: 4.0e10
@@ -168,19 +230,26 @@ nodes:
     connections: []
 
     modules:
-      evaporation: 3.0e6
-      drink_water: 4.0e6
+      evaporation: 3.0e6          # m³/day (constant)
+      drink_water: 4.0e6          # m³/day (constant)
       food_production:
+        type: csv
+        filepath: modules/food_production/nile_cairo_water.csv
+        column: water_m3_day
         water_coefficient: 900
-        max_food_units: 2000
       energy:
-        price_per_unit: 0.06
+        type: csv
+        filepath: modules/energy_price/price_csv/cairo.csv
+        column: price_eur_kwh
 
 
   - id: singa
     latitude: 13.2
     longitude: 34.0
     area: 75000         # km² — Blue Nile middle reaches (Sudan)
+    effective_head_m: 45.0   # Sennar Dam area
+    population: 2.0e6        # approx. — Blue Nile State, Sudan
+    agri_area_km2: 15000     # approx. — Gezira-adjacent irrigated schemes
 
     reservoir:
       initial_level: 9.0e9
@@ -198,19 +267,26 @@ nodes:
         delay: 1
 
     modules:
-      evaporation: 1.8e6
-      drink_water: 7.0e5
+      evaporation: 1.8e6          # m³/day (constant)
+      drink_water: 7.0e5          # m³/day (constant)
       food_production:
+        type: csv
+        filepath: modules/food_production/nile_singa_water.csv
+        column: water_m3_day
         water_coefficient: 900
-        max_food_units: 1600
       energy:
-        price_per_unit: 0.048
+        type: csv
+        filepath: modules/energy_price/price_csv/singa.csv
+        column: price_eur_kwh
 
 
   - id: roseires
     latitude: 11.9
     longitude: 34.4
     area: 82000         # km² — Blue Nile upper reach / Roseires dam basin
+    effective_head_m: 68.0   # Roseires Dam
+    population: 1.5e6        # approx. — upper Blue Nile / Roseires area, Sudan
+    agri_area_km2: 10000     # approx. — rain-fed and irrigated farmland, upper Blue Nile
 
     reservoir:
       initial_level: 7.0e9
@@ -228,19 +304,26 @@ nodes:
         delay: 2
 
     modules:
-      evaporation: 1.5e6
-      drink_water: 5.0e5
+      evaporation: 1.5e6          # m³/day (constant)
+      drink_water: 5.0e5          # m³/day (constant)
       food_production:
+        type: csv
+        filepath: modules/food_production/nile_roseires_water.csv
+        column: water_m3_day
         water_coefficient: 850
-        max_food_units: 2000
       energy:
-        price_per_unit: 0.05
+        type: csv
+        filepath: modules/energy_price/price_csv/roseires.csv
+        column: price_eur_kwh
 
 
   - id: gerd
     latitude: 11.2
     longitude: 35.1
     area: 172000        # km² — Ethiopian Blue Nile catchment (GERD basin)
+    effective_head_m: 145.0  # Grand Ethiopian Renaissance Dam
+    population: 1.8e7        # approx. — Ethiopian Blue Nile highlands
+    agri_area_km2: 60000     # approx. — densely farmed Ethiopian highlands (teff, sorghum, maize)
 
     reservoir:
       initial_level: 4.5e10
@@ -258,19 +341,26 @@ nodes:
         delay: 2
 
     modules:
-      evaporation: 2.5e6
-      drink_water: 3.0e5
+      evaporation: 2.5e6          # m³/day (constant)
+      drink_water: 3.0e5          # m³/day (constant)
       food_production:
+        type: csv
+        filepath: modules/food_production/nile_gerd_water.csv
+        column: water_m3_day
         water_coefficient: 800
-        max_food_units: 2200
       energy:
-        price_per_unit: 0.065
+        type: csv
+        filepath: modules/energy_price/price_csv/gerd.csv
+        column: price_eur_kwh
 
 
   - id: tana
     latitude: 12.0
     longitude: 37.3
     area: 16000         # km² — Lake Tana drainage basin
+    effective_head_m: 50.0   # Tis Abay hydro scheme, Lake Tana outfall
+    population: 3.0e6        # approx. — Amhara region around Lake Tana
+    agri_area_km2: 8000      # approx. — teff, barley, and coffee farms around Lake Tana
 
     reservoir:
       initial_level: 2.0e10
@@ -288,19 +378,26 @@ nodes:
         delay: 2
 
     modules:
-      evaporation: 2.0e6
-      drink_water: 4.0e5
+      evaporation: 2.0e6          # m³/day (constant)
+      drink_water: 4.0e5          # m³/day (constant)
       food_production:
+        type: csv
+        filepath: modules/food_production/nile_tana_water.csv
+        column: water_m3_day
         water_coefficient: 750
-        max_food_units: 1800
       energy:
-        price_per_unit: 0.04
+        type: csv
+        filepath: modules/energy_price/price_csv/tana.csv
+        column: price_eur_kwh
 
 
   - id: kashm
     latitude: 14.9
     longitude: 35.9
     area: 68000         # km² — Atbara / Kashm el-Girba basin
+    effective_head_m: 60.0   # Kashm el-Girba Dam
+    population: 2.0e6        # approx. — Kassala / Atbara region, Sudan
+    agri_area_km2: 12000     # approx. — irrigated cotton and sorghum, Kassala area
 
     reservoir:
       initial_level: 2.5e9
@@ -318,19 +415,26 @@ nodes:
         delay: 2
 
     modules:
-      evaporation: 1.2e6
-      drink_water: 4.0e5
+      evaporation: 1.2e6          # m³/day (constant)
+      drink_water: 4.0e5          # m³/day (constant)
       food_production:
+        type: csv
+        filepath: modules/food_production/nile_kashm_water.csv
+        column: water_m3_day
         water_coefficient: 900
-        max_food_units: 1000
       energy:
-        price_per_unit: 0.05
+        type: csv
+        filepath: modules/energy_price/price_csv/kashm.csv
+        column: price_eur_kwh
 
 
   - id: tsengh
     latitude: 14.0
     longitude: 36.5
     area: 31000         # km² — Tekeze tributary sub-basin
+    effective_head_m: 188.0  # Tekeze (Tekezze) Dam — highest RCC dam in Africa
+    population: 8.0e5        # approx. — Tekeze basin, Tigray/Amhara region
+    agri_area_km2: 5000      # approx. — terraced hillside farming, Tekeze gorge area
 
     reservoir:
       initial_level: 1.5e9
@@ -348,19 +452,26 @@ nodes:
         delay: 1
 
     modules:
-      evaporation: 9.0e5
-      drink_water: 3.0e5
+      evaporation: 9.0e5          # m³/day (constant)
+      drink_water: 3.0e5          # m³/day (constant)
       food_production:
+        type: csv
+        filepath: modules/food_production/nile_tsengh_water.csv
+        column: water_m3_day
         water_coefficient: 850
-        max_food_units: 800
       energy:
-        price_per_unit: 0.048
+        type: csv
+        filepath: modules/energy_price/price_csv/tsengh.csv
+        column: price_eur_kwh
 
 
   - id: ozentari
     latitude: 13.5
     longitude: 37.2
     area: 19000         # km² — headwater tributary catchment
+    effective_head_m: 50.0   # small headwater dam, estimated
+    population: 4.0e5        # approx. — headwater highlands, Ethiopia
+    agri_area_km2: 3000      # approx. — subsistence farming, headwater Ethiopian highlands
 
     reservoir:
       initial_level: 1.0e9
@@ -378,10 +489,14 @@ nodes:
         delay: 1
 
     modules:
-      evaporation: 7.0e5
-      drink_water: 2.0e5
+      evaporation: 7.0e5          # m³/day (constant)
+      drink_water: 2.0e5          # m³/day (constant)
       food_production:
+        type: csv
+        filepath: modules/food_production/nile_ozentari_water.csv
+        column: water_m3_day
         water_coefficient: 800
-        max_food_units: 600
       energy:
-        price_per_unit: 0.045
+        type: csv
+        filepath: modules/energy_price/price_csv/ozentari.csv
+        column: price_eur_kwh
