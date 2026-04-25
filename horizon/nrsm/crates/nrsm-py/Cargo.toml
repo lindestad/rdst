@@ -1,0 +1,15 @@
+[package]
+name = "nrsm-py"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "nrsm_py"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+nrsm-sim-core = { path = "../nrsm-sim-core" }
+pyo3 = { workspace = true, features = ["extension-module"] }
+serde_json.workspace = true
+serde_yaml.workspace = true

@@ -1,0 +1,13 @@
+[build-system]
+requires = ["maturin>=1.8,<2"]
+build-backend = "maturin"
+
+[project]
+name = "nrsm-py"
+version = "0.1.0"
+description = "Python bindings for the NRSM simulator optimizer API"
+requires-python = ">=3.10"
+
+[tool.maturin]
+module-name = "nrsm_py"
+bindings = "pyo3"

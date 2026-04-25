@@ -9,4 +9,4 @@ pub use model::{
     NodeResult, PeriodResult, ReportingFrequency, ReservoirConfig, Scenario, SimulationResult,
     SimulationSettings, SimulationSummary,
 };
-pub use sim::simulate;
+pub use sim::{PreparedScenario, simulate, simulate_with_actions};
