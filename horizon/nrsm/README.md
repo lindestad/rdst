@@ -91,9 +91,13 @@ cargo run -p nrsm-dataloader -- assemble --input ..\data --output data\generated
 cargo run -p nrsm-cli -- data\generated\config.yaml --json --pretty
 ```
 
-The `assemble` command reads the Python dataloader's checked-in CSV bundle under
-`horizon/data` and writes simulator-ready files. The older deterministic seed
-path is still available for tests and demos:
+The `assemble` command reads the checked-in canonical data bundle under
+`horizon/data` and writes simulator-ready files. The current MVP topology uses
+the 13 hydmod catchment nodes in `horizon/data/topology/nodes.csv`; catchment
+inflow and evaporation come from `horizon/data/hydmod/daily`, while food and
+energy modules come from the agriculture and electricity-price folders.
+
+The older deterministic seed path is still available for tests and demos:
 
 ```powershell
 cargo run -p nrsm-dataloader -- seed --output data/generated --start-date 2020-01-01 --end-date 2020-01-31 --scenarios 3

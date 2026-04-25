@@ -26,7 +26,6 @@ impl Default for AssembleOptions {
 #[derive(Clone, Debug)]
 struct TopologyNode {
     node_id: String,
-    node_type: String,
     storage_capacity_mcm: Option<f64>,
     surface_area_km2_at_full: Option<f64>,
     population_baseline: Option<f64>,
@@ -37,6 +36,7 @@ struct TopologyEdge {
     from_node_id: String,
     to_node_id: String,
     flow_share: f64,
+    travel_time_days: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -93,7 +93,7 @@ pub fn assemble_horizon_data_snapshot(
             &food_production.rows,
         )?);
 
-        let energy = zero_rows(&dates, "requires EUR/kWh to EUR/m3 conversion before use");
+        let energy = energy_rows(&options.input_dir, node, &dates)?;
         outputs.push(write_module_csv(
             &modules_dir,
             &node.node_id,
@@ -136,7 +136,6 @@ fn read_nodes(path: &Path) -> Result<Vec<TopologyNode>, Box<dyn std::error::Erro
     for row in rows {
         nodes.push(TopologyNode {
             node_id: required(&row, "node_id")?,
-            node_type: required(&row, "node_type")?,
             storage_capacity_mcm: optional_f64(&row, "storage_capacity_mcm")?,
             surface_area_km2_at_full: optional_f64(&row, "surface_area_km2_at_full")?,
             population_baseline: optional_f64(&row, "population_baseline")?,
@@ -153,6 +152,9 @@ fn read_edges(path: &Path) -> Result<Vec<TopologyEdge>, Box<dyn std::error::Erro
             from_node_id: required(&row, "from_node_id")?,
             to_node_id: required(&row, "to_node_id")?,
             flow_share: optional_f64(&row, "flow_share")?.unwrap_or(1.0),
+            travel_time_days: optional_f64(&row, "travel_time_days")?
+                .map(|value| value.max(0.0).round() as usize)
+                .unwrap_or(0),
         });
     }
     Ok(edges)
@@ -175,32 +177,23 @@ fn catchment_inflow_rows(
     dates: &[SimpleDate],
     _warnings: &mut Vec<String>,
 ) -> Result<ModuleRows, Box<dyn std::error::Error>> {
-    if !matches!(node.node_type.as_str(), "source") {
-        return Ok(zero_rows(
-            dates,
-            "zero for non-source nodes to avoid double-counting routed GloFAS",
-        ));
-    }
-
     let path = input_dir
-        .join("hydrology")
-        .join("glofas")
+        .join("hydmod")
+        .join("daily")
         .join(format!("{}.csv", node.node_id));
     if !path.exists() {
-        return Ok(zero_rows(dates, "missing source-node GloFAS file"));
+        return Err(format!(
+            "missing hydmod daily file for node `{}`: {}",
+            node.node_id,
+            path.display()
+        )
+        .into());
     }
 
-    let values = read_date_value_map(&path, "river_discharge_m3s")?;
+    let values = read_date_value_map(&path, "runoff_m3_day")?;
     Ok(ModuleRows {
-        rows: dates
-            .iter()
-            .map(|date| {
-                let key = date.to_string();
-                let value = values.get(&key).copied().unwrap_or(0.0) * 86_400.0;
-                (key, value)
-            })
-            .collect(),
-        source_note: "source-node GloFAS m3s converted to m3/day".to_string(),
+        rows: rows_for_dates(&values, dates, &path, "runoff_m3_day")?,
+        source_note: "hydmod daily Runoff_m3s converted to m3/day".to_string(),
     })
 }
 
@@ -217,26 +210,29 @@ fn evaporation_rows(
         ));
     };
     let path = input_dir
-        .join("climate")
-        .join("era5_land_monthly")
+        .join("hydmod")
+        .join("daily")
         .join(format!("{}.csv", node.node_id));
     if !path.exists() {
-        return Ok(zero_rows(dates, "missing ERA5-Land monthly file"));
+        return Err(format!(
+            "missing hydmod daily file for node `{}`: {}",
+            node.node_id,
+            path.display()
+        )
+        .into());
     }
 
-    let monthly = read_date_value_map(&path, "potential_evaporation_mm")?;
+    let daily = read_date_value_map(&path, "actual_et_mm_day")?;
     Ok(ModuleRows {
-        rows: dates
-            .iter()
-            .map(|date| {
-                let month_key = format!("{:04}-{:02}-01", date.year, date.month);
-                let monthly_depth_mm = monthly.get(&month_key).copied().unwrap_or(0.0);
-                let daily_m3 =
-                    monthly_depth_mm * surface_area_km2 * 1_000.0 / days_in_month(*date) as f64;
-                (date.to_string(), daily_m3.max(0.0))
+        rows: rows_for_dates(&daily, dates, &path, "actual_et_mm_day")?
+            .into_iter()
+            .map(|(date, actual_et_mm_day)| {
+                let daily_m3 = actual_et_mm_day * surface_area_km2 * 1_000.0;
+                (date, daily_m3.max(0.0))
             })
             .collect(),
-        source_note: "ERA5-Land monthly potential evaporation converted to m3/day".to_string(),
+        source_note: "hydmod daily ActualET_mm_day over lake_area_km2 converted to m3/day"
+            .to_string(),
     })
 }
 
@@ -263,29 +259,48 @@ fn food_production_rows(
     node: &TopologyNode,
     dates: &[SimpleDate],
 ) -> Result<ModuleRows, Box<dyn std::error::Error>> {
-    if node.node_type != "demand_irrigation" {
-        return Ok(zero_rows(dates, "zero for non-irrigation nodes"));
-    }
-
     let Some(path) = water_usage_path(input_dir, &node.node_id) else {
-        return Ok(zero_rows(dates, "missing agriculture water-usage file"));
+        return Err(format!(
+            "missing agriculture water-usage file for node `{}`",
+            node.node_id
+        )
+        .into());
     };
 
     let values = read_date_value_map(&path, "water_m3_day")?;
     Ok(ModuleRows {
-        rows: dates
-            .iter()
-            .map(|date| {
-                let key = date.to_string();
-                (key.clone(), values.get(&key).copied().unwrap_or(0.0))
-            })
-            .collect(),
+        rows: rows_for_dates(&values, dates, &path, "water_m3_day")?,
         source_note: format!(
             "{} water_m3_day used as water-equivalent food capacity",
             path.file_name()
                 .and_then(|name| name.to_str())
                 .unwrap_or("water usage")
         ),
+    })
+}
+
+fn energy_rows(
+    input_dir: &Path,
+    node: &TopologyNode,
+    dates: &[SimpleDate],
+) -> Result<ModuleRows, Box<dyn std::error::Error>> {
+    let path = input_dir
+        .join("electricity_price")
+        .join(format!("{}.csv", node.node_id));
+    if !path.exists() {
+        return Err(format!(
+            "missing electricity price file for node `{}`: {}",
+            node.node_id,
+            path.display()
+        )
+        .into());
+    }
+
+    let values = read_date_value_map(&path, "price_eur_kwh")?;
+    Ok(ModuleRows {
+        rows: rows_for_dates(&values, dates, &path, "price_eur_kwh")?,
+        source_note: "electricity_price price_eur_kwh used as current NRSM energy value proxy"
+            .to_string(),
     })
 }
 
@@ -360,8 +375,8 @@ fn render_config(nodes: &[TopologyNode], outgoing: &HashMap<String, Vec<Topology
                 for edge in edges {
                     let fraction = edge.flow_share.max(0.0) / normalizer;
                     yaml.push_str(&format!(
-                        "      - node_id: {}\n        fraction: {:.6}\n        delay: 0\n",
-                        edge.to_node_id, fraction
+                        "      - node_id: {}\n        fraction: {:.6}\n        delay: {}\n",
+                        edge.to_node_id, fraction, edge.travel_time_days
                     ));
                 }
             }
@@ -380,7 +395,7 @@ fn render_config(nodes: &[TopologyNode], outgoing: &HashMap<String, Vec<Topology
 fn default_max_production(node: &TopologyNode) -> f64 {
     match node.node_id.as_str() {
         "gerd" => 45_000_000.0,
-        "aswan" => 55_000_000.0,
+        "aswand" => 55_000_000.0,
         "merowe" => 35_000_000.0,
         _ => 1_000_000_000_000.0,
     }
@@ -413,6 +428,30 @@ fn read_date_value_map(
         values.insert(date, value);
     }
     Ok(values)
+}
+
+fn rows_for_dates(
+    values: &HashMap<String, f64>,
+    dates: &[SimpleDate],
+    path: &Path,
+    value_column: &str,
+) -> Result<Vec<(String, f64)>, Box<dyn std::error::Error>> {
+    dates
+        .iter()
+        .map(|date| {
+            let key = date.to_string();
+            let Some(value) = values.get(&key).copied() else {
+                return Err(format!(
+                    "{} is missing `{}` for date {}",
+                    path.display(),
+                    value_column,
+                    key
+                )
+                .into());
+            };
+            Ok((key, value))
+        })
+        .collect()
 }
 
 fn read_csv(path: &Path) -> Result<Vec<HashMap<String, String>>, Box<dyn std::error::Error>> {
@@ -655,9 +694,9 @@ mod tests {
 
     fn write_fixture_data(root: &Path) {
         fs::create_dir_all(root.join("topology")).expect("topology dir");
-        fs::create_dir_all(root.join("hydrology").join("glofas")).expect("glofas dir");
-        fs::create_dir_all(root.join("climate").join("era5_land_monthly")).expect("climate dir");
+        fs::create_dir_all(root.join("hydmod").join("daily")).expect("hydmod dir");
         fs::create_dir_all(root.join("agriculture").join("water_usage")).expect("ag dir");
+        fs::create_dir_all(root.join("electricity_price")).expect("electricity dir");
         fs::write(
             root.join("topology").join("nodes.csv"),
             concat!(
@@ -671,30 +710,33 @@ mod tests {
         fs::write(
             root.join("topology").join("edges.csv"),
             concat!(
-                "edge_id,from_node_id,to_node_id,flow_share,travel_time_months,muskingum_k,muskingum_x\n",
-                "src__res,src,res,1.0,,,\n",
-                "src__gezira_irr,src,gezira_irr,1.0,,,\n",
+                "edge_id,from_node_id,to_node_id,flow_share,travel_time_days,travel_time_months,muskingum_k,muskingum_x\n",
+                "src__res,src,res,1.0,1,,,\n",
+                "src__gezira_irr,src,gezira_irr,1.0,0,,,\n",
             ),
         )
         .expect("edges csv");
-        fs::write(
-            root.join("hydrology").join("glofas").join("src.csv"),
-            "date,river_discharge_m3s,quality_flag\n2005-01-01,10,fixture\n2005-01-02,11,fixture\n",
-        )
-        .expect("glofas csv");
-        fs::write(
-            root.join("climate")
-                .join("era5_land_monthly")
-                .join("res.csv"),
-            "month,potential_evaporation_mm\n2005-01-01,31\n",
-        )
-        .expect("era5 land csv");
-        fs::write(
-            root.join("agriculture")
-                .join("water_usage")
-                .join("nile_singa_water.csv"),
-            "date,et0_mm_day,kc,water_m3_day\n2005-01-01,1,1,42\n2005-01-02,1,1,43\n",
-        )
-        .expect("water usage csv");
+        for node_id in ["src", "res", "gezira_irr"] {
+            fs::write(
+                root.join("hydmod")
+                    .join("daily")
+                    .join(format!("{node_id}.csv")),
+                "date,precip_mm_day,air_temp_c,soil_moisture_mm,actual_et_mm_day,runoff_mm_day,runoff_m3s,runoff_m3_day\n2005-01-01,1,20,75,1,1,10,864000\n2005-01-02,1,20,75,1,1,11,950400\n",
+            )
+            .expect("hydmod csv");
+            fs::write(
+                root.join("agriculture")
+                    .join("water_usage")
+                    .join(format!("nile_{node_id}_water.csv")),
+                "date,et0_mm_day,kc,water_m3_day\n2005-01-01,1,1,42\n2005-01-02,1,1,43\n",
+            )
+            .expect("water usage csv");
+            fs::write(
+                root.join("electricity_price")
+                    .join(format!("{node_id}.csv")),
+                "date,price_eur_kwh\n2005-01-01,0.01\n2005-01-02,0.02\n",
+            )
+            .expect("electricity csv");
+        }
     }
 }

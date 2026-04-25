@@ -6,19 +6,21 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          33.19,
-          0.42
+          32.8525,
+          -1.45
         ]
       },
       "properties": {
-        "id": "lake_victoria_outlet",
-        "name": "Lake Victoria outlet (Jinja)",
-        "type": "source",
-        "country": "UG",
+        "id": "victoria",
+        "name": "Victoria",
+        "type": "catchment",
+        "country": "",
         "upstream": [],
         "downstream": [
-          "white_nile_to_sudd"
-        ]
+          "southwest"
+        ],
+        "catchment_area_km2": 263804.0,
+        "surface_area_km2_at_full": 68000.0
       }
     },
     {
@@ -26,43 +28,23 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          31.5,
-          5.0
+          30.708333,
+          8.186667
         ]
       },
       "properties": {
-        "id": "white_nile_to_sudd",
-        "name": "White Nile reach to Sudd",
-        "type": "reach",
-        "country": "SS",
+        "id": "southwest",
+        "name": "SouthWest",
+        "type": "catchment",
+        "country": "",
         "upstream": [
-          "lake_victoria_outlet"
+          "victoria"
         ],
         "downstream": [
-          "sudd"
-        ]
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          30.5,
-          7.5
-        ]
-      },
-      "properties": {
-        "id": "sudd",
-        "name": "Sudd wetland",
-        "type": "wetland",
-        "country": "SS",
-        "upstream": [
-          "white_nile_to_sudd"
+          "karthoum"
         ],
-        "downstream": [
-          "malakal"
-        ]
+        "catchment_area_km2": 1221321.0,
+        "surface_area_km2_at_full": 24426.0
       }
     },
     {
@@ -70,63 +52,21 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          31.65,
-          9.53
+          37.255,
+          11.845
         ]
       },
       "properties": {
-        "id": "malakal",
-        "name": "Malakal (post-Sudd)",
-        "type": "confluence",
-        "country": "SS",
-        "upstream": [
-          "sudd"
-        ],
-        "downstream": [
-          "khartoum"
-        ]
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          37.38,
-          11.6
-        ]
-      },
-      "properties": {
-        "id": "lake_tana_outlet",
-        "name": "Lake Tana outlet",
-        "type": "source",
-        "country": "ET",
+        "id": "tana",
+        "name": "Tana",
+        "type": "catchment",
+        "country": "",
         "upstream": [],
-        "downstream": [
-          "blue_nile_to_gerd"
-        ]
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          35.1,
-          11.0
-        ]
-      },
-      "properties": {
-        "id": "blue_nile_to_gerd",
-        "name": "Blue Nile reach to GERD",
-        "type": "reach",
-        "country": "ET",
-        "upstream": [
-          "lake_tana_outlet"
-        ],
         "downstream": [
           "gerd"
-        ]
+        ],
+        "catchment_area_km2": 18260.0,
+        "surface_area_km2_at_full": 183.0
       }
     },
     {
@@ -134,21 +74,23 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          35.09,
-          11.22
+          37.04,
+          10.535
         ]
       },
       "properties": {
         "id": "gerd",
-        "name": "Grand Ethiopian Renaissance Dam",
-        "type": "reservoir",
-        "country": "ET",
+        "name": "GERD",
+        "type": "catchment",
+        "country": "",
         "upstream": [
-          "blue_nile_to_gerd"
+          "tana"
         ],
         "downstream": [
-          "blue_nile_to_khartoum"
-        ]
+          "roseires"
+        ],
+        "catchment_area_km2": 164452.0,
+        "surface_area_km2_at_full": 1880.0
       }
     },
     {
@@ -156,21 +98,23 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          34.0,
-          13.5
+          34.46,
+          11.3
         ]
       },
       "properties": {
-        "id": "blue_nile_to_khartoum",
-        "name": "Blue Nile reach (Roseires \u2192 Khartoum)",
-        "type": "reach",
-        "country": "SD",
+        "id": "roseires",
+        "name": "Roseires",
+        "type": "catchment",
+        "country": "",
         "upstream": [
           "gerd"
         ],
         "downstream": [
-          "gezira_irr"
-        ]
+          "singa"
+        ],
+        "catchment_area_km2": 13243.0,
+        "surface_area_km2_at_full": 132.0
       }
     },
     {
@@ -178,45 +122,23 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          33.0,
-          14.4
+          34.936667,
+          13.41
         ]
       },
       "properties": {
-        "id": "gezira_irr",
-        "name": "Gezira irrigation scheme",
-        "type": "demand_irrigation",
-        "country": "SD",
+        "id": "singa",
+        "name": "Singa",
+        "type": "catchment",
+        "country": "",
         "upstream": [
-          "blue_nile_to_khartoum"
+          "roseires"
         ],
         "downstream": [
-          "khartoum"
-        ]
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          32.53,
-          15.6
-        ]
-      },
-      "properties": {
-        "id": "khartoum",
-        "name": "Khartoum confluence",
-        "type": "confluence",
-        "country": "SD",
-        "upstream": [
-          "malakal",
-          "gezira_irr"
+          "karthoum"
         ],
-        "downstream": [
-          "khartoum_muni",
-          "atbara_confluence"
-        ]
+        "catchment_area_km2": 117490.0,
+        "surface_area_km2_at_full": 3525.0
       }
     },
     {
@@ -224,41 +146,21 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          32.53,
-          15.58
+          38.665,
+          12.815
         ]
       },
       "properties": {
-        "id": "khartoum_muni",
-        "name": "Khartoum municipal demand",
-        "type": "demand_municipal",
-        "country": "SD",
-        "upstream": [
-          "khartoum"
-        ],
-        "downstream": [
-          "atbara_confluence"
-        ]
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          37.0,
-          13.5
-        ]
-      },
-      "properties": {
-        "id": "atbara_source",
-        "name": "Atbara River (Ethiopian highlands)",
-        "type": "source",
-        "country": "ET",
+        "id": "ozentari",
+        "name": "Ozentari",
+        "type": "catchment",
+        "country": "",
         "upstream": [],
         "downstream": [
-          "atbara_confluence"
-        ]
+          "tsengh"
+        ],
+        "catchment_area_km2": 25231.0,
+        "surface_area_km2_at_full": 252.0
       }
     },
     {
@@ -266,22 +168,47 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          33.97,
-          17.67
+          37.25,
+          13.74
         ]
       },
       "properties": {
-        "id": "atbara_confluence",
-        "name": "Atbara confluence",
-        "type": "confluence",
-        "country": "SD",
+        "id": "tsengh",
+        "name": "Tsengh",
+        "type": "catchment",
+        "country": "",
         "upstream": [
-          "khartoum_muni",
-          "atbara_source"
+          "ozentari"
+        ],
+        "downstream": [
+          "kashm"
+        ],
+        "catchment_area_km2": 63558.0,
+        "surface_area_km2_at_full": 636.0
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          35.895,
+          14.98
+        ]
+      },
+      "properties": {
+        "id": "kashm",
+        "name": "Kashm",
+        "type": "catchment",
+        "country": "",
+        "upstream": [
+          "tsengh"
         ],
         "downstream": [
           "merowe"
-        ]
+        ],
+        "catchment_area_km2": 24834.0,
+        "surface_area_km2_at_full": 745.0
       }
     },
     {
@@ -289,21 +216,49 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          31.93,
-          18.68
+          32.3,
+          12.95
+        ]
+      },
+      "properties": {
+        "id": "karthoum",
+        "name": "Karthoum",
+        "type": "catchment",
+        "country": "",
+        "upstream": [
+          "southwest",
+          "singa"
+        ],
+        "downstream": [
+          "merowe"
+        ],
+        "catchment_area_km2": 188740.0,
+        "surface_area_km2_at_full": 5662.0
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          35.125,
+          17.31
         ]
       },
       "properties": {
         "id": "merowe",
-        "name": "Merowe Dam",
-        "type": "reservoir",
-        "country": "SD",
+        "name": "Merowe",
+        "type": "catchment",
+        "country": "",
         "upstream": [
-          "atbara_confluence"
+          "kashm",
+          "karthoum"
         ],
         "downstream": [
-          "main_nile_to_aswan"
-        ]
+          "aswand"
+        ],
+        "catchment_area_km2": 248410.0,
+        "surface_area_km2_at_full": 7452.0
       }
     },
     {
@@ -311,43 +266,23 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          32.0,
-          22.0
+          31.181667,
+          19.083333
         ]
       },
       "properties": {
-        "id": "main_nile_to_aswan",
-        "name": "Main Nile reach to Aswan",
-        "type": "reach",
-        "country": "EG",
+        "id": "aswand",
+        "name": "Aswand",
+        "type": "catchment",
+        "country": "",
         "upstream": [
           "merowe"
         ],
         "downstream": [
-          "aswan"
-        ]
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          32.88,
-          23.97
-        ]
-      },
-      "properties": {
-        "id": "aswan",
-        "name": "Aswan High Dam / Lake Nasser",
-        "type": "reservoir",
-        "country": "EG",
-        "upstream": [
-          "main_nile_to_aswan"
+          "cairo"
         ],
-        "downstream": [
-          "egypt_ag"
-        ]
+        "catchment_area_km2": 536191.0,
+        "surface_area_km2_at_full": 5250.0
       }
     },
     {
@@ -355,63 +290,21 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          31.0,
-          30.0
+          32.506667,
+          25.936667
         ]
       },
       "properties": {
-        "id": "egypt_ag",
-        "name": "Egypt agriculture (Delta + Valley)",
-        "type": "demand_irrigation",
-        "country": "EG",
-        "upstream": [
-          "aswan"
-        ],
-        "downstream": [
-          "cairo_muni"
-        ]
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          31.25,
-          30.05
-        ]
-      },
-      "properties": {
-        "id": "cairo_muni",
-        "name": "Cairo municipal demand",
-        "type": "demand_municipal",
-        "country": "EG",
-        "upstream": [
-          "egypt_ag"
-        ],
-        "downstream": [
-          "delta"
-        ]
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          31.5,
-          31.5
-        ]
-      },
-      "properties": {
-        "id": "delta",
-        "name": "Nile Delta / Mediterranean",
+        "id": "cairo",
+        "name": "Cairo",
         "type": "sink",
-        "country": "EG",
+        "country": "",
         "upstream": [
-          "cairo_muni"
+          "aswand"
         ],
-        "downstream": []
+        "downstream": [],
+        "catchment_area_km2": 197840.0,
+        "surface_area_km2_at_full": 1978.0
       }
     }
   ]

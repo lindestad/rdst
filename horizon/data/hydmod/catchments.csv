@@ -1,0 +1,14 @@
+node_id,hydmod_node_id,catchment_name,area_km2,lake_area_km2,lake_fraction,latitude,longitude,station_count,source_file
+cairo,0,Cairo,197840,1978,0.01,25.936667,32.506667,3,hydro_Cairo.txt
+aswand,1,Aswand,536191,5250,0.03,19.083333,31.181667,6,hydro_Aswand.txt
+merowe,2,Merowe,248410,7452,0.03,17.310000,35.125000,4,hydro_Merowe.txt
+karthoum,3,Karthoum,188740,5662,0.03,12.950000,32.300000,4,hydro_Karthoum.txt
+singa,4,Singa,117490,3525,0.03,13.410000,34.936667,3,hydro_Singa.txt
+kashm,5,Kashm,24834,745,0.03,14.980000,35.895000,2,hydro_Kashm.txt
+tsengh,6,Tsengh,63558,636,0.01,13.740000,37.250000,3,hydro_Tsengh.txt
+ozentari,7,Ozentari,25231,252,0.01,12.815000,38.665000,2,hydro_Ozentari.txt
+tana,8,Tana,18260,183,0.01,11.845000,37.255000,2,hydro_Tana.txt
+roseires,9,Roseires,13243,132,0.01,11.300000,34.460000,2,hydro_Roseires.txt
+gerd,10,GERD,164452,1880,0.01,10.535000,37.040000,4,hydro_GERD.txt
+southwest,11,SouthWest,1221321,24426,0.02,8.186667,30.708333,6,hydro_SouthWest.txt
+victoria,12,Victoria,263804,68000,0.26,-1.450000,32.852500,4,hydro_Victoria.txt

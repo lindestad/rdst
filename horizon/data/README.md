@@ -27,6 +27,11 @@ data/
 ├── hydrology/
 │   └── glofas/               GloFAS streamflow, per digital-twin node
 │
+├── hydmod/                   Canonical MVP hydrological model outputs
+│   ├── catchments.csv        Hydmod catchment metadata and station centroids
+│   ├── daily/                Normalized daily CSV per hydmod catchment node
+│   └── raw/                  Original hydmod .txt files copied verbatim
+│
 ├── agriculture/
 │   ├── water_usage/          nile_<node>_water.csv + nile_water_usage_all.csv
 │   │                         (legacy node naming)
@@ -39,13 +44,23 @@ data/
     └── headwater_inflow.csv  Sample inflow used by main/example
 ```
 
-## Two node naming conventions
+## Node naming conventions
 
-The data here comes from two different topology models — they are **not
-interchangeable**:
+The canonical NRSM MVP now uses the **hydmod catchment nodes**:
+
+`victoria`, `southwest`, `tana`, `gerd`, `roseires`, `singa`, `ozentari`,
+`tsengh`, `kashm`, `karthoum`, `merowe`, `aswand`, `cairo`.
+
+These nodes are defined in `topology/nodes.csv` and `topology/edges.csv`.
+Their simulator catchment inflows and evaporation inputs come from
+`hydmod/daily/<node>.csv`.
+
+Older data still exists in two historical naming conventions and should not be
+mixed into a topology without an explicit mapping:
 
 - **Digital-twin nodes** (used in `topology/`, `climate/era5_*` excluding
-  `era5_legacy`, `hydrology/glofas/`, `agriculture/ndvi/`):
+  `era5_legacy`, `hydrology/glofas/`, `agriculture/ndvi/` before the hydmod
+  MVP switch):
   `lake_victoria_outlet`, `white_nile_to_sudd`, `sudd`, `malakal`,
   `lake_tana_outlet`, `blue_nile_to_gerd`, `gerd`, `blue_nile_to_khartoum`,
   `gezira_irr`, `khartoum`, `khartoum_muni`, `atbara_source`,
@@ -64,6 +79,9 @@ interchangeable**:
 | `topology/{catalog,nodes,edges}.csv` | `horizon/nile-digital-twin/data/csv/`                |
 | `topology/nodes.geojson`             | `horizon/nile-digital-twin/data/`                    |
 | `topology/node_config*.yaml`         | `horizon/nile-digital-twin/data/`                    |
+| `hydmod/raw/`                        | `hydmod/*.txt`                                       |
+| `hydmod/catchments.csv`              | Normalized from `hydmod/catchments.txt` and station centroids |
+| `hydmod/daily/`                      | Normalized from `hydmod/hydro_*.txt`                 |
 | `climate/era5_daily/`                | `horizon/nile-digital-twin/data/csv/era5_daily/`     |
 | `climate/era5_monthly/`              | `horizon/nile-digital-twin/data/csv/era5_monthly/`   |
 | `climate/era5_land_monthly/`         | `horizon/nile-digital-twin/data/csv/era5_land_monthly/` |

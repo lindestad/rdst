@@ -1,108 +1,127 @@
 nodes:
-  lake_victoria_outlet:
-    type: source
-    catchment_area_km2: 195000
-    catchment_scale: 1.4
-  white_nile_to_sudd:
-    type: reach
-    travel_time_months: 1.0
-    muskingum_k: 1.0
-    muskingum_x: 0.2
-  sudd:
-    type: wetland
-    evap_loss_fraction_baseline: 0.4
-  malakal:
-    type: confluence
-  lake_tana_outlet:
-    type: source
-    catchment_area_km2: 15000
-    catchment_scale: 0.6
-  blue_nile_to_gerd:
-    type: reach
-    travel_time_months: 0.5
-    muskingum_k: 0.5
-    muskingum_x: 0.2
+  victoria:
+    type: catchment
+    catchment_area_km2: 263804
+    surface_area_km2_at_full: 68000
+    hydmod_daily_file: ../hydmod/daily/victoria.csv
+  southwest:
+    type: catchment
+    catchment_area_km2: 1221321
+    surface_area_km2_at_full: 24426
+    hydmod_daily_file: ../hydmod/daily/southwest.csv
+  tana:
+    type: catchment
+    catchment_area_km2: 18260
+    surface_area_km2_at_full: 183
+    hydmod_daily_file: ../hydmod/daily/tana.csv
   gerd:
-    type: reservoir
-    storage_capacity_mcm: 74000
-    storage_min_mcm: 14800
-    surface_area_km2_at_full: 1874
-    initial_storage_mcm: 14800
-    hep:
-      nameplate_mw: 6450
-      head_m: 133
-      efficiency: 0.9
-  blue_nile_to_khartoum:
-    type: reach
-    travel_time_months: 1.0
-    muskingum_k: 1.0
-    muskingum_x: 0.2
-  gezira_irr:
-    type: demand_irrigation
-    area_ha_baseline: 900000
-    crop_water_productivity_kg_per_m3: 1.2
-  khartoum:
-    type: confluence
-  khartoum_muni:
-    type: demand_municipal
-    population_baseline: 5500000
-    per_capita_l_day: 150
-  atbara_source:
-    type: source
-    catchment_area_km2: 112000
-    catchment_scale: 1.0
-  atbara_confluence:
-    type: confluence
+    type: catchment
+    catchment_area_km2: 164452
+    surface_area_km2_at_full: 1880
+    hydmod_daily_file: ../hydmod/daily/gerd.csv
+  roseires:
+    type: catchment
+    catchment_area_km2: 13243
+    surface_area_km2_at_full: 132
+    hydmod_daily_file: ../hydmod/daily/roseires.csv
+  singa:
+    type: catchment
+    catchment_area_km2: 117490
+    surface_area_km2_at_full: 3525
+    hydmod_daily_file: ../hydmod/daily/singa.csv
+  ozentari:
+    type: catchment
+    catchment_area_km2: 25231
+    surface_area_km2_at_full: 252
+    hydmod_daily_file: ../hydmod/daily/ozentari.csv
+  tsengh:
+    type: catchment
+    catchment_area_km2: 63558
+    surface_area_km2_at_full: 636
+    hydmod_daily_file: ../hydmod/daily/tsengh.csv
+  kashm:
+    type: catchment
+    catchment_area_km2: 24834
+    surface_area_km2_at_full: 745
+    hydmod_daily_file: ../hydmod/daily/kashm.csv
+  karthoum:
+    type: catchment
+    catchment_area_km2: 188740
+    surface_area_km2_at_full: 5662
+    hydmod_daily_file: ../hydmod/daily/karthoum.csv
   merowe:
-    type: reservoir
-    storage_capacity_mcm: 12500
-    storage_min_mcm: 2500
-    surface_area_km2_at_full: 800
-    initial_storage_mcm: 8000
-    hep:
-      nameplate_mw: 1250
-      head_m: 67
-      efficiency: 0.88
-  main_nile_to_aswan:
-    type: reach
-    travel_time_months: 1.0
-    muskingum_k: 1.0
-    muskingum_x: 0.2
-  aswan:
-    type: reservoir
-    storage_capacity_mcm: 162000
-    storage_min_mcm: 31600
+    type: catchment
+    catchment_area_km2: 248410
+    surface_area_km2_at_full: 7452
+    hydmod_daily_file: ../hydmod/daily/merowe.csv
+  aswand:
+    type: catchment
+    catchment_area_km2: 536191
     surface_area_km2_at_full: 5250
-    initial_storage_mcm: 100000
-    hep:
-      nameplate_mw: 2100
-      head_m: 70
-      efficiency: 0.88
-  egypt_ag:
-    type: demand_irrigation
-    area_ha_baseline: 3500000
-    crop_water_productivity_kg_per_m3: 1.5
-  cairo_muni:
-    type: demand_municipal
-    population_baseline: 20000000
-    per_capita_l_day: 200
-  delta:
+    hydmod_daily_file: ../hydmod/daily/aswand.csv
+  cairo:
     type: sink
-    min_environmental_flow_m3s: 500
+    catchment_area_km2: 197840
+    surface_area_km2_at_full: 1978
+    hydmod_daily_file: ../hydmod/daily/cairo.csv
 reaches:
-  white_nile_to_sudd:
-    travel_time_months: 1.0
-    muskingum_k: 1.0
-    muskingum_x: 0.2
-  blue_nile_to_gerd:
-    travel_time_months: 0.5
-    muskingum_k: 0.5
-    muskingum_x: 0.2
-  blue_nile_to_khartoum:
-    travel_time_months: 1.0
-    muskingum_k: 1.0
-    muskingum_x: 0.2
-  main_nile_to_aswan:
-    travel_time_months: 1.0
-    muskingum_k: 1.0
-    muskingum_x: 0.2
+  victoria__southwest:
+    from_node_id: victoria
+    to_node_id: southwest
+    flow_share: 1.0
+    travel_time_days: 18
+  southwest__karthoum:
+    from_node_id: southwest
+    to_node_id: karthoum
+    flow_share: 1.0
+    travel_time_days: 13
+  tana__gerd:
+    from_node_id: tana
+    to_node_id: gerd
+    flow_share: 1.0
+    travel_time_days: 2
+  gerd__roseires:
+    from_node_id: gerd
+    to_node_id: roseires
+    flow_share: 1.0
+    travel_time_days: 2
+  roseires__singa:
+    from_node_id: roseires
+    to_node_id: singa
+    flow_share: 1.0
+    travel_time_days: 2
+  singa__karthoum:
+    from_node_id: singa
+    to_node_id: karthoum
+    flow_share: 1.0
+    travel_time_days: 2
+  ozentari__tsengh:
+    from_node_id: ozentari
+    to_node_id: tsengh
+    flow_share: 1.0
+    travel_time_days: 1
+  tsengh__kashm:
+    from_node_id: tsengh
+    to_node_id: kashm
+    flow_share: 1.0
+    travel_time_days: 1
+  kashm__merowe:
+    from_node_id: kashm
+    to_node_id: merowe
+    flow_share: 1.0
+    travel_time_days: 2
+  karthoum__merowe:
+    from_node_id: karthoum
+    to_node_id: merowe
+    flow_share: 1.0
+    travel_time_days: 6
+  merowe__aswand:
+    from_node_id: merowe
+    to_node_id: aswand
+    flow_share: 1.0
+    travel_time_days: 10
+  aswand__cairo:
+    from_node_id: aswand
+    to_node_id: cairo
+    flow_share: 1.0
+    travel_time_days: 13
