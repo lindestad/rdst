@@ -9,6 +9,23 @@ receives inflow, releases water for hydropower, satisfies drinking-water and
 food-production demands, stores whatever remains in the reservoir (up to the
 reservoir's capacity), and routes excess water downstream.
 
+## Contract Status
+
+This document is the simulator input contract. The current Rust NRSM engine
+implements the bucket-style node, module CSVs, DAG connections, delayed routing,
+and the water-balance order described below.
+
+The following fields are useful for data gathering and visualization, but should
+not change node physics unless explicitly wired into the simulator:
+
+- `latitude`, `longitude`, `area_km2`, `country`, and `node_role`
+- source/provenance fields such as dataset ids, transforms, and quality flags
+- display names and UI labels
+
+Those fields should live in staging tables such as `nodes.csv`, `edges.csv`, and
+`source_manifest.csv`. If they are needed in `config.yaml`, put them under an
+optional `metadata` block so the runtime physics contract stays stable.
+
 ---
 
 ## Properties
@@ -25,7 +42,7 @@ reservoir's capacity), and routes excess water downstream.
 ## Modules
 
 Each node has four pluggable modules that control time-varying behaviour.
-In the yaml file, this can either be constant with a value, e.g. `contant: 20.0`,
+In the yaml file, this can either be constant with a value, e.g. `constant: 20.0`,
 or it can point to a csv file. The time series has daily resolution, and
 one column for each scenario.
 
@@ -79,6 +96,11 @@ Each connection is a directed edge:
 The fractions across all outgoing connections must sum to ≤ 1. Any remainder
 (1 − sum) is considered lost (evaporation, unmeasured discharge, etc.).
 
+When the data gatherer has an explicit reach-loss estimate, encode it either by
+reducing `fraction` or by adding a future `loss_fraction` field. Until
+`loss_fraction` is implemented, `fraction` is the authoritative routed share and
+any remainder is treated as routing loss.
+
 Both the **controlled production release** and any **uncontrolled spill** travel
 through the same connections. Spill carries no energy value.
 
@@ -91,6 +113,10 @@ Each timestep, the node receives exactly one action:
 - **Production level fraction** — a float in `[0, 1]`. Values outside this range
   are clamped. The actual water released is `action × max_production × dt_days`,
   further capped by however much water is available in the reservoir.
+
+Current Rust support: one global `settings.production_level_fraction` is applied
+to every node and timestep. Planned support: per-node, per-date action schedules
+loaded from an action CSV.
 
 ---
 
@@ -177,6 +203,13 @@ settings:
 
 nodes:
   - id: <string>              # unique identifier
+
+    metadata:                 # planned optional block; ignored by physics
+      name: <string>
+      latitude: <float>
+      longitude: <float>
+      area_km2: <float>
+      node_role: <string>
 
     reservoir:
       initial_level: <float>  # m³ — starting volume
