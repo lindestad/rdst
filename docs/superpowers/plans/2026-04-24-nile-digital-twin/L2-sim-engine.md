@@ -360,8 +360,7 @@ from simengine.nodes.source import Source
 
 
 def test_source_outflow_from_runoff():
-    # 100,000 km² catchment × 30 mm runoff/month × scale 1.0
-    # → 30 mm × 1e5 km² = 3.0e9 m³/month → m³/s ÷ (30×86400) ≈ 1157 m³/s
+    # 30 mm × 1e5 km² / (31 × 86400) ≈ 1120 m³/s for Jan
     src = Source(id="src", upstream=[], downstream=["x"],
                  catchment_area_km2=100000, catchment_scale=1.0)
     forcings = pd.DataFrame({
@@ -384,7 +383,8 @@ def test_source_catchment_scale_multiplies():
     src.load_forcings(forcings)
     state: dict = {}
     src.step(0, state)
-    assert 2300 < state["src"]["outflow_m3s"] < 2400
+    # 30 mm × 1e5 km² × 2.0 / (31 × 86400) ≈ 2240 m³/s for Jan (31-day month)
+    assert 2200 < state["src"]["outflow_m3s"] < 2300
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -541,16 +541,17 @@ def _forcings(pet_mm=100.0, months=3):
 
 
 def test_mass_conservation_one_step():
+    # Capacity large enough that no spill occurs — exercises the pure
+    # mass-balance path, not the clamp path.
     r = Reservoir(id="r", upstream=["u"], downstream=["d"],
-                  storage_capacity_mcm=1000, storage_min_mcm=100,
+                  storage_capacity_mcm=10000, storage_min_mcm=100,
                   surface_area_km2_at_full=10, initial_storage_mcm=500,
                   hep={"nameplate_mw": 100, "head_m": 50, "efficiency": 0.9})
     r.load_forcings(_forcings(pet_mm=0.0))
-    # 1000 m³/s inflow for Jan (31 days) → 2678.4 mcm; no release set → default = inflow
+    # 1000 m³/s inflow for Jan (31 days) → 2678.4 mcm; 500 m³/s release → 1339.2 mcm
     state = {"u": {"outflow_m3s": 1000.0}}
     r.step(0, state, policy={"mode": "manual", "release_m3s_by_month": {"2020-01": 500.0}})
     s = state["r"]
-    # Inflow in mcm
     inflow_mcm = 1000 * 31 * 86400 / 1e6
     release_mcm = 500 * 31 * 86400 / 1e6
     # Storage change should equal inflow - release - evap (evap=0 because pet=0)
@@ -569,12 +570,34 @@ def test_storage_clamped_to_capacity():
     assert s["storage_mcm"] == 1000
     # Spilled volume must exit as outflow
     assert s["outflow_m3s"] > 0
+    # Policy said release zero — turbined portion is zero, spill carries the flow.
+    assert s["release_m3s"] == 0
+    assert s["spill_m3s"] > 0
+
+
+def test_spilled_water_does_not_generate_energy():
+    # Reservoir nearly full with zero policy-release and huge inflow → all excess spills.
+    # Spill must exit as outflow but contribute ZERO energy (spillway bypasses turbine).
+    r = Reservoir(id="r", upstream=["u"], downstream=["d"],
+                  storage_capacity_mcm=1000, storage_min_mcm=100,
+                  surface_area_km2_at_full=10, initial_storage_mcm=990,
+                  hep={"nameplate_mw": 100, "head_m": 50, "efficiency": 0.9})
+    r.load_forcings(_forcings(pet_mm=0.0))
+    state = {"u": {"outflow_m3s": 2000.0}}  # massive inflow
+    r.step(0, state, policy={"mode": "manual", "release_m3s_by_month": {"2020-01": 0.0}})
+    s = state["r"]
+    assert s["release_m3s"] == 0                      # policy said release zero
+    assert s["spill_m3s"] > 0                          # inflow forced spill
+    assert s["outflow_m3s"] == s["spill_m3s"]          # total outflow IS the spill
+    assert s["energy_gwh"] == 0.0                      # spillway = no turbine = no energy
 
 
 def test_energy_generation():
+    # Initial storage big enough that the 500 m³/s × 31d ≈ 1339 mcm release
+    # is not clamped by the min-storage guard.
     r = Reservoir(id="r", upstream=["u"], downstream=["d"],
-                  storage_capacity_mcm=1000, storage_min_mcm=100,
-                  surface_area_km2_at_full=10, initial_storage_mcm=500,
+                  storage_capacity_mcm=10000, storage_min_mcm=100,
+                  surface_area_km2_at_full=10, initial_storage_mcm=2000,
                   hep={"nameplate_mw": 100, "head_m": 50, "efficiency": 0.9})
     r.load_forcings(_forcings(pet_mm=0.0))
     state = {"u": {"outflow_m3s": 0.0}}
@@ -660,18 +683,20 @@ class Reservoir(Node):
             release_mcm = max(0.0, release_mcm - deficit)
             new_storage = self.min
 
-        release_mcm += spilled_mcm
-        outflow_m3s = mcm_to_m3s_month(release_mcm, days)
+        # Turbined volume = controlled release AFTER min-guard, BEFORE adding spill.
+        # Spillways bypass the turbines, so spilled water produces no energy.
+        turbine_mcm = release_mcm
+        total_out_mcm = turbine_mcm + spilled_mcm
+        outflow_m3s = mcm_to_m3s_month(total_out_mcm, days)
 
         energy_gwh = 0.0
         if self.hep:
-            # Use release_mcm converted to m³ (spilled water doesn't always turbine, but
-            # hackathon simplification: everything released goes through turbines when
-            # the spill flag is off — fine for pitch).
-            release_m3 = release_mcm * 1e6
+            # Energy comes from the turbined (controlled) release only.
+            # Spilled water exits via the spillway and bypasses the turbines.
+            turbine_m3 = turbine_mcm * 1e6
             head = float(self.hep["head_m"])
             eff = float(self.hep["efficiency"])
-            energy_j = release_m3 * head * eff * RHO * G
+            energy_j = turbine_m3 * head * eff * RHO * G
             energy_gwh = energy_j / 3.6e12
 
         self.storage = new_storage
@@ -679,7 +704,8 @@ class Reservoir(Node):
             "outflow_m3s": outflow_m3s,
             "inflow_m3s": inflow_m3s,
             "storage_mcm": new_storage,
-            "release_m3s": mcm_to_m3s_month(release_mcm, days),
+            "release_m3s": mcm_to_m3s_month(turbine_mcm, days),
+            "spill_m3s": mcm_to_m3s_month(spilled_mcm, days),
             "evap_mcm": evap_mcm,
             "energy_gwh": energy_gwh,
         }
@@ -711,7 +737,7 @@ from simengine.nodes import source, sink, reservoir  # noqa: F401
 pytest tests/test_reservoir.py -v
 ```
 
-Expected: all 4 tests pass.
+Expected: all 5 tests pass.
 
 - [ ] **Step 6: Commit**
 

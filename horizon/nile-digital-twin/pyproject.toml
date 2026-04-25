@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["simengine*", "dataloader*", "api*", "calibration*", "demo_scenarios*", "optimize*"]
+
+[project]
+name = "nile-digital-twin"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+  "typer>=0.12",
+  "pydantic>=2.6",
+  "pyyaml>=6",
+  "pandas>=2.2",
+  "numpy>=1.26",
+  "pyarrow>=15",
+  "xarray>=2024.2",
+  "cdsapi>=0.7",
+  "pillow>=10",
+  "fastapi>=0.110",
+  "uvicorn[standard]>=0.29",
+  "httpx>=0.27",
+  "matplotlib>=3.8",
+  "requests>=2.31",
+  # netcdf4 / h5netcdf are NOT required for stub-mode or tests (we use
+  # in-memory xarray Datasets). Add one of them when wiring real CDS fetches.
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-cov>=4", "ruff>=0.3"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100

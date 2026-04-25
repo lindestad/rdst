@@ -18,10 +18,11 @@ workspace under `horizon/` so it can grow cleanly inside a larger monorepo.
 
 - `crates/nrsm-sim-core`: public simulation API and domain model
 - `crates/nrsm-cli`: command-line runner for YAML scenarios
-- `crates/nrsm-dataloader`: normalized data bundle schema and CSV exporter for hackathon ingestion
+- `crates/nrsm-dataloader`: standalone generator for sourced simulator configs, module CSVs, and staging metadata
 - `contracts/scenario.schema.yaml`: machine-readable scenario contract
 - `scenarios/nile-mvp`: small Nile-inspired demo scenario
 - `docs/nile-dataloader-plan.md`: dataset research and visual loading plan
+- `docs/dataloader-node-generation-plan.md`: plan for generating `main/node.md` / `main/modules.md` simulator inputs from sourced data
 
 ## MVP Assumptions
 
@@ -44,4 +45,10 @@ Those choices keep the first implementation compact while leaving room for:
 
 ```powershell
 cargo run -p nrsm-cli -- scenarios/nile-mvp/scenario.yaml
+```
+
+## Generate Dataloader Files
+
+```powershell
+cargo run -p nrsm-dataloader -- seed --output data/generated --start-date 2020-01-01 --end-date 2020-01-31 --scenarios 3
 ```

@@ -5,7 +5,13 @@ use nrsm_sim_core::{Scenario, simulate};
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = parse_args()?;
     let scenario_contents = fs::read_to_string(&cli.scenario_path)?;
-    let scenario: Scenario = serde_yaml::from_str(&scenario_contents)?;
+    let mut scenario: Scenario = serde_yaml::from_str(&scenario_contents)?;
+    let base_dir = cli
+        .scenario_path
+        .parent()
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."));
+    scenario.load_module_csvs(base_dir)?;
     let result = simulate(&scenario)?;
 
     match cli.output {

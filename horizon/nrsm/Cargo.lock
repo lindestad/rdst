@@ -49,8 +49,10 @@ dependencies = [
 name = "nrsm-dataloader"
 version = "0.1.0"
 dependencies = [
+ "nrsm-sim-core",
  "serde",
  "serde_json",
+ "serde_yaml",
 ]
 
 [[package]]
@@ -58,6 +60,7 @@ name = "nrsm-sim-core"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "serde_yaml",
 ]
 
 [[package]]

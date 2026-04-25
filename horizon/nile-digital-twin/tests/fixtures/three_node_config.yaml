@@ -1,0 +1,18 @@
+nodes:
+  src:
+    type: source
+    catchment_area_km2: 100000
+    catchment_scale: 1.0
+  res:
+    type: reservoir
+    storage_capacity_mcm: 1000
+    storage_min_mcm: 100
+    surface_area_km2_at_full: 10
+    initial_storage_mcm: 500
+    hep:
+      nameplate_mw: 100
+      head_m: 50
+      efficiency: 0.9
+  snk:
+    type: sink
+    min_environmental_flow_m3s: 10

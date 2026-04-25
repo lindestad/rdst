@@ -1,306 +1,236 @@
-schema_version: 0.1.0
-metadata:
-  name: Nile MVP Demo
-  description: Nile-inspired MVP network with major branches, reservoirs, demand zones, and downstream municipal/agricultural use.
-simulation:
+settings:
+  timestep_days: 1.0
   horizon_days: 90
   reporting: monthly30_day
-  allocation_order:
-    - drinking_water
-    - irrigation
-network:
-  nodes:
-    - id: lake_victoria_outlet
-      name: Lake Victoria Outlet
-      kind: river
-      local_inflow:
-        kind: monthly30_day
-        values: [125.0, 118.0, 110.0]
-    - id: sudd_wetland
-      name: Sudd Wetland
-      kind: river
-      local_inflow:
-        kind: monthly30_day
-        values: [30.0, 25.0, 20.0]
-    - id: malakal
-      name: Malakal White Nile
-      kind: river
-      local_inflow:
-        kind: monthly30_day
-        values: [18.0, 16.0, 14.0]
-    - id: lake_tana_outlet
-      name: Lake Tana Outlet
-      kind: river
-      local_inflow:
-        kind: monthly30_day
-        values: [170.0, 220.0, 160.0]
-    - id: gerd
-      name: GERD
-      kind: reservoir
-      local_inflow:
-        kind: constant
-        value: 0.0
-      reservoir:
-        capacity: 950.0
-        min_storage: 250.0
-        initial_storage: 500.0
-        target_release:
-          kind: monthly30_day
-          values: [185.0, 210.0, 175.0]
-      hydropower:
-        minimum_daily_energy:
-          kind: constant
-          value: 95.0
-        target_daily_energy:
-          kind: constant
-          value: 130.0
-        max_turbine_flow:
-          kind: constant
-          value: 220.0
-        energy_per_unit_water: 0.68
-    - id: roseires
-      name: Roseires Dam
-      kind: reservoir
-      local_inflow:
-        kind: constant
-        value: 8.0
-      reservoir:
-        capacity: 420.0
-        min_storage: 120.0
-        initial_storage: 260.0
-        target_release:
-          kind: monthly30_day
-          values: [175.0, 190.0, 165.0]
-      hydropower:
-        minimum_daily_energy:
-          kind: constant
-          value: 35.0
-        target_daily_energy:
-          kind: constant
-          value: 55.0
-        max_turbine_flow:
-          kind: constant
-          value: 150.0
-        energy_per_unit_water: 0.31
-    - id: gezira_irrigation
-      name: Gezira Irrigation Scheme
-      kind: river
-      local_inflow:
-        kind: constant
-        value: 0.0
-      irrigation:
-        minimum_daily_delivery:
-          kind: constant
-          value: 38.0
-        target_daily_delivery:
-          kind: monthly30_day
-          values: [62.0, 58.0, 45.0]
-        production_model:
-          kind: linear
-          food_per_unit_water: 1.2
-    - id: khartoum
-      name: Khartoum Confluence
-      kind: river
-      local_inflow:
-        kind: constant
-        value: 12.0
-      drinking_water:
-        minimum_daily_delivery:
-          kind: constant
-          value: 18.0
-        target_daily_delivery:
-          kind: constant
-          value: 25.0
-      irrigation:
-        minimum_daily_delivery:
-          kind: constant
-          value: 12.0
-        target_daily_delivery:
-          kind: constant
-          value: 20.0
-        production_model:
-          kind: linear
-          food_per_unit_water: 1.1
-    - id: atbara_headwaters
-      name: Atbara Headwaters
-      kind: river
-      local_inflow:
-        kind: monthly30_day
-        values: [70.0, 95.0, 45.0]
-    - id: atbara_confluence
-      name: Atbara Confluence
-      kind: river
-      local_inflow:
-        kind: constant
-        value: 3.0
-    - id: merowe
-      name: Merowe Dam
-      kind: reservoir
-      local_inflow:
-        kind: constant
-        value: 2.0
-      reservoir:
-        capacity: 720.0
-        min_storage: 180.0
-        initial_storage: 420.0
-        target_release:
-          kind: monthly30_day
-          values: [260.0, 270.0, 235.0]
-      hydropower:
-        minimum_daily_energy:
-          kind: constant
-          value: 70.0
-        target_daily_energy:
-          kind: constant
-          value: 92.0
-        max_turbine_flow:
-          kind: constant
-          value: 240.0
-        energy_per_unit_water: 0.38
-    - id: aswan
-      name: High Aswan
-      kind: reservoir
-      local_inflow:
-        kind: constant
-        value: 5.0
-      reservoir:
-        capacity: 1600.0
-        min_storage: 500.0
-        initial_storage: 900.0
-        target_release:
-          kind: monthly30_day
-          values: [330.0, 315.0, 300.0]
-      hydropower:
-        minimum_daily_energy:
-          kind: constant
-          value: 130.0
-        target_daily_energy:
-          kind: constant
-          value: 170.0
-        max_turbine_flow:
-          kind: constant
-          value: 290.0
-        energy_per_unit_water: 0.59
-    - id: cairo_municipal
-      name: Cairo Municipal Demand
-      kind: river
-      local_inflow:
-        kind: constant
-        value: 0.0
-      drinking_water:
-        minimum_daily_delivery:
-          kind: constant
-          value: 45.0
-        target_daily_delivery:
-          kind: constant
-          value: 62.0
-    - id: egypt_agriculture
-      name: Egypt Agriculture
-      kind: river
-      local_inflow:
-        kind: constant
-        value: 0.0
-      irrigation:
-        minimum_daily_delivery:
-          kind: constant
-          value: 95.0
-        target_daily_delivery:
-          kind: monthly30_day
-          values: [135.0, 150.0, 115.0]
-        production_model:
-          kind: linear
-          food_per_unit_water: 1.5
-    - id: nile_delta
-      name: Nile Delta
-      kind: river
-      local_inflow:
-        kind: constant
-        value: 0.0
-      drinking_water:
-        minimum_daily_delivery:
-          kind: constant
-          value: 20.0
-        target_daily_delivery:
-          kind: constant
-          value: 28.0
-      irrigation:
-        minimum_daily_delivery:
-          kind: constant
-          value: 45.0
-        target_daily_delivery:
-          kind: monthly30_day
-          values: [70.0, 80.0, 60.0]
-        production_model:
-          kind: linear
-          food_per_unit_water: 1.8
-  edges:
-    - id: lake_victoria_to_sudd
-      from: lake_victoria_outlet
-      to: sudd_wetland
-      flow_share: 1.0
-      loss_fraction: 0.04
-    - id: sudd_to_malakal
-      from: sudd_wetland
-      to: malakal
-      flow_share: 1.0
-      loss_fraction: 0.45
-    - id: malakal_to_khartoum
-      from: malakal
-      to: khartoum
-      flow_share: 1.0
-      loss_fraction: 0.02
-    - id: lake_tana_to_gerd
-      from: lake_tana_outlet
-      to: gerd
-      flow_share: 1.0
-      loss_fraction: 0.01
-    - id: gerd_to_roseires
-      from: gerd
-      to: roseires
-      flow_share: 1.0
-      loss_fraction: 0.015
-    - id: roseires_to_gezira
-      from: roseires
-      to: gezira_irrigation
-      flow_share: 1.0
-      loss_fraction: 0.01
-    - id: gezira_to_khartoum
-      from: gezira_irrigation
-      to: khartoum
-      flow_share: 1.0
-      loss_fraction: 0.01
-    - id: atbara_to_confluence
-      from: atbara_headwaters
-      to: atbara_confluence
-      flow_share: 1.0
-      loss_fraction: 0.03
-    - id: khartoum_to_atbara_confluence
-      from: khartoum
-      to: atbara_confluence
-      flow_share: 1.0
-      loss_fraction: 0.02
-    - id: atbara_confluence_to_merowe
-      from: atbara_confluence
-      to: merowe
-      flow_share: 1.0
-      loss_fraction: 0.02
-    - id: merowe_to_aswan
-      from: merowe
-      to: aswan
-      flow_share: 1.0
-      loss_fraction: 0.025
-    - id: aswan_to_cairo
-      from: aswan
-      to: cairo_municipal
-      flow_share: 1.0
-      loss_fraction: 0.015
-    - id: cairo_to_egypt_agriculture
-      from: cairo_municipal
-      to: egypt_agriculture
-      flow_share: 1.0
-      loss_fraction: 0.01
-    - id: egypt_agriculture_to_delta
-      from: egypt_agriculture
-      to: nile_delta
-      flow_share: 1.0
-      loss_fraction: 0.015
+  production_level_fraction: 1.0
+
+nodes:
+  - id: lake_victoria_outlet
+    reservoir:
+      initial_level: 0.0
+      max_capacity: 100000.0
+    max_production: 1000.0
+    catchment_inflow:
+      type: constant
+      rate: 125.0
+    connections:
+      - node_id: sudd_wetland
+        fraction: 1.0
+        delay: 0
+
+  - id: sudd_wetland
+    reservoir:
+      initial_level: 0.0
+      max_capacity: 100000.0
+    max_production: 1000.0
+    catchment_inflow:
+      type: constant
+      rate: 30.0
+    connections:
+      - node_id: malakal
+        fraction: 1.0
+        delay: 0
+    modules:
+      evaporation:
+        rate: 60.0
+
+  - id: malakal
+    reservoir:
+      initial_level: 0.0
+      max_capacity: 100000.0
+    max_production: 1000.0
+    catchment_inflow:
+      type: constant
+      rate: 18.0
+    connections:
+      - node_id: khartoum
+        fraction: 1.0
+        delay: 0
+
+  - id: lake_tana_outlet
+    reservoir:
+      initial_level: 0.0
+      max_capacity: 100000.0
+    max_production: 1000.0
+    catchment_inflow:
+      type: constant
+      rate: 170.0
+    connections:
+      - node_id: gerd
+        fraction: 1.0
+        delay: 0
+
+  - id: gerd
+    reservoir:
+      initial_level: 500.0
+      max_capacity: 950.0
+    max_production: 220.0
+    catchment_inflow:
+      type: constant
+      rate: 0.0
+    connections:
+      - node_id: roseires
+        fraction: 1.0
+        delay: 0
+    modules:
+      energy:
+        price_per_unit: 0.68
+
+  - id: roseires
+    reservoir:
+      initial_level: 260.0
+      max_capacity: 420.0
+    max_production: 150.0
+    catchment_inflow:
+      type: constant
+      rate: 8.0
+    connections:
+      - node_id: gezira_irrigation
+        fraction: 1.0
+        delay: 0
+    modules:
+      energy:
+        price_per_unit: 0.31
+
+  - id: gezira_irrigation
+    reservoir:
+      initial_level: 0.0
+      max_capacity: 100000.0
+    max_production: 1000.0
+    catchment_inflow:
+      type: constant
+      rate: 0.0
+    connections:
+      - node_id: khartoum
+        fraction: 1.0
+        delay: 0
+    modules:
+      food_production:
+        water_coefficient: 0.8333333333
+        max_food_units: 74.4
+
+  - id: khartoum
+    reservoir:
+      initial_level: 0.0
+      max_capacity: 100000.0
+    max_production: 1000.0
+    catchment_inflow:
+      type: constant
+      rate: 12.0
+    connections:
+      - node_id: atbara_confluence
+        fraction: 1.0
+        delay: 0
+    modules:
+      drink_water:
+        daily_demand: 25.0
+      food_production:
+        water_coefficient: 0.9090909091
+        max_food_units: 22.0
+
+  - id: atbara_headwaters
+    reservoir:
+      initial_level: 0.0
+      max_capacity: 100000.0
+    max_production: 1000.0
+    catchment_inflow:
+      type: constant
+      rate: 70.0
+    connections:
+      - node_id: atbara_confluence
+        fraction: 1.0
+        delay: 0
+
+  - id: atbara_confluence
+    reservoir:
+      initial_level: 0.0
+      max_capacity: 100000.0
+    max_production: 1000.0
+    catchment_inflow:
+      type: constant
+      rate: 3.0
+    connections:
+      - node_id: merowe
+        fraction: 1.0
+        delay: 0
+
+  - id: merowe
+    reservoir:
+      initial_level: 420.0
+      max_capacity: 720.0
+    max_production: 240.0
+    catchment_inflow:
+      type: constant
+      rate: 2.0
+    connections:
+      - node_id: aswan
+        fraction: 1.0
+        delay: 0
+    modules:
+      energy:
+        price_per_unit: 0.38
+
+  - id: aswan
+    reservoir:
+      initial_level: 900.0
+      max_capacity: 1600.0
+    max_production: 290.0
+    catchment_inflow:
+      type: constant
+      rate: 5.0
+    connections:
+      - node_id: cairo_municipal
+        fraction: 1.0
+        delay: 0
+    modules:
+      energy:
+        price_per_unit: 0.59
+
+  - id: cairo_municipal
+    reservoir:
+      initial_level: 0.0
+      max_capacity: 100000.0
+    max_production: 1000.0
+    catchment_inflow:
+      type: constant
+      rate: 0.0
+    connections:
+      - node_id: egypt_agriculture
+        fraction: 1.0
+        delay: 0
+    modules:
+      drink_water:
+        daily_demand: 62.0
+
+  - id: egypt_agriculture
+    reservoir:
+      initial_level: 0.0
+      max_capacity: 100000.0
+    max_production: 1000.0
+    catchment_inflow:
+      type: constant
+      rate: 0.0
+    connections:
+      - node_id: nile_delta
+        fraction: 1.0
+        delay: 0
+    modules:
+      food_production:
+        water_coefficient: 0.6666666667
+        max_food_units: 202.5
+
+  - id: nile_delta
+    reservoir:
+      initial_level: 0.0
+      max_capacity: 100000.0
+    max_production: 1000.0
+    catchment_inflow:
+      type: constant
+      rate: 0.0
+    connections: []
+    modules:
+      drink_water:
+        daily_demand: 28.0
+      food_production:
+        water_coefficient: 0.5555555556
+        max_food_units: 126.0
