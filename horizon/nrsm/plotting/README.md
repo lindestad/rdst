@@ -63,6 +63,38 @@ uv run nrsm-plots `
 - `--format`: `png`, `svg`, or `pdf`.
 - `--dpi`: raster output resolution.
 
+## Compare Runs
+
+Use `nrsm-plots-compare` to compare policies or optimizer benchmark outputs.
+It reads multiple standard NRSM result folders and writes policy-level summary
+plots plus `comparison_summary.csv`.
+
+For benchmark output produced by `nrsm-benchmark`:
+
+```powershell
+uv run nrsm-plots-compare `
+  --benchmark-dir ..\optimizer\runs\benchmarks\smoke `
+  --output-dir ..\optimizer\runs\benchmarks\smoke\comparison_plots
+```
+
+Or pass result folders directly:
+
+```powershell
+uv run nrsm-plots-compare `
+  --runs full=..\runs\full\results optimized=..\runs\optimized\results `
+  --output-dir ..\runs\comparison_plots
+```
+
+The comparison command writes:
+
+- `comparison_summary.csv`: totals, reliability ratios, and deltas versus the
+  first run.
+- `policy_metric_totals.png`: energy, shortages, and spill by policy.
+- `policy_reliability.png`: drinking-water and food-water reliability.
+- `energy_storage_tradeoff.png`: energy value versus terminal storage.
+- `shortages_over_time.png`: unmet demand over time.
+- `mean_actions_over_time.png`: mean production action by policy.
+
 ## Why CSV First?
 
 CSV output is the reproducible path used by the CLI and by non-Rust consumers.
