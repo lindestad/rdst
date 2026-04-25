@@ -27,8 +27,10 @@ impl Default for AssembleOptions {
 struct TopologyNode {
     node_id: String,
     storage_capacity_mcm: Option<f64>,
+    initial_storage_mcm: Option<f64>,
     surface_area_km2_at_full: Option<f64>,
     population_baseline: Option<f64>,
+    max_production_m3_day: Option<f64>,
 }
 
 #[derive(Clone, Debug)]
@@ -137,8 +139,10 @@ fn read_nodes(path: &Path) -> Result<Vec<TopologyNode>, Box<dyn std::error::Erro
         nodes.push(TopologyNode {
             node_id: required(&row, "node_id")?,
             storage_capacity_mcm: optional_f64(&row, "storage_capacity_mcm")?,
+            initial_storage_mcm: optional_f64(&row, "initial_storage_mcm")?,
             surface_area_km2_at_full: optional_f64(&row, "surface_area_km2_at_full")?,
             population_baseline: optional_f64(&row, "population_baseline")?,
+            max_production_m3_day: optional_f64(&row, "max_production_m3_day")?,
         });
     }
     Ok(nodes)
@@ -239,7 +243,7 @@ fn evaporation_rows(
 fn drink_water_rows(node: &TopologyNode, dates: &[SimpleDate]) -> ModuleRows {
     let demand = node
         .population_baseline
-        .map(|population| population * 150.0 / 1_000.0)
+        .map(|population| population * 100.0 / 1_000.0)
         .unwrap_or(0.0);
     ModuleRows {
         rows: dates
@@ -247,7 +251,7 @@ fn drink_water_rows(node: &TopologyNode, dates: &[SimpleDate]) -> ModuleRows {
             .map(|date| (date.to_string(), demand))
             .collect(),
         source_note: if demand > 0.0 {
-            "population_baseline with 150 L/person/day assumption".to_string()
+            "population_baseline with 100 L/person/day assumption".to_string()
         } else {
             "zero because population_baseline is missing".to_string()
         },
@@ -349,11 +353,16 @@ fn render_config(nodes: &[TopologyNode], outgoing: &HashMap<String, Vec<Topology
             .storage_capacity_mcm
             .map(|value| value * 1_000_000.0)
             .unwrap_or(1_000_000_000_000.0);
-        let initial_level = if node.storage_capacity_mcm.is_some() {
-            max_capacity * 0.5
-        } else {
-            0.0
-        };
+        let initial_level = node
+            .initial_storage_mcm
+            .map(|value| value * 1_000_000.0)
+            .unwrap_or_else(|| {
+                if node.storage_capacity_mcm.is_some() {
+                    max_capacity * 0.5
+                } else {
+                    0.0
+                }
+            });
         let max_production = default_max_production(node);
 
         yaml.push_str(&format!(
@@ -393,6 +402,10 @@ fn render_config(nodes: &[TopologyNode], outgoing: &HashMap<String, Vec<Topology
 }
 
 fn default_max_production(node: &TopologyNode) -> f64 {
+    if let Some(value) = node.max_production_m3_day {
+        return value;
+    }
+
     match node.node_id.as_str() {
         "gerd" => 45_000_000.0,
         "aswand" => 55_000_000.0,

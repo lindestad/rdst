@@ -6,8 +6,8 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          32.8525,
-          -1.45
+          33.0,
+          -1.0
         ]
       },
       "properties": {
@@ -19,7 +19,8 @@
         "downstream": [
           "southwest"
         ],
-        "catchment_area_km2": 263804.0,
+        "catchment_area_km2": 238900.0,
+        "population_baseline": 40000000.0,
         "surface_area_km2_at_full": 68000.0
       }
     },
@@ -28,8 +29,8 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          30.708333,
-          8.186667
+          29.5,
+          8.5
         ]
       },
       "properties": {
@@ -43,7 +44,8 @@
         "downstream": [
           "karthoum"
         ],
-        "catchment_area_km2": 1221321.0,
+        "catchment_area_km2": 580000.0,
+        "population_baseline": 8000000.0,
         "surface_area_km2_at_full": 24426.0
       }
     },
@@ -52,172 +54,8 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          37.255,
-          11.845
-        ]
-      },
-      "properties": {
-        "id": "tana",
-        "name": "Tana",
-        "type": "catchment",
-        "country": "",
-        "upstream": [],
-        "downstream": [
-          "gerd"
-        ],
-        "catchment_area_km2": 18260.0,
-        "surface_area_km2_at_full": 183.0
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          37.04,
-          10.535
-        ]
-      },
-      "properties": {
-        "id": "gerd",
-        "name": "GERD",
-        "type": "catchment",
-        "country": "",
-        "upstream": [
-          "tana"
-        ],
-        "downstream": [
-          "roseires"
-        ],
-        "catchment_area_km2": 164452.0,
-        "surface_area_km2_at_full": 1880.0
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          34.46,
-          11.3
-        ]
-      },
-      "properties": {
-        "id": "roseires",
-        "name": "Roseires",
-        "type": "catchment",
-        "country": "",
-        "upstream": [
-          "gerd"
-        ],
-        "downstream": [
-          "singa"
-        ],
-        "catchment_area_km2": 13243.0,
-        "surface_area_km2_at_full": 132.0
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          34.936667,
-          13.41
-        ]
-      },
-      "properties": {
-        "id": "singa",
-        "name": "Singa",
-        "type": "catchment",
-        "country": "",
-        "upstream": [
-          "roseires"
-        ],
-        "downstream": [
-          "karthoum"
-        ],
-        "catchment_area_km2": 117490.0,
-        "surface_area_km2_at_full": 3525.0
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          38.665,
-          12.815
-        ]
-      },
-      "properties": {
-        "id": "ozentari",
-        "name": "Ozentari",
-        "type": "catchment",
-        "country": "",
-        "upstream": [],
-        "downstream": [
-          "tsengh"
-        ],
-        "catchment_area_km2": 25231.0,
-        "surface_area_km2_at_full": 252.0
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          37.25,
-          13.74
-        ]
-      },
-      "properties": {
-        "id": "tsengh",
-        "name": "Tsengh",
-        "type": "catchment",
-        "country": "",
-        "upstream": [
-          "ozentari"
-        ],
-        "downstream": [
-          "kashm"
-        ],
-        "catchment_area_km2": 63558.0,
-        "surface_area_km2_at_full": 636.0
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          35.895,
-          14.98
-        ]
-      },
-      "properties": {
-        "id": "kashm",
-        "name": "Kashm",
-        "type": "catchment",
-        "country": "",
-        "upstream": [
-          "tsengh"
-        ],
-        "downstream": [
-          "merowe"
-        ],
-        "catchment_area_km2": 24834.0,
-        "surface_area_km2_at_full": 745.0
-      }
-    },
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          32.3,
-          12.95
+          32.6,
+          15.6
         ]
       },
       "properties": {
@@ -226,13 +64,13 @@
         "type": "catchment",
         "country": "",
         "upstream": [
-          "southwest",
-          "singa"
+          "southwest"
         ],
         "downstream": [
           "merowe"
         ],
-        "catchment_area_km2": 188740.0,
+        "catchment_area_km2": 45000.0,
+        "population_baseline": 7000000.0,
         "surface_area_km2_at_full": 5662.0
       }
     },
@@ -241,8 +79,8 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          35.125,
-          17.31
+          32.0,
+          18.7
         ]
       },
       "properties": {
@@ -251,13 +89,15 @@
         "type": "catchment",
         "country": "",
         "upstream": [
-          "kashm",
-          "karthoum"
+          "karthoum",
+          "singa",
+          "kashm"
         ],
         "downstream": [
           "aswand"
         ],
-        "catchment_area_km2": 248410.0,
+        "catchment_area_km2": 85000.0,
+        "population_baseline": 1000000.0,
         "surface_area_km2_at_full": 7452.0
       }
     },
@@ -266,8 +106,8 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          31.181667,
-          19.083333
+          32.9,
+          24.0
         ]
       },
       "properties": {
@@ -281,7 +121,8 @@
         "downstream": [
           "cairo"
         ],
-        "catchment_area_km2": 536191.0,
+        "catchment_area_km2": 145000.0,
+        "population_baseline": 1500000.0,
         "surface_area_km2_at_full": 5250.0
       }
     },
@@ -290,8 +131,8 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          32.506667,
-          25.936667
+          31.0,
+          30.8
         ]
       },
       "properties": {
@@ -303,8 +144,180 @@
           "aswand"
         ],
         "downstream": [],
-        "catchment_area_km2": 197840.0,
+        "catchment_area_km2": 22000.0,
+        "population_baseline": 25000000.0,
         "surface_area_km2_at_full": 1978.0
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          34.0,
+          13.2
+        ]
+      },
+      "properties": {
+        "id": "singa",
+        "name": "Singa",
+        "type": "catchment",
+        "country": "",
+        "upstream": [
+          "roseires"
+        ],
+        "downstream": [
+          "merowe"
+        ],
+        "catchment_area_km2": 75000.0,
+        "population_baseline": 2000000.0,
+        "surface_area_km2_at_full": 3525.0
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          34.4,
+          11.9
+        ]
+      },
+      "properties": {
+        "id": "roseires",
+        "name": "Roseires",
+        "type": "catchment",
+        "country": "",
+        "upstream": [
+          "gerd"
+        ],
+        "downstream": [
+          "singa"
+        ],
+        "catchment_area_km2": 82000.0,
+        "population_baseline": 1500000.0,
+        "surface_area_km2_at_full": 132.0
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          35.1,
+          11.2
+        ]
+      },
+      "properties": {
+        "id": "gerd",
+        "name": "GERD",
+        "type": "catchment",
+        "country": "",
+        "upstream": [
+          "tana"
+        ],
+        "downstream": [
+          "roseires"
+        ],
+        "catchment_area_km2": 172000.0,
+        "population_baseline": 18000000.0,
+        "surface_area_km2_at_full": 1880.0
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.3,
+          12.0
+        ]
+      },
+      "properties": {
+        "id": "tana",
+        "name": "Tana",
+        "type": "catchment",
+        "country": "",
+        "upstream": [],
+        "downstream": [
+          "gerd"
+        ],
+        "catchment_area_km2": 16000.0,
+        "population_baseline": 3000000.0,
+        "surface_area_km2_at_full": 183.0
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          35.9,
+          14.9
+        ]
+      },
+      "properties": {
+        "id": "kashm",
+        "name": "Kashm",
+        "type": "catchment",
+        "country": "",
+        "upstream": [
+          "tsengh"
+        ],
+        "downstream": [
+          "merowe"
+        ],
+        "catchment_area_km2": 68000.0,
+        "population_baseline": 2000000.0,
+        "surface_area_km2_at_full": 745.0
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          36.5,
+          14.0
+        ]
+      },
+      "properties": {
+        "id": "tsengh",
+        "name": "Tsengh",
+        "type": "catchment",
+        "country": "",
+        "upstream": [
+          "ozentari"
+        ],
+        "downstream": [
+          "kashm"
+        ],
+        "catchment_area_km2": 31000.0,
+        "population_baseline": 800000.0,
+        "surface_area_km2_at_full": 636.0
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.2,
+          13.5
+        ]
+      },
+      "properties": {
+        "id": "ozentari",
+        "name": "Ozentari",
+        "type": "catchment",
+        "country": "",
+        "upstream": [],
+        "downstream": [
+          "tsengh"
+        ],
+        "catchment_area_km2": 19000.0,
+        "population_baseline": 400000.0,
+        "surface_area_km2_at_full": 252.0
       }
     }
   ]
