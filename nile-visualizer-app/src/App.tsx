@@ -7,20 +7,15 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { datasetFromCsvFiles, datasetFromFile } from "./adapters/nrsm";
-import { sampleDataset } from "./data/nile";
 import { BasinMap } from "./components/BasinMap";
 import { LeftRail } from "./components/LeftRail";
+import { ProvenanceBadge } from "./components/ProvenanceBadge";
 import { RightRail } from "./components/RightRail";
 import { SummaryItem } from "./components/SummaryItem";
 import { PitchPage } from "./pages/PitchPage";
 import { TeamPage } from "./pages/TeamPage";
-import {
-  datasetForPackagedScenario,
-  defaultScenarioRunId,
-  packagedScenarioRuns,
-} from "./data/scenarioCatalog";
-import type { Lens, VisualizerDataset } from "./types";
+import { defaultScenarioRunId, packagedScenarioRuns } from "./data/scenarioCatalog";
+import { CUSTOM_SCENARIO_RUN_ID, useVisualizerState } from "./hooks/useVisualizerState";
 
 type SitePage = "visualization" | "pitch" | "team";
 
@@ -30,6 +25,14 @@ const sitePages: Array<{ id: SitePage; label: string; Icon: LucideIcon }> = [
   { id: "team", label: "Team", Icon: Users },
 ];
 
+const SCENARIO_GROUP_ORDER: ReadonlyArray<"Default" | "Extremes" | "Future" | "Past" | "Smoke"> = [
+  "Default",
+  "Extremes",
+  "Future",
+  "Past",
+  "Smoke",
+];
+
 function readPageFromHash(): SitePage {
   const raw = window.location.hash.replace(/^#\/?/, "");
   return sitePages.some((item) => item.id === raw) ? (raw as SitePage) : "visualization";
@@ -37,19 +40,29 @@ function readPageFromHash(): SitePage {
 
 function App() {
   const [page, setPage] = useState<SitePage>(readPageFromHash);
-  const [baseDataset, setBaseDataset] = useState<VisualizerDataset>(() => sampleDataset);
-  const [selectedRunId, setSelectedRunId] = useState(defaultScenarioRunId);
-  const [lens, setLens] = useState<Lens>("stress");
-  const [periodIndex, setPeriodIndex] = useState(0);
-  const [selectedNodeId, setSelectedNodeId] = useState(sampleDataset.nodes[0].id);
-  const [selectedEdgeId, setSelectedEdgeId] = useState(sampleDataset.edges[0].id);
-  const [isPlaying, setIsPlaying] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const state = useVisualizerState({ autoplay: true, playbackActive: page === "visualization" });
+  const {
+    dataset,
+    selectedRunId,
+    lens,
+    setLens,
+    activePeriodIndex,
+    setPeriodIndex,
+    isPlaying,
+    togglePlay,
+    pause,
+    isLoading,
+    loadError,
+    selectedNodeId,
+    selectedEdgeId,
+    setSelectedNodeId,
+    setSelectedEdgeId,
+    loadPackagedScenario,
+    loadJsonFile,
+    loadCsvFiles,
+  } = state;
 
-  const dataset = baseDataset;
   const { metadata, nodes, edges, periods } = dataset;
-  const activePeriodIndex = Math.min(periodIndex, periods.length - 1);
-
   const period = periods[activePeriodIndex];
   const selectedNode = nodes.find((node) => node.id === selectedNodeId) ?? nodes[0];
   const selectedNodeResult = period.nodeResults.find((node) => node.nodeId === selectedNode.id);
@@ -78,57 +91,9 @@ function App() {
     return () => window.removeEventListener("hashchange", sync);
   }, []);
 
-  useEffect(() => {
-    if (!isPlaying || page !== "visualization") return;
-    const timer = window.setInterval(() => {
-      setPeriodIndex((current) => (current + 1) % periods.length);
-    }, 2200);
-    return () => window.clearInterval(timer);
-  }, [isPlaying, page, periods.length]);
-
-  useEffect(() => {
-    setPeriodIndex(0);
-    setSelectedNodeId(dataset.nodes[0]?.id ?? "");
-    setSelectedEdgeId(dataset.edges[0]?.id ?? "");
-  }, [dataset]);
-
-  async function loadFile(file: File | null) {
-    if (!file) return;
-    try {
-      const next = await datasetFromFile(file);
-      setBaseDataset(next);
-      setSelectedRunId("custom");
-      setLoadError(null);
-    } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "Could not load simulator output.");
-    }
-  }
-
-  async function loadCsvFiles(files: FileList | null) {
-    if (!files || files.length === 0) return;
-    try {
-      const next = await datasetFromCsvFiles(files);
-      setBaseDataset(next);
-      setSelectedRunId("custom");
-      setLoadError(null);
-    } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "Could not load NRSM CSV results.");
-    }
-  }
-
   function navigate(nextPage: SitePage) {
     window.location.hash = `/${nextPage}`;
     setPage(nextPage);
-  }
-
-  function loadPackagedScenario(runId: string) {
-    try {
-      setBaseDataset(datasetForPackagedScenario(runId));
-      setSelectedRunId(runId);
-      setLoadError(null);
-    } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "Could not load packaged scenario.");
-    }
   }
 
   return (
@@ -169,14 +134,18 @@ function App() {
 
         {page === "visualization" && (
           <div className="file-tools">
+            <ProvenanceBadge metadata={metadata} />
             <label className="scenario-select-wrap" title="Choose a packaged NRSM scenario run">
               <span>Run</span>
               <select
-                onChange={(event) => loadPackagedScenario(event.currentTarget.value)}
+                disabled={isLoading}
+                onChange={(event) => void loadPackagedScenario(event.currentTarget.value)}
                 value={selectedRunId}
               >
-                {selectedRunId === "custom" && <option value="custom">Uploaded run</option>}
-                {["Default", "Extremes", "Future", "Past", "Smoke"].map((group) => (
+                {selectedRunId === CUSTOM_SCENARIO_RUN_ID && (
+                  <option value={CUSTOM_SCENARIO_RUN_ID}>Uploaded run</option>
+                )}
+                {SCENARIO_GROUP_ORDER.map((group) => (
                   <optgroup key={group} label={group}>
                     {packagedScenarioRuns
                       .filter((run) => run.group === group)
@@ -205,15 +174,14 @@ function App() {
               <span>Load JSON</span>
               <input
                 accept="application/json,.json"
-                onChange={(event) => void loadFile(event.currentTarget.files?.[0] ?? null)}
+                onChange={(event) => void loadJsonFile(event.currentTarget.files?.[0] ?? null)}
                 type="file"
               />
             </label>
             <button
               className="icon-button"
-              onClick={() => {
-                loadPackagedScenario(defaultScenarioRunId);
-              }}
+              disabled={isLoading}
+              onClick={() => void loadPackagedScenario(defaultScenarioRunId)}
               title="Reset to sample run"
               type="button"
             >
@@ -223,6 +191,11 @@ function App() {
         )}
       </header>
       {loadError && <div className="load-error">{loadError}</div>}
+      {isLoading && (
+        <div className="load-status" role="status" aria-live="polite">
+          Loading scenario…
+        </div>
+      )}
 
       {page === "pitch" ? (
         <PitchPage onOpenVisualization={() => navigate("visualization")} />
@@ -237,10 +210,10 @@ function App() {
             periods={periods}
             activePeriodIndex={activePeriodIndex}
             isPlaying={isPlaying}
-            onTogglePlay={() => setIsPlaying((current) => !current)}
+            onTogglePlay={togglePlay}
             onPeriodChange={(index) => {
               setPeriodIndex(index);
-              setIsPlaying(false);
+              pause();
             }}
           />
 

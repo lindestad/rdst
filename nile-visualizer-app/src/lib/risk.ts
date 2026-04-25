@@ -6,6 +6,12 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
+import {
+  DELIVERY_CRITICAL_RATIO,
+  DELIVERY_WARNING_RATIO,
+  STORAGE_CRITICAL_RATIO,
+  STORAGE_WARNING_RATIO,
+} from "../config";
 import { roundedPoint } from "./geo";
 import type { ImpactZone } from "./riverPaths";
 import type { NileNode, NodePeriodResult, PeriodResult } from "../types";
@@ -114,12 +120,12 @@ export function sectorLabel(kind: SectorKind) {
 
 export function sectorRiskLevel(sector: SectorRisk): RiskLevel {
   if (sector.kind === "storage") {
-    if (sector.ratio < 0.18) return "critical";
-    if (sector.ratio < 0.4) return "warning";
+    if (sector.ratio < STORAGE_CRITICAL_RATIO) return "critical";
+    if (sector.ratio < STORAGE_WARNING_RATIO) return "warning";
     return "none";
   }
-  if (sector.ratio < 0.75) return "critical";
-  if (sector.ratio < 0.97) return "warning";
+  if (sector.ratio < DELIVERY_CRITICAL_RATIO) return "critical";
+  if (sector.ratio < DELIVERY_WARNING_RATIO) return "warning";
   return "none";
 }
 
@@ -270,12 +276,12 @@ export function computeZoneRisk(
   if (!active) return { level: "none", ratio: 1 };
 
   if (zone.trigger.kind === "storage") {
-    if (worst < 0.18) return { level: "critical", ratio: worst };
-    if (worst < 0.4) return { level: "warning", ratio: worst };
+    if (worst < STORAGE_CRITICAL_RATIO) return { level: "critical", ratio: worst };
+    if (worst < STORAGE_WARNING_RATIO) return { level: "warning", ratio: worst };
     return { level: "none", ratio: worst };
   }
 
-  if (worst < 0.75) return { level: "critical", ratio: worst };
-  if (worst < 0.97) return { level: "warning", ratio: worst };
+  if (worst < DELIVERY_CRITICAL_RATIO) return { level: "critical", ratio: worst };
+  if (worst < DELIVERY_WARNING_RATIO) return { level: "warning", ratio: worst };
   return { level: "none", ratio: worst };
 }

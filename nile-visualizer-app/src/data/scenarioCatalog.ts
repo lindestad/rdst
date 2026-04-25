@@ -12,13 +12,25 @@ export type PackagedScenarioRun = {
   summary: string;
 };
 
-const scenarioCsvFiles = import.meta.glob("./results/scenarios/**/*.csv", {
+export const defaultScenarioRunId = "scenario";
+
+// The default scenario is bundled eagerly so the first paint has data
+// immediately. All other scenarios are split into separate chunks and loaded
+// on demand via dynamic import — this keeps the initial bundle ~1.5MB lighter.
+const eagerDefaultCsv = import.meta.glob("./results/scenarios/scenario/*.csv", {
   eager: true,
   import: "default",
   query: "?raw",
 }) as Record<string, string>;
 
-export const defaultScenarioRunId = "scenario";
+// Exclude the default scenario from the lazy map — its files are already
+// inlined by `eagerDefaultCsv` and Vite would otherwise warn about an
+// ineffective dynamic import for the same module.
+const defaultScenarioPrefix = `./results/scenarios/${defaultScenarioRunId}/`;
+const lazyScenarioCsv = import.meta.glob(
+  ["./results/scenarios/**/*.csv", "!./results/scenarios/scenario/*.csv"],
+  { import: "default", query: "?raw" },
+) as Record<string, () => Promise<string>>;
 
 export const packagedScenarioRuns: PackagedScenarioRun[] = [
   {
@@ -207,30 +219,43 @@ export const packagedScenarioRuns: PackagedScenarioRun[] = [
   },
 ];
 
-export const sampleDataset = datasetForPackagedScenario(defaultScenarioRunId);
-
-export function datasetForPackagedScenario(id: string): VisualizerDataset {
+export function findScenarioRun(id: string): PackagedScenarioRun {
   const run = packagedScenarioRuns.find((candidate) => candidate.id === id);
   if (!run) {
     throw new Error(`Unknown packaged scenario run: ${id}`);
   }
-
-  return datasetFromCsvTextByNode(csvByNodeForScenario(id), {
-    name: run.label,
-    source: `Packaged NRSM run: ${run.id}`,
-    horizon: run.horizon,
-    reporting: run.reporting,
-    units: "NRSM model units per reporting period",
-  });
+  return run;
 }
 
-function csvByNodeForScenario(id: string) {
+export const sampleDataset = buildDataset(
+  findScenarioRun(defaultScenarioRunId),
+  csvByNodeFromEager(eagerDefaultCsv, defaultScenarioPrefix),
+);
+
+export async function loadDatasetForPackagedScenario(id: string): Promise<VisualizerDataset> {
+  const run = findScenarioRun(id);
+  if (id === defaultScenarioRunId) {
+    return buildDataset(run, csvByNodeFromEager(eagerDefaultCsv, defaultScenarioPrefix));
+  }
   const prefix = `./results/scenarios/${id}/`;
-  const entries = Object.entries(scenarioCsvFiles).filter(([path]) => path.startsWith(prefix));
+  const entries = Object.entries(lazyScenarioCsv).filter(([path]) => path.startsWith(prefix));
   if (entries.length === 0) {
     throw new Error(`No packaged CSV files found for scenario run: ${id}`);
   }
+  const loaded = await Promise.all(
+    entries.map(async ([path, loader]) => {
+      const filename = path.slice(prefix.length);
+      const nodeId = filename.replace(/\.csv$/i, "");
+      const content = await loader();
+      return [nodeId, content] as const;
+    }),
+  );
+  const csvByNode = Object.fromEntries(loaded.filter(([nodeId]) => nodeId !== "summary"));
+  return buildDataset(run, csvByNode);
+}
 
+function csvByNodeFromEager(map: Record<string, string>, prefix: string) {
+  const entries = Object.entries(map).filter(([path]) => path.startsWith(prefix));
   return Object.fromEntries(
     entries.flatMap(([path, content]) => {
       const filename = path.slice(prefix.length);
@@ -238,4 +263,16 @@ function csvByNodeForScenario(id: string) {
       return nodeId === "summary" ? [] : [[nodeId, content] as const];
     }),
   );
+}
+
+function buildDataset(run: PackagedScenarioRun, csvByNode: Record<string, string>): VisualizerDataset {
+  return datasetFromCsvTextByNode(csvByNode, {
+    name: run.label,
+    source: `Packaged NRSM run: ${run.id}`,
+    horizon: run.horizon,
+    reporting: run.reporting,
+    units: "NRSM model units per reporting period",
+    origin: "packaged",
+    runId: run.id,
+  });
 }

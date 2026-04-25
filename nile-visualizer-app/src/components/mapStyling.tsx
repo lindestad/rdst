@@ -1,4 +1,13 @@
 import type { ReactNode } from "react";
+import {
+  COLOR_CRITICAL,
+  COLOR_OK,
+  COLOR_WARNING,
+  STORAGE_CRITICAL_RATIO,
+  STORAGE_WARNING_RATIO,
+  STRESS_CRITICAL_RATIO,
+  STRESS_WARNING_RATIO,
+} from "../config";
 import { format } from "../lib/format";
 import type {
   EdgePeriodResult,
@@ -17,7 +26,12 @@ export function edgeStops(
 ): ReactNode {
   const baseline = periods[0].edgeResults.find((item) => item.edgeId === edge.id);
   const flowRatio = result && baseline ? result.totalReceivedFlow / Math.max(1, baseline.totalReceivedFlow) : 1;
-  const stressColor = flowRatio < 0.65 ? "#d4483c" : flowRatio < 0.9 ? "#d89b24" : "#20a66a";
+  const stressColor =
+    flowRatio < STRESS_CRITICAL_RATIO
+      ? COLOR_CRITICAL
+      : flowRatio < STRESS_WARNING_RATIO
+        ? COLOR_WARNING
+        : COLOR_OK;
 
   if (lens === "stress") {
     return (
@@ -94,16 +108,16 @@ export function nodeFill(
 
   if (lens === "stress") {
     const ratio = worstDeliveryRatio(result);
-    if (ratio < 0.65) return "#d4483c";
-    if (ratio < 0.9) return "#d89b24";
+    if (ratio < STRESS_CRITICAL_RATIO) return COLOR_CRITICAL;
+    if (ratio < STRESS_WARNING_RATIO) return COLOR_WARNING;
     return "#2f8f5b";
   }
 
   if (lens === "storage") {
     if (node.kind !== "reservoir" || !node.capacity) return "#5f6269";
     const ratio = result.endingStorage / node.capacity;
-    if (ratio < 0.18) return "#d4483c";
-    if (ratio < 0.4) return "#d89b24";
+    if (ratio < STORAGE_CRITICAL_RATIO) return COLOR_CRITICAL;
+    if (ratio < STORAGE_WARNING_RATIO) return COLOR_WARNING;
     return "#38516d";
   }
 

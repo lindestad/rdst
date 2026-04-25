@@ -1,3 +1,4 @@
+import { STORAGE_CRITICAL_RATIO, STORAGE_WARNING_RATIO } from "../config";
 import { smoothPolygonFromGeo } from "../lib/geo";
 import { impactZones } from "../lib/riverPaths";
 import { computeZoneRisk, regions } from "../lib/risk";
@@ -70,7 +71,12 @@ export function RegionAnnotations({
           const result = resultById.get(node.id);
           if (!result || !node.capacity) return null;
           const ratio = result.endingStorage / node.capacity;
-          const level = ratio < 0.18 ? "critical" : ratio < 0.4 ? "warning" : "none";
+          const level =
+            ratio < STORAGE_CRITICAL_RATIO
+              ? "critical"
+              : ratio < STORAGE_WARNING_RATIO
+                ? "warning"
+                : "none";
           if (level === "none") return null;
           const radius = level === "critical" ? 24 : 20;
           const isSelected = node.id === selectedNodeId;

@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Locate, Minus, Plus } from "lucide-react";
+import { VIEWBOX_H, VIEWBOX_W, ZOOM_BUTTON_FACTOR } from "../config";
 import { osmTiles } from "../lib/geo";
 import { useMapView } from "../hooks/useMapView";
 import { CountryLabels, ImpactZoneOverlay, RegionAnnotations } from "./MapOverlays";
@@ -86,7 +87,7 @@ export function BasinMap({
       <div className="map-zoom-controls" aria-label="Map zoom controls">
         <button
           className="icon-button"
-          onClick={() => zoomCenter(1.25)}
+          onClick={() => zoomCenter(ZOOM_BUTTON_FACTOR)}
           title="Zoom in"
           aria-label="Zoom in"
           type="button"
@@ -95,7 +96,7 @@ export function BasinMap({
         </button>
         <button
           className="icon-button"
-          onClick={() => zoomCenter(1 / 1.25)}
+          onClick={() => zoomCenter(1 / ZOOM_BUTTON_FACTOR)}
           title="Zoom out"
           aria-label="Zoom out"
           type="button"
@@ -115,7 +116,7 @@ export function BasinMap({
 
       <svg
         className={`basin-map ${isPanning ? "panning" : ""}`}
-        viewBox="0 0 1040 720"
+        viewBox={`0 0 ${VIEWBOX_W} ${VIEWBOX_H}`}
         preserveAspectRatio="xMidYMin meet"
         role="img"
         aria-label="Nile simulator graph"

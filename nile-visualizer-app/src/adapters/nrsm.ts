@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { edges as fallbackEdges, nodes as fallbackNodes } from "../data/nileGraph";
 import { pathBetweenNodes } from "../lib/geo";
 import type {
@@ -12,6 +13,62 @@ import type {
   RunMetadata,
   VisualizerDataset,
 } from "../types";
+
+// IEEE rounding noise from NRSM CSV exports (e.g. -1.4e-14) is clamped to 0.
+// Anything more negative is preserved so a real bug surfaces instead of being
+// silently masked.
+const FLOAT_NOISE_EPSILON = 1e-6;
+
+const NumericField = z
+  .union([z.number(), z.string()])
+  .optional()
+  .transform((value) => {
+    if (value === undefined || value === null) return undefined;
+    if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+    const trimmed = value.trim();
+    if (trimmed === "") return undefined;
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed)) return undefined;
+    if (parsed < 0 && parsed > -FLOAT_NOISE_EPSILON) return 0;
+    return parsed;
+  });
+
+const RequiredNumericField = z
+  .union([z.number(), z.string()])
+  .transform((value, ctx) => {
+    const candidate = typeof value === "number" ? value : Number((value ?? "").trim());
+    if (!Number.isFinite(candidate)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Expected a finite number, got "${value}"` });
+      return z.NEVER;
+    }
+    return candidate;
+  });
+
+const ResultCsvRowSchema = z
+  .object({
+    period_index: RequiredNumericField,
+    start_day: RequiredNumericField,
+    end_day_exclusive: RequiredNumericField,
+    duration_days: NumericField,
+    node_id: z.string().optional(),
+    reservoir_level: NumericField,
+    total_inflow: NumericField,
+    evaporation: NumericField,
+    drink_water_met: NumericField,
+    unmet_drink_water: NumericField,
+    food_produced: NumericField,
+    production_release: NumericField,
+    spill: NumericField,
+    release_for_routing: NumericField,
+    downstream_release: NumericField,
+    routing_loss: NumericField,
+    energy_value: NumericField,
+  })
+  .passthrough();
+
+export type ParsedCsvRow = z.infer<typeof ResultCsvRowSchema>;
+
+const REQUIRED_CSV_COLUMNS = ["period_index", "start_day", "end_day_exclusive"] as const;
 
 type RawGraph = {
   nodes?: Array<Partial<NileNode> & { id: string; label?: string; type?: string }>;
@@ -50,25 +107,7 @@ type RawRustResult = {
   periods?: RawRustPeriod[];
 };
 
-type ResultCsvRow = {
-  period_index: string;
-  start_day: string;
-  end_day_exclusive: string;
-  duration_days: string;
-  node_id?: string;
-  reservoir_level?: string;
-  total_inflow: string;
-  evaporation?: string;
-  drink_water_met?: string;
-  unmet_drink_water?: string;
-  food_produced?: string;
-  production_release?: string;
-  spill?: string;
-  release_for_routing?: string;
-  downstream_release: string;
-  routing_loss?: string;
-  energy_value?: string;
-};
+type ResultCsvRow = ParsedCsvRow;
 
 type RawVisualizerFile = {
   schema_version?: string;
@@ -98,7 +137,7 @@ export async function datasetFromCsvFiles(files: FileList | File[]): Promise<Vis
 
   const rowsByNode = new Map<string, ResultCsvRow[]>();
   for (const file of nodeFiles) {
-    const rows = parseCsv(await file.text()) as ResultCsvRow[];
+    const rows = parseValidatedCsv(await file.text(), file.name);
     const nodeId = rows.find((row) => row.node_id)?.node_id ?? file.name.replace(/\.csv$/i, "");
     rowsByNode.set(nodeId, rows);
   }
@@ -115,7 +154,7 @@ export function datasetFromCsvTextByNode(
   metadata: Partial<RunMetadata> = {},
 ): VisualizerDataset {
   const rowsByNode = new Map(
-    Object.entries(csvByNode).map(([nodeId, content]) => [nodeId, parseCsv(content) as ResultCsvRow[]]),
+    Object.entries(csvByNode).map(([nodeId, content]) => [nodeId, parseValidatedCsv(content, `${nodeId}.csv`)]),
   );
   return datasetFromCsvRows(rowsByNode, metadata);
 }
@@ -163,6 +202,10 @@ function datasetFromCsvRows(
       horizon: metadata.horizon ?? `${periods.length} reporting periods`,
       reporting: metadata.reporting ?? "saved CSV",
       units: metadata.units ?? "model units per reporting period",
+      origin: metadata.origin ?? "uploaded-csv",
+      runId: metadata.runId,
+      schemaVersion: metadata.schemaVersion,
+      assembledAt: metadata.assembledAt,
     },
     nodes,
     edges,
@@ -202,6 +245,8 @@ export function datasetFromUnknown(input: unknown, source = "Uploaded file"): Vi
       horizon: payload.metadata?.horizon,
       reporting: payload.metadata?.reporting,
       units: payload.metadata?.units,
+      origin: "uploaded-json",
+      schemaVersion: payload.schema_version ?? payload.metadata?.schemaVersion,
     },
   });
 }
@@ -227,6 +272,10 @@ export function datasetFromRustResult(
     horizon: options.metadata?.horizon ?? `${periods.length} reporting periods`,
     reporting: options.metadata?.reporting ?? `${result.reporting ?? "raw"} / ${timestep}`,
     units: options.metadata?.units ?? "model units per reporting period",
+    origin: options.metadata?.origin ?? "uploaded-json",
+    runId: options.metadata?.runId,
+    schemaVersion: options.metadata?.schemaVersion,
+    assembledAt: options.metadata?.assembledAt,
   };
 
   return { metadata, nodes, edges, periods };
@@ -244,6 +293,10 @@ function normalizeVisualizerDataset(dataset: VisualizerDataset, source: string):
       horizon: dataset.metadata?.horizon ?? `${dataset.periods.length} periods`,
       reporting: dataset.metadata?.reporting ?? "periodic",
       units: dataset.metadata?.units ?? "model units",
+      origin: dataset.metadata?.origin ?? "uploaded-json",
+      runId: dataset.metadata?.runId,
+      schemaVersion: dataset.metadata?.schemaVersion,
+      assembledAt: dataset.metadata?.assembledAt,
     },
     nodes: dataset.nodes,
     edges: dataset.edges,
@@ -528,14 +581,30 @@ function numberFrom(value: unknown, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function parseCsv(content: string): Array<Record<string, string>> {
+function parseValidatedCsv(content: string, filename: string): ParsedCsvRow[] {
   const lines = content.split(/\r?\n/).filter((line) => line.trim() !== "");
   if (lines.length === 0) return [];
   const headers = splitCsvLine(lines[0]);
-  return lines.slice(1).map((line) => {
-    const fields = splitCsvLine(line);
-    return Object.fromEntries(headers.map((header, index) => [header, fields[index] ?? ""]));
-  });
+  const missing = REQUIRED_CSV_COLUMNS.filter((column) => !headers.includes(column));
+  if (missing.length > 0) {
+    throw new Error(`${filename}: missing required column(s) ${missing.join(", ")}`);
+  }
+
+  const rows: ParsedCsvRow[] = [];
+  for (let index = 1; index < lines.length; index++) {
+    const fields = splitCsvLine(lines[index]);
+    if (fields.length < headers.length) {
+      console.warn(`${filename}: row ${index} has ${fields.length} fields, expected ${headers.length} — padding empties`);
+    }
+    const raw = Object.fromEntries(headers.map((header, position) => [header, fields[position] ?? ""]));
+    const result = ResultCsvRowSchema.safeParse(raw);
+    if (!result.success) {
+      const issue = result.error.issues[0];
+      throw new Error(`${filename}: row ${index} ${issue.path.join(".")}: ${issue.message}`);
+    }
+    rows.push(result.data);
+  }
+  return rows;
 }
 
 function splitCsvLine(line: string) {

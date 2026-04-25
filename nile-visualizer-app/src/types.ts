@@ -86,12 +86,18 @@ export type PeriodResult = {
   edgeResults: EdgePeriodResult[];
 };
 
+export type RunOrigin = "packaged" | "uploaded-csv" | "uploaded-json" | "sample";
+
 export type RunMetadata = {
   name: string;
   source: string;
   horizon: string;
   reporting: string;
   units: string;
+  origin: RunOrigin;
+  runId?: string;
+  schemaVersion?: string;
+  assembledAt?: string;
 };
 
 export type VisualizerDataset = {

@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  VIEWBOX_H,
+  VIEWBOX_W,
+  ZOOM_BUTTON_FACTOR,
+  ZOOM_MAX,
+  ZOOM_MIN,
+  ZOOM_WHEEL_FACTOR,
+} from "../config";
 
-export const VIEWBOX_W = 1040;
-export const VIEWBOX_H = 720;
-const ZOOM_MIN = 0.4;
-const ZOOM_MAX = 6;
+export { VIEWBOX_H, VIEWBOX_W };
 
 export type MapView = { tx: number; ty: number; k: number };
 
@@ -56,7 +61,7 @@ export function useMapView(): UseMapView {
     const handleWheel = (event: WheelEvent) => {
       event.preventDefault();
       const { x, y } = screenToView(event.clientX, event.clientY);
-      const factor = event.deltaY < 0 ? 1.18 : 1 / 1.18;
+      const factor = event.deltaY < 0 ? ZOOM_WHEEL_FACTOR : 1 / ZOOM_WHEEL_FACTOR;
       zoomAt(x, y, factor);
     };
     svg.addEventListener("wheel", handleWheel, { passive: false });
