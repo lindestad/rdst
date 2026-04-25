@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fs,
     path::{Path, PathBuf},
 };
@@ -158,19 +158,19 @@ fn apply_initial_level_overrides(
     path: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let overrides = read_initial_level_overrides(path)?;
-    let mut remaining = overrides.keys().cloned().collect::<Vec<_>>();
+    let mut remaining = overrides.keys().cloned().collect::<BTreeSet<_>>();
 
     for node in &mut scenario.nodes {
         if let Some(initial_level) = overrides.get(&node.id) {
             node.reservoir.initial_level = *initial_level;
-            remaining.retain(|node_id| node_id != &node.id);
+            remaining.remove(&node.id);
         }
     }
 
     if !remaining.is_empty() {
+        let unknown_node_ids = remaining.into_iter().collect::<Vec<_>>().join(", ");
         return Err(format!(
-            "initial level override references unknown node id(s): {}",
-            remaining.join(", ")
+            "initial level override references unknown node id(s): {unknown_node_ids}"
         )
         .into());
     }
@@ -204,13 +204,13 @@ fn parse_initial_level_map(
     };
 
     let mut levels = BTreeMap::new();
-    for (key, value) in mapping {
+    for (key, entry_value) in mapping {
         let Some(node_id) = key.as_str() else {
             return Err(format!("{label} keys must be node id strings").into());
         };
         levels.insert(
             node_id.to_string(),
-            parse_initial_level_value(value, node_id)?,
+            parse_initial_level_value(entry_value, node_id)?,
         );
     }
 
