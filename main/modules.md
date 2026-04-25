@@ -34,7 +34,7 @@ the node's YAML configuration.
 | Catchment inflow | m³/day |
 | Evaporation | m³/day |
 | Drinking-water demand | m³/day |
-| Food production capacity | food units/day |
+| Food production capacity | food units/day; with `water_coefficient: 1.0`, this is water-equivalent m³/day |
 | Energy price | currency/m³ |
 
 ### Example CSV — catchment inflow, 3 scenarios

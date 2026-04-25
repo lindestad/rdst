@@ -264,12 +264,20 @@ fn default_water_coefficient() -> f64 {
 }
 
 impl FoodProductionModule {
+    pub fn water_demand(&self, day: usize, dt_days: f64) -> f64 {
+        if self.water_coefficient <= 0.0 {
+            return 0.0;
+        }
+
+        (self.max_food_units.value_at(day) * dt_days).max(0.0) * self.water_coefficient
+    }
+
     pub fn produce(&self, available_water: f64, day: usize, dt_days: f64) -> (f64, f64) {
         if self.water_coefficient <= 0.0 {
             return (0.0, 0.0);
         }
 
-        let max_food_units = self.max_food_units.value_at(day) * dt_days;
+        let max_food_units = (self.max_food_units.value_at(day) * dt_days).max(0.0);
         let food_produced = (available_water / self.water_coefficient).min(max_food_units);
         let water_consumed = food_produced * self.water_coefficient;
 
@@ -487,6 +495,9 @@ pub struct SimulationSummary {
     pub total_evaporation: f64,
     pub total_drink_water_met: f64,
     pub total_unmet_drink_water: f64,
+    pub total_food_water_demand: f64,
+    pub total_food_water_met: f64,
+    pub total_unmet_food_water: f64,
     pub total_food_produced: f64,
     pub total_production_release: f64,
     pub total_energy_value: f64,
@@ -511,6 +522,9 @@ pub struct NodeResult {
     pub production_release: f64,
     pub energy_value: f64,
     pub evaporation: f64,
+    pub food_water_demand: f64,
+    pub food_water_met: f64,
+    pub unmet_food_water: f64,
     pub food_produced: f64,
     pub drink_water_met: f64,
     pub unmet_drink_water: f64,
