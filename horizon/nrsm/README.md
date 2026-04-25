@@ -71,7 +71,9 @@ Per-node columns:
 | `total_inflow` | Local catchment plus upstream inflow volume over the period. |
 | `evaporation` | Water lost to evaporation over the period. |
 | `drink_water_met` / `unmet_drink_water` | Drinking-water demand served and shortfall. |
-| `food_produced` | Food units produced by the node. |
+| `food_water_demand` | Agricultural water demand over the period. |
+| `food_water_met` / `unmet_food_water` | Agricultural water demand served and shortfall. |
+| `food_produced` | Food units produced by the node. In the canonical hydmod assembly this is water-equivalent because `water_coefficient` is `1.0`. |
 | `production_release` | Controlled hydropower/production release volume. |
 | `spill` | Uncontrolled reservoir overflow volume. |
 | `release_for_routing` | `production_release + spill`, before edge fractions are applied. |
@@ -181,6 +183,10 @@ The `assemble` command reads the checked-in canonical data bundle under
 the 13 hydmod catchment nodes in `horizon/data/topology/nodes.csv`; catchment
 inflow and evaporation come from `horizon/data/hydmod/daily`, while food and
 energy modules come from the agriculture and electricity-price folders.
+Agriculture files supply `water_m3_day`, which the assembler writes as the
+food-production module with `water_coefficient: 1.0`; outputs therefore expose
+the agricultural water balance directly through `food_water_demand`,
+`food_water_met`, and `unmet_food_water`.
 
 The older deterministic seed path is still available for tests and demos:
 

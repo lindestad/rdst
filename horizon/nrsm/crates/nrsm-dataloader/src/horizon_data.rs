@@ -284,7 +284,7 @@ fn food_production_rows(
     Ok(ModuleRows {
         rows: rows_for_dates(&values, dates, &path, "water_m3_day")?,
         source_note: format!(
-            "{} water_m3_day used as water-equivalent food capacity",
+            "{} water_m3_day used as agricultural water demand with water_coefficient 1.0",
             path.file_name()
                 .and_then(|name| name.to_str())
                 .unwrap_or("water usage")

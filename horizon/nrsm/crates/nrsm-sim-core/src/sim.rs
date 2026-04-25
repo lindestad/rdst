@@ -180,11 +180,13 @@ fn simulate_daily_periods(
             let unmet_drink_water = drink_water_demand - drink_water_met;
             available -= drink_water_met;
 
-            let (food_produced, food_water_consumed) = node
+            let food_water_demand = node.modules.food_production.water_demand(day, dt_days);
+            let (food_produced, food_water_met) = node
                 .modules
                 .food_production
                 .produce(available, day, dt_days);
-            available -= food_water_consumed;
+            let unmet_food_water = food_water_demand - food_water_met;
+            available -= food_water_met;
 
             let action_fraction =
                 action_at(scenario, node, node_index, day, node_count, action_matrix);
@@ -221,6 +223,9 @@ fn simulate_daily_periods(
                 production_release,
                 energy_value,
                 evaporation,
+                food_water_demand,
+                food_water_met,
+                unmet_food_water,
                 food_produced,
                 drink_water_met,
                 unmet_drink_water,
@@ -279,11 +284,13 @@ fn simulate_daily_summary(
             let unmet_drink_water = drink_water_demand - drink_water_met;
             available -= drink_water_met;
 
-            let (food_produced, food_water_consumed) = node
+            let food_water_demand = node.modules.food_production.water_demand(day, dt_days);
+            let (food_produced, food_water_met) = node
                 .modules
                 .food_production
                 .produce(available, day, dt_days);
-            available -= food_water_consumed;
+            let unmet_food_water = food_water_demand - food_water_met;
+            available -= food_water_met;
 
             let action_fraction =
                 action_at(scenario, node, node_index, day, node_count, action_matrix);
@@ -316,6 +323,9 @@ fn simulate_daily_summary(
             summary.total_evaporation += evaporation;
             summary.total_drink_water_met += drink_water_met;
             summary.total_unmet_drink_water += unmet_drink_water;
+            summary.total_food_water_demand += food_water_demand;
+            summary.total_food_water_met += food_water_met;
+            summary.total_unmet_food_water += unmet_food_water;
             summary.total_food_produced += food_produced;
             summary.total_production_release += production_release;
             summary.total_energy_value += energy_value;
@@ -358,6 +368,9 @@ fn aggregate_chunk(period_index: usize, chunk: &[PeriodResult]) -> PeriodResult 
                     aggregate.production_release += node.production_release;
                     aggregate.energy_value += node.energy_value;
                     aggregate.evaporation += node.evaporation;
+                    aggregate.food_water_demand += node.food_water_demand;
+                    aggregate.food_water_met += node.food_water_met;
+                    aggregate.unmet_food_water += node.unmet_food_water;
                     aggregate.food_produced += node.food_produced;
                     aggregate.drink_water_met += node.drink_water_met;
                     aggregate.unmet_drink_water += node.unmet_drink_water;
@@ -403,6 +416,9 @@ fn summarize(periods: &[PeriodResult]) -> SimulationSummary {
             summary.total_evaporation += node.evaporation;
             summary.total_drink_water_met += node.drink_water_met;
             summary.total_unmet_drink_water += node.unmet_drink_water;
+            summary.total_food_water_demand += node.food_water_demand;
+            summary.total_food_water_met += node.food_water_met;
+            summary.total_unmet_food_water += node.unmet_food_water;
             summary.total_food_produced += node.food_produced;
             summary.total_production_release += node.production_release;
             summary.total_energy_value += node.energy_value;
@@ -714,6 +730,9 @@ mod tests {
 
         assert_eq!(node.evaporation, 5.0);
         assert_eq!(node.drink_water_met, 15.0);
+        assert_eq!(node.food_water_demand, 16.0);
+        assert_eq!(node.food_water_met, 16.0);
+        assert_eq!(node.unmet_food_water, 0.0);
         assert_eq!(node.food_produced, 8.0);
         assert_eq!(node.production_release, 10.0);
         assert_eq!(node.energy_value, 30.0);
@@ -757,18 +776,136 @@ mod tests {
         let result = simulate(&scenario).expect("simulation should succeed");
         let node = &result.periods[0].node_results[0];
         let starting_storage = scenario.nodes[0].reservoir.initial_level;
-        let food_water_consumed = node.food_produced * water_coefficient;
         let water_in = starting_storage + node.total_inflow;
         let water_out = node.evaporation
             + node.drink_water_met
-            + food_water_consumed
+            + node.food_water_met
             + node.production_release
             + node.spill
             + node.reservoir_level;
 
         assert_approx_eq(water_in, water_out);
+        assert_eq!(node.food_water_demand, 30.0);
+        assert_eq!(node.food_water_met, 30.0);
+        assert_eq!(node.unmet_food_water, 0.0);
         assert_eq!(node.spill, 5.0);
         assert_eq!(node.reservoir_level, 40.0);
+    }
+
+    #[test]
+    fn reports_unmet_food_water_when_available_water_is_short() {
+        let scenario = Scenario {
+            settings: SimulationSettings {
+                horizon_days: Some(1),
+                ..SimulationSettings::default()
+            },
+            nodes: vec![NodeConfig {
+                id: "farm".to_string(),
+                reservoir: ReservoirConfig {
+                    initial_level: 5.0,
+                    max_capacity: 100.0,
+                },
+                max_production: 100.0,
+                catchment_inflow: ModuleSeries::constant(5.0),
+                connections: vec![],
+                actions: None,
+                modules: NodeModules {
+                    evaporation: EvaporationModule::default(),
+                    drink_water: DrinkWaterModule::default(),
+                    food_production: FoodProductionModule {
+                        water_coefficient: 2.0,
+                        max_food_units: ModuleSeries::constant(20.0),
+                    },
+                    energy: EnergyModule::default(),
+                },
+            }],
+        };
+
+        let result = simulate(&scenario).expect("food shortfall should simulate");
+        let node = &result.periods[0].node_results[0];
+
+        assert_eq!(node.food_water_demand, 40.0);
+        assert_eq!(node.food_water_met, 10.0);
+        assert_eq!(node.unmet_food_water, 30.0);
+        assert_eq!(node.food_produced, 5.0);
+        assert_eq!(node.production_release, 0.0);
+    }
+
+    #[test]
+    fn empty_reservoir_has_no_evaporation_or_release() {
+        let scenario = Scenario {
+            settings: SimulationSettings {
+                horizon_days: Some(1),
+                ..SimulationSettings::default()
+            },
+            nodes: vec![NodeConfig {
+                id: "dry".to_string(),
+                reservoir: ReservoirConfig {
+                    initial_level: 0.0,
+                    max_capacity: 100.0,
+                },
+                max_production: 100.0,
+                catchment_inflow: ModuleSeries::constant(0.0),
+                connections: vec![],
+                actions: None,
+                modules: NodeModules {
+                    evaporation: EvaporationModule {
+                        rate: ModuleSeries::constant(10.0),
+                    },
+                    drink_water: DrinkWaterModule::default(),
+                    food_production: FoodProductionModule::default(),
+                    energy: EnergyModule::default(),
+                },
+            }],
+        };
+
+        let result = simulate(&scenario).expect("empty reservoir should simulate");
+        let node = &result.periods[0].node_results[0];
+
+        assert_eq!(node.evaporation, 0.0);
+        assert_eq!(node.production_release, 0.0);
+        assert_eq!(node.spill, 0.0);
+        assert_eq!(node.reservoir_level, 0.0);
+    }
+
+    #[test]
+    fn evaporation_is_capped_by_available_water() {
+        let scenario = Scenario {
+            settings: SimulationSettings {
+                horizon_days: Some(1),
+                ..SimulationSettings::default()
+            },
+            nodes: vec![NodeConfig {
+                id: "nearly-dry".to_string(),
+                reservoir: ReservoirConfig {
+                    initial_level: 2.0,
+                    max_capacity: 100.0,
+                },
+                max_production: 100.0,
+                catchment_inflow: ModuleSeries::constant(3.0),
+                connections: vec![],
+                actions: None,
+                modules: NodeModules {
+                    evaporation: EvaporationModule {
+                        rate: ModuleSeries::constant(10.0),
+                    },
+                    drink_water: DrinkWaterModule {
+                        daily_demand: ModuleSeries::constant(10.0),
+                    },
+                    food_production: FoodProductionModule::default(),
+                    energy: EnergyModule::default(),
+                },
+            }],
+        };
+
+        let result = simulate(&scenario).expect("available-water cap should simulate");
+        let node = &result.periods[0].node_results[0];
+
+        assert_eq!(node.evaporation, 5.0);
+        assert_eq!(node.drink_water_met, 0.0);
+        assert_eq!(node.unmet_drink_water, 10.0);
+        assert_eq!(node.production_release, 0.0);
+        assert_eq!(node.reservoir_level, 0.0);
     }
 
     #[test]

@@ -50,14 +50,21 @@ The withdrawal is satisfied before food production and before hydropower release
 
 ### Food Production
 
-Converts available reservoir water into food units. Production is capped by
-both the water available after drinking-water withdrawal and the module's
-maximum daily capacity. There is a minimum food production requirement, 
+Converts available reservoir water into food units and reports the water
+shortfall explicitly. Production is capped by both the water available after
+drinking-water withdrawal and the module's maximum daily capacity.
 
 ```
-food_produced  = min(water_available / water_coefficient, max_food_units × dt)
-water_consumed = food_produced × water_coefficient
+food_water_demand = max_food_units × dt × water_coefficient
+food_produced     = min(water_available / water_coefficient, max_food_units × dt)
+food_water_met    = food_produced × water_coefficient
+unmet_food_water  = food_water_demand − food_water_met
 ```
+
+For the canonical hydmod MVP, the data gatherer supplies agricultural
+`water_m3_day` values and sets `water_coefficient = 1.0`, so `food_produced` is
+a water-equivalent compatibility value while `food_water_*` fields are the
+primary agriculture accounting outputs.
 ### Energy Price
 
 Price received per m³ of water released for hydropower. Multiplied by
@@ -110,8 +117,10 @@ Steps are executed in this fixed priority order:
    `available -= drink_water_met`
 
 4. **Food-production water allocation**  
-   `food_produced, water_consumed = food_production.produce(available, dt)`  
-   `available -= water_consumed`
+   `food_water_demand = food_production.water_demand(t, dt)`  
+   `food_produced, food_water_met = food_production.produce(available, dt)`  
+   `unmet_food_water = food_water_demand − food_water_met`  
+   `available -= food_water_met`
 
 5. **Hydropower production release**  
    `production_release = min(action × max_production × dt, available)`  
@@ -139,6 +148,9 @@ After each timestep the node returns the following values:
 | `reservoir_level` | m³ | Reservoir volume at end of timestep |
 | `production_release` | m³ | Water released for hydropower |
 | `energy_value` | currency | `production_release × energy_price` |
+| `food_water_demand` | m³ | Agricultural water demand this timestep |
+| `food_water_met` | m³ | Agricultural water actually withdrawn this timestep |
+| `unmet_food_water` | m³ | Agricultural water shortfall = `food_water_demand − food_water_met` |
 | `evaporation` | m³ | Water lost to evaporation this timestep |
 | `food_produced` | food units | Food units produced this timestep |
 | `drink_water_met` | m³ | Actual drinking-water withdrawn (may be < demand) |
