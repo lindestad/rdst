@@ -15,7 +15,8 @@ import { RightRail } from "./components/RightRail";
 import { SummaryItem } from "./components/SummaryItem";
 import { PitchPage } from "./pages/PitchPage";
 import { TeamPage } from "./pages/TeamPage";
-import type { Lens, VisualizerDataset } from "./types";
+import { applyScenarioPreset, scenarioLabel } from "./lib/scenarios";
+import type { Lens, ScenarioPreset, VisualizerDataset } from "./types";
 
 type SitePage = "visualization" | "pitch" | "team";
 
@@ -32,14 +33,16 @@ function readPageFromHash(): SitePage {
 
 function App() {
   const [page, setPage] = useState<SitePage>(readPageFromHash);
-  const [dataset, setDataset] = useState<VisualizerDataset>(sampleDataset);
-  const [lens, setLens] = useState<Lens>("flow");
+  const [baseDataset, setBaseDataset] = useState<VisualizerDataset>(sampleDataset);
+  const [scenario, setScenario] = useState<ScenarioPreset>("normal");
+  const [lens, setLens] = useState<Lens>("stress");
   const [periodIndex, setPeriodIndex] = useState(0);
   const [selectedNodeId, setSelectedNodeId] = useState(sampleDataset.nodes[0].id);
   const [selectedEdgeId, setSelectedEdgeId] = useState(sampleDataset.edges[0].id);
   const [isPlaying, setIsPlaying] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  const dataset = useMemo(() => applyScenarioPreset(baseDataset, scenario), [baseDataset, scenario]);
   const { metadata, nodes, edges, periods } = dataset;
   const activePeriodIndex = Math.min(periodIndex, periods.length - 1);
 
@@ -89,7 +92,8 @@ function App() {
     if (!file) return;
     try {
       const next = await datasetFromFile(file);
-      setDataset(next);
+      setBaseDataset(next);
+      setScenario("normal");
       setLoadError(null);
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "Could not load simulator output.");
@@ -100,7 +104,8 @@ function App() {
     if (!files || files.length === 0) return;
     try {
       const next = await datasetFromCsvFiles(files);
-      setDataset(next);
+      setBaseDataset(next);
+      setScenario("normal");
       setLoadError(null);
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "Could not load NRSM CSV results.");
@@ -136,9 +141,9 @@ function App() {
         {page === "visualization" ? (
           <div className="scenario-strip" aria-label="Scenario summary">
             <SummaryItem label="Scenario" value={metadata.name} />
+            <SummaryItem label="What-if" value={scenarioLabel(scenario)} />
             <SummaryItem label="Source" value={metadata.source} />
             <SummaryItem label="Reporting" value={metadata.reporting} />
-            <SummaryItem label="Graph" value={`${nodes.length} nodes / ${edges.length} edges`} />
           </div>
         ) : (
           <div className="site-summary">
@@ -173,7 +178,8 @@ function App() {
             <button
               className="icon-button"
               onClick={() => {
-                setDataset(sampleDataset);
+                setBaseDataset(sampleDataset);
+                setScenario("normal");
                 setLoadError(null);
               }}
               title="Reset to sample run"
@@ -195,6 +201,8 @@ function App() {
           <LeftRail
             lens={lens}
             onLensChange={setLens}
+            scenario={scenario}
+            onScenarioChange={setScenario}
             period={period}
             periods={periods}
             activePeriodIndex={activePeriodIndex}

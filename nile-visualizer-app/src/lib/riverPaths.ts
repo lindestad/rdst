@@ -121,7 +121,7 @@ export const impactZones: ImpactZone[] = [
     id: "nile-delta",
     region: "Egypt",
     label: "Nile Delta agriculture",
-    trigger: { kind: "food", nodeIds: ["nile_delta", "delta", "egypt_ag"] },
+    trigger: { kind: "food", nodeIds: ["nile_delta", "delta", "egypt_ag", "cairo"] },
     geo: [
       [29.85, 30.70],
       [30.10, 31.30],
@@ -140,7 +140,7 @@ export const impactZones: ImpactZone[] = [
     id: "egypt-valley",
     region: "Egypt",
     label: "Aswan–Cairo valley",
-    trigger: { kind: "food", nodeIds: ["aswan", "egypt_ag"] },
+    trigger: { kind: "food", nodeIds: ["aswan", "aswand", "egypt_ag", "cairo"] },
     geo: [
       [32.55, 24.05],
       [32.95, 24.20],
@@ -162,7 +162,7 @@ export const impactZones: ImpactZone[] = [
     id: "lake-nasser",
     region: "Egypt",
     label: "Lake Nasser reservoir",
-    trigger: { kind: "storage", nodeIds: ["aswan"] },
+    trigger: { kind: "storage", nodeIds: ["aswan", "aswand"] },
     geo: [
       [31.95, 22.05],
       [32.45, 22.05],
@@ -179,7 +179,7 @@ export const impactZones: ImpactZone[] = [
     id: "high-aswan-power",
     region: "Egypt",
     label: "Aswan hydropower",
-    trigger: { kind: "power", nodeIds: ["aswan"] },
+    trigger: { kind: "power", nodeIds: ["aswan", "aswand"] },
     geo: [
       [32.55, 23.65],
       [33.15, 23.70],
@@ -191,7 +191,7 @@ export const impactZones: ImpactZone[] = [
     id: "gezira",
     region: "Sudan",
     label: "Gezira irrigation",
-    trigger: { kind: "food", nodeIds: ["gezira_irr", "khartoum"] },
+    trigger: { kind: "food", nodeIds: ["gezira_irr", "khartoum", "karthoum", "singa"] },
     geo: [
       [32.35, 13.40],
       [33.65, 13.40],
@@ -206,7 +206,7 @@ export const impactZones: ImpactZone[] = [
     id: "khartoum-muni",
     region: "Sudan",
     label: "Khartoum drinking water",
-    trigger: { kind: "drinking", nodeIds: ["khartoum", "khartoum_muni"] },
+    trigger: { kind: "drinking", nodeIds: ["khartoum", "khartoum_muni", "karthoum"] },
     geo: [
       [32.25, 15.40],
       [32.85, 15.40],
@@ -232,7 +232,7 @@ export const impactZones: ImpactZone[] = [
     id: "sudd",
     region: "South Sudan",
     label: "Sudd wetlands",
-    trigger: { kind: "flow", nodeIds: ["sudd", "malakal", "white_nile_to_sudd"] },
+    trigger: { kind: "flow", nodeIds: ["sudd", "malakal", "white_nile_to_sudd", "southwest"] },
     geo: [
       [29.50, 6.65],
       [30.40, 6.30],
@@ -249,7 +249,7 @@ export const impactZones: ImpactZone[] = [
     id: "tana-basin",
     region: "Ethiopia",
     label: "Lake Tana basin",
-    trigger: { kind: "storage", nodeIds: ["lake_tana_outlet", "blue_nile_headwaters"] },
+    trigger: { kind: "flow", nodeIds: ["lake_tana_outlet", "blue_nile_headwaters", "tana"] },
     geo: [
       [36.85, 11.40],
       [37.35, 11.10],
@@ -277,7 +277,7 @@ export const impactZones: ImpactZone[] = [
     id: "victoria-basin",
     region: "Uganda",
     label: "Victoria headwaters",
-    trigger: { kind: "flow", nodeIds: ["white_nile_headwaters", "lake_victoria_outlet"] },
+    trigger: { kind: "flow", nodeIds: ["white_nile_headwaters", "lake_victoria_outlet", "victoria"] },
     geo: [
       [31.85, -1.05],
       [33.05, -1.05],

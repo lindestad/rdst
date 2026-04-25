@@ -1,5 +1,5 @@
-import { edges as fallbackEdges, nodes as fallbackNodes } from "../data/nile";
-import { pathBetweenNodes, roundedPoint } from "../lib/geo";
+import { edges as fallbackEdges, nodes as fallbackNodes } from "../data/nileGraph";
+import { pathBetweenNodes } from "../lib/geo";
 import type {
   Delivery,
   EdgePeriodResult,
@@ -83,50 +83,6 @@ type RawVisualizerFile = {
 
 const terminalKinds = new Set(["sink", "delta", "terminal"]);
 
-const nileMvpNodes: NileNode[] = [
-  nodeFromGeo("lake_victoria_outlet", "Lake Victoria Outlet", "Victoria", "river", 33.19, 0.42, "UG"),
-  nodeFromGeo("white_nile_to_sudd", "White Nile to Sudd", "White Nile", "river", 31.5, 5.0, "SS"),
-  nodeFromGeo("sudd", "Sudd Wetland", "Sudd", "river", 30.5, 7.5, "SS"),
-  nodeFromGeo("malakal", "Malakal", "Malakal", "river", 31.65, 9.53, "SS"),
-  nodeFromGeo("lake_tana_outlet", "Lake Tana Outlet", "Tana", "river", 37.38, 11.6, "ET"),
-  nodeFromGeo("blue_nile_to_gerd", "Blue Nile to GERD", "Blue Nile", "river", 35.1, 11.0, "ET"),
-  nodeFromGeo("gerd", "GERD", "GERD", "reservoir", 35.09, 11.22, "ET", 74000, 37000),
-  nodeFromGeo("blue_nile_to_khartoum", "Blue Nile to Khartoum", "Blue Nile", "river", 34.0, 13.5, "SD"),
-  nodeFromGeo("gezira_irr", "Gezira Irrigation", "Gezira", "river", 33.0, 14.4, "SD"),
-  nodeFromGeo("khartoum", "Khartoum Confluence", "Khartoum", "river", 32.53, 15.6, "SD"),
-  nodeFromGeo("khartoum_muni", "Khartoum Municipal", "Khartoum Muni", "river", 32.53, 15.58, "SD"),
-  nodeFromGeo("atbara_source", "Atbara Headwaters", "Atbara", "river", 37.0, 13.5, "ET"),
-  nodeFromGeo("atbara_confluence", "Atbara Confluence", "Confluence", "river", 33.97, 17.67, "SD"),
-  nodeFromGeo("merowe", "Merowe Dam", "Merowe", "reservoir", 31.93, 18.68, "SD", 12500, 6250),
-  nodeFromGeo("main_nile_to_aswan", "Main Nile to Aswan", "Main Nile", "river", 32.0, 22.0, "EG"),
-  nodeFromGeo("aswan", "High Aswan", "Aswan", "reservoir", 32.88, 23.97, "EG", 162000, 90000),
-  nodeFromGeo("egypt_ag", "Egypt Agriculture", "Egypt Ag", "river", 31.0, 30.0, "EG"),
-  nodeFromGeo("cairo_muni", "Cairo Municipal", "Cairo", "river", 31.25, 30.05, "EG"),
-  nodeFromGeo("delta", "Nile Delta", "Delta", "river", 31.5, 31.5, "EG"),
-];
-
-const nileMvpEdges = [
-  edge("lake_victoria_outlet__white_nile_to_sudd", "lake_victoria_outlet", "white_nile_to_sudd", "Victoria to White Nile"),
-  edge("white_nile_to_sudd__sudd", "white_nile_to_sudd", "sudd", "White Nile to Sudd"),
-  edge("sudd__malakal", "sudd", "malakal", "Sudd to Malakal"),
-  edge("malakal__khartoum", "malakal", "khartoum", "White Nile to Khartoum"),
-  edge("lake_tana_outlet__blue_nile_to_gerd", "lake_tana_outlet", "blue_nile_to_gerd", "Tana to Blue Nile"),
-  edge("blue_nile_to_gerd__gerd", "blue_nile_to_gerd", "gerd", "Blue Nile to GERD"),
-  edge("gerd__blue_nile_to_khartoum", "gerd", "blue_nile_to_khartoum", "GERD to Blue Nile"),
-  edge("blue_nile_to_khartoum__gezira_irr", "blue_nile_to_khartoum", "gezira_irr", "Blue Nile to Gezira"),
-  edge("gezira_irr__khartoum", "gezira_irr", "khartoum", "Gezira to Khartoum"),
-  edge("khartoum__khartoum_muni", "khartoum", "khartoum_muni", "Khartoum municipal"),
-  edge("khartoum__atbara_confluence", "khartoum", "atbara_confluence", "Khartoum to Atbara"),
-  edge("khartoum_muni__atbara_confluence", "khartoum_muni", "atbara_confluence", "Khartoum to Atbara"),
-  edge("atbara_source__atbara_confluence", "atbara_source", "atbara_confluence", "Atbara tributary"),
-  edge("atbara_confluence__merowe", "atbara_confluence", "merowe", "Atbara to Merowe"),
-  edge("merowe__main_nile_to_aswan", "merowe", "main_nile_to_aswan", "Merowe to Main Nile"),
-  edge("main_nile_to_aswan__aswan", "main_nile_to_aswan", "aswan", "Main Nile to Aswan"),
-  edge("aswan__egypt_ag", "aswan", "egypt_ag", "Aswan to farms"),
-  edge("egypt_ag__cairo_muni", "egypt_ag", "cairo_muni", "Egypt farms to Cairo"),
-  edge("cairo_muni__delta", "cairo_muni", "delta", "Cairo to Delta"),
-];
-
 export async function datasetFromFile(file: File): Promise<VisualizerDataset> {
   const text = await file.text();
   const parsed = JSON.parse(text) as unknown;
@@ -147,9 +103,30 @@ export async function datasetFromCsvFiles(files: FileList | File[]): Promise<Vis
     rowsByNode.set(nodeId, rows);
   }
 
+  return datasetFromCsvRows(selectNileMvpRows(rowsByNode), {
+    name: "NRSM saved results",
+    source: "results-dir CSV",
+    reporting: "saved CSV",
+  });
+}
+
+export function datasetFromCsvTextByNode(
+  csvByNode: Record<string, string>,
+  metadata: Partial<RunMetadata> = {},
+): VisualizerDataset {
+  const rowsByNode = new Map(
+    Object.entries(csvByNode).map(([nodeId, content]) => [nodeId, parseCsv(content) as ResultCsvRow[]]),
+  );
+  return datasetFromCsvRows(rowsByNode, metadata);
+}
+
+function datasetFromCsvRows(
+  rowsByNode: Map<string, ResultCsvRow[]>,
+  metadata: Partial<RunMetadata> = {},
+): VisualizerDataset {
   const resultNodes = Array.from(rowsByNode.keys());
   const nodes = normalizeNodes(
-    nileMvpNodes
+    fallbackNodes
       .filter((candidate) => resultNodes.includes(candidate.id))
       .map((candidate) => ({ ...candidate })),
     { periods: [] },
@@ -169,7 +146,7 @@ export async function datasetFromCsvFiles(files: FileList | File[]): Promise<Vis
   }
 
   const edges = normalizeEdges(
-    nileMvpEdges.filter((candidate) => known.has(candidate.from) && known.has(candidate.to)),
+    fallbackEdges.filter((candidate) => known.has(candidate.from) && known.has(candidate.to)),
     nodes,
   );
   const periodIndexes = Array.from(
@@ -181,16 +158,25 @@ export async function datasetFromCsvFiles(files: FileList | File[]): Promise<Vis
 
   return {
     metadata: {
-      name: "NRSM saved results",
-      source: "results-dir CSV",
-      horizon: `${periods.length} reporting periods`,
-      reporting: "saved CSV",
-      units: "model units per reporting period",
+      name: metadata.name ?? "NRSM saved results",
+      source: metadata.source ?? "results-dir CSV",
+      horizon: metadata.horizon ?? `${periods.length} reporting periods`,
+      reporting: metadata.reporting ?? "saved CSV",
+      units: metadata.units ?? "model units per reporting period",
     },
     nodes,
     edges,
     periods,
   };
+}
+
+function selectNileMvpRows(rowsByNode: Map<string, ResultCsvRow[]>) {
+  const fallbackIds = new Set(fallbackNodes.map((node) => node.id));
+  const matchingRows = new Map(
+    Array.from(rowsByNode.entries()).filter(([nodeId]) => fallbackIds.has(nodeId)),
+  );
+
+  return matchingRows.size >= 6 && matchingRows.size < rowsByNode.size ? matchingRows : rowsByNode;
 }
 
 export function datasetFromUnknown(input: unknown, source = "Uploaded file"): VisualizerDataset {
@@ -576,64 +562,6 @@ function splitCsvLine(line: string) {
 
 function sum<T>(items: T[], selector: (item: T) => number) {
   return items.reduce((total, item) => total + selector(item), 0);
-}
-
-function node(
-  id: string,
-  name: string,
-  shortNameValue: string,
-  kind: NileNode["kind"],
-  x: number,
-  y: number,
-  country: string,
-  capacity?: number,
-  initialStorage?: number,
-): NileNode {
-  return {
-    id,
-    name,
-    shortName: shortNameValue,
-    kind,
-    x,
-    y,
-    country,
-    capacity,
-    initialStorage,
-  };
-}
-
-function nodeFromGeo(
-  id: string,
-  name: string,
-  shortNameValue: string,
-  kind: NileNode["kind"],
-  longitude: number,
-  latitude: number,
-  country: string,
-  capacity?: number,
-  initialStorage?: number,
-): NileNode {
-  const point = roundedPoint(longitude, latitude);
-  return node(id, name, shortNameValue, kind, point.x, point.y, country, capacity, initialStorage);
-}
-
-function edge(id: string, from: string, to: string, label: string): RawGraphEdge {
-  const fromNode = nileMvpNodes.find((candidate) => candidate.id === from);
-  const toNode = nileMvpNodes.find((candidate) => candidate.id === to);
-  return {
-    id,
-    from,
-    to,
-    label,
-    lossFraction: 0,
-    path: pathBetween(fromNode, toNode),
-    gradient: {
-      x1: fromNode?.x ?? 0,
-      y1: fromNode?.y ?? 0,
-      x2: toNode?.x ?? 0,
-      y2: toNode?.y ?? 0,
-    },
-  };
 }
 
 function looksLikeVisualizerDataset(value: RawVisualizerFile) {

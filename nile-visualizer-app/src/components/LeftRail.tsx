@@ -1,29 +1,38 @@
 import {
+  CloudRain,
   Droplets,
-  GlassWater,
+  Gauge,
   Pause,
   Play,
-  TrendingUp,
+  ShieldAlert,
+  Sun,
   Waves,
-  Wheat,
-  Zap,
   type LucideIcon,
+  Zap,
 } from "lucide-react";
 import { format, sumNodes } from "../lib/format";
-import type { Lens, PeriodResult } from "../types";
+import { scenarioPresets } from "../lib/scenarios";
+import type { Lens, PeriodResult, ScenarioPreset } from "../types";
 
 const lensOptions: Array<{ id: Lens; label: string; Icon: LucideIcon }> = [
-  { id: "flow", label: "Flow", Icon: Waves },
-  { id: "loss", label: "Loss", Icon: Droplets },
-  { id: "delta", label: "Change", Icon: TrendingUp },
-  { id: "food", label: "Food", Icon: Wheat },
-  { id: "power", label: "Power", Icon: Zap },
-  { id: "drinking", label: "Drinking", Icon: GlassWater },
+  { id: "stress", label: "Shortage", Icon: ShieldAlert },
+  { id: "water", label: "Runoff", Icon: Waves },
+  { id: "storage", label: "Storage", Icon: Droplets },
+  { id: "production", label: "Output", Icon: Zap },
 ];
+
+const scenarioIcons: Record<ScenarioPreset, LucideIcon> = {
+  normal: Gauge,
+  drought: Sun,
+  extreme_rain: CloudRain,
+  upstream_holdback: Droplets,
+};
 
 type LeftRailProps = {
   lens: Lens;
   onLensChange: (lens: Lens) => void;
+  scenario: ScenarioPreset;
+  onScenarioChange: (scenario: ScenarioPreset) => void;
   period: PeriodResult;
   periods: PeriodResult[];
   activePeriodIndex: number;
@@ -35,6 +44,8 @@ type LeftRailProps = {
 export function LeftRail({
   lens,
   onLensChange,
+  scenario,
+  onScenarioChange,
   period,
   periods,
   activePeriodIndex,
@@ -44,6 +55,30 @@ export function LeftRail({
 }: LeftRailProps) {
   return (
     <aside className="left-rail" aria-label="Simulation controls">
+      <div className="control-group">
+        <p className="control-label">Scenario preset</p>
+        <div className="scenario-grid">
+          {scenarioPresets.map(({ id, label, summary }) => {
+            const Icon = scenarioIcons[id];
+            return (
+              <button
+                className={`scenario-button ${scenario === id ? "active" : ""}`}
+                key={id}
+                onClick={() => onScenarioChange(id)}
+                title={summary}
+                type="button"
+              >
+                <Icon size={17} strokeWidth={2.1} />
+                <span>{label}</span>
+              </button>
+            );
+          })}
+        </div>
+        <p className="scenario-help">
+          What-if presets are display transforms until simulator-native scenario runs are available.
+        </p>
+      </div>
+
       <div className="control-group">
         <p className="control-label">Lens</p>
         <div className="tool-grid">

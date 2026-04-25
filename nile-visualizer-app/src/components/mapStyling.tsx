@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { format, signed } from "../lib/format";
+import { format } from "../lib/format";
 import type {
   EdgePeriodResult,
   Lens,
@@ -16,53 +16,34 @@ export function edgeStops(
   periods: PeriodResult[],
 ): ReactNode {
   const baseline = periods[0].edgeResults.find((item) => item.edgeId === edge.id);
-  const delta = result && baseline ? (result.totalReceivedFlow - baseline.totalReceivedFlow) / baseline.totalReceivedFlow : 0;
-  const deltaColor = delta >= 0 ? "#20a66a" : "#d4483c";
-  const lossOffset = `${Math.max(58, 92 - edge.lossFraction * 900)}%`;
+  const flowRatio = result && baseline ? result.totalReceivedFlow / Math.max(1, baseline.totalReceivedFlow) : 1;
+  const stressColor = flowRatio < 0.65 ? "#d4483c" : flowRatio < 0.9 ? "#d89b24" : "#20a66a";
 
-  if (lens === "loss") {
-    return (
-      <>
-        <stop offset="0%" stopColor="#1e96c8" />
-        <stop offset={lossOffset} stopColor="#1e96c8" />
-        <stop offset="100%" stopColor="#d4483c" />
-      </>
-    );
-  }
-
-  if (lens === "delta") {
+  if (lens === "stress") {
     return (
       <>
         <stop offset="0%" stopColor="#55606e" />
-        <stop offset="52%" stopColor="#55606e" />
-        <stop offset="100%" stopColor={deltaColor} />
+        <stop offset="62%" stopColor="#55606e" />
+        <stop offset="100%" stopColor={stressColor} />
       </>
     );
   }
 
-  if (lens === "food") {
+  if (lens === "storage") {
+    return (
+      <>
+        <stop offset="0%" stopColor="#5f6269" />
+        <stop offset="100%" stopColor="#8c7a6a" />
+      </>
+    );
+  }
+
+  if (lens === "production") {
     return (
       <>
         <stop offset="0%" stopColor="#2aa579" />
-        <stop offset="100%" stopColor="#79bd52" />
-      </>
-    );
-  }
-
-  if (lens === "power") {
-    return (
-      <>
-        <stop offset="0%" stopColor="#e2b338" />
+        <stop offset="55%" stopColor="#e2b338" />
         <stop offset="100%" stopColor="#f17f3d" />
-      </>
-    );
-  }
-
-  if (lens === "drinking") {
-    return (
-      <>
-        <stop offset="0%" stopColor="#4fb5db" />
-        <stop offset="100%" stopColor="#e9f8ff" />
       </>
     );
   }
@@ -84,14 +65,10 @@ export function edgeLabel(
 ) {
   if (!result) return "";
 
-  if (lens === "loss") {
-    return `${format(result.totalLostFlow)} lost`;
-  }
-
-  if (lens === "delta") {
+  if (lens === "stress") {
     const baseline = periods[0].edgeResults.find((item) => item.edgeId === edge.id);
-    const delta = baseline ? result.totalReceivedFlow - baseline.totalReceivedFlow : 0;
-    return signed(delta);
+    const ratio = baseline ? result.totalReceivedFlow / Math.max(1, baseline.totalReceivedFlow) : 1;
+    return `${Math.round(ratio * 100)}% of baseline`;
   }
 
   return `${format(result.totalReceivedFlow)} received`;
@@ -115,16 +92,43 @@ export function nodeFill(
 ) {
   if (!result) return "#39414c";
 
-  if (lens === "food" && result.irrigation) return "#2f8f5b";
-  if (lens === "power" && result.hydropower) return "#b17621";
-  if (lens === "drinking" && result.drinkingWater) return "#3a8fab";
-  if (lens === "loss") return node.kind === "reservoir" ? "#73513d" : "#5f6269";
+  if (lens === "stress") {
+    const ratio = worstDeliveryRatio(result);
+    if (ratio < 0.65) return "#d4483c";
+    if (ratio < 0.9) return "#d89b24";
+    return "#2f8f5b";
+  }
 
-  if (lens === "delta") {
-    const baseline = periods[0].nodeResults.find((item) => item.nodeId === node.id);
-    const delta = baseline ? result.totalDownstreamOutflow - baseline.totalDownstreamOutflow : 0;
-    return delta >= 0 ? "#2f8f5b" : "#a9423a";
+  if (lens === "storage") {
+    if (node.kind !== "reservoir" || !node.capacity) return "#5f6269";
+    const ratio = result.endingStorage / node.capacity;
+    if (ratio < 0.18) return "#d4483c";
+    if (ratio < 0.4) return "#d89b24";
+    return "#38516d";
+  }
+
+  if (lens === "production") {
+    if (result.hydropower) return "#b17621";
+    if (result.irrigation) return "#2f8f5b";
+    if (result.drinkingWater) return "#3a8fab";
+    return "#5f6269";
   }
 
   return node.kind === "reservoir" ? "#38516d" : "#3f6472";
+}
+
+function worstDeliveryRatio(result: NodePeriodResult) {
+  const ratios: number[] = [];
+  if (result.drinkingWater && result.drinkingWater.totalTarget > 0) {
+    ratios.push(result.drinkingWater.actualDelivery / result.drinkingWater.totalTarget);
+  }
+  if (result.irrigation && result.irrigation.water.totalTarget > 0) {
+    ratios.push(result.irrigation.water.actualDelivery / result.irrigation.water.totalTarget);
+  }
+  if (result.hydropower && result.hydropower.totalTargetEnergy > 0) {
+    ratios.push(result.hydropower.energyGenerated / result.hydropower.totalTargetEnergy);
+  }
+  const baseline = result.totalIncomingFlow > 0 ? result.totalDownstreamOutflow / Math.max(1, result.totalIncomingFlow) : 1;
+  ratios.push(Math.min(1, baseline));
+  return Math.min(1, ...ratios);
 }
