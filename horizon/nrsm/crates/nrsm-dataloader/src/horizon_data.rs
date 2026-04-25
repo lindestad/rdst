@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
 };
@@ -10,6 +10,7 @@ pub struct AssembleOptions {
     pub output_dir: PathBuf,
     pub start_date: String,
     pub end_date: String,
+    pub node_ids: Option<Vec<String>>,
 }
 
 impl Default for AssembleOptions {
@@ -19,6 +20,7 @@ impl Default for AssembleOptions {
             output_dir: PathBuf::from("data/generated"),
             start_date: "2005-01-01".to_string(),
             end_date: "2005-01-31".to_string(),
+            node_ids: None,
         }
     }
 }
@@ -51,8 +53,14 @@ struct ModuleRows {
 pub fn assemble_horizon_data_snapshot(
     options: &AssembleOptions,
 ) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> {
-    let nodes = read_nodes(&options.input_dir.join("topology").join("nodes.csv"))?;
-    let edges = read_edges(&options.input_dir.join("topology").join("edges.csv"))?;
+    let nodes = filter_nodes(
+        read_nodes(&options.input_dir.join("topology").join("nodes.csv"))?,
+        options.node_ids.as_deref(),
+    )?;
+    let edges = filter_edges(
+        read_edges(&options.input_dir.join("topology").join("edges.csv"))?,
+        &nodes,
+    );
     let dates = date_range(&options.start_date, &options.end_date)?;
     let modules_dir = options.output_dir.join("modules");
     let staging_dir = options.output_dir.join("staging");
@@ -173,6 +181,56 @@ fn read_edges(path: &Path) -> Result<Vec<TopologyEdge>, Box<dyn std::error::Erro
         });
     }
     Ok(edges)
+}
+
+fn filter_nodes(
+    nodes: Vec<TopologyNode>,
+    requested_node_ids: Option<&[String]>,
+) -> Result<Vec<TopologyNode>, Box<dyn std::error::Error>> {
+    let Some(requested_node_ids) = requested_node_ids else {
+        return Ok(nodes);
+    };
+
+    let nodes_by_id = nodes
+        .iter()
+        .map(|node| (node.node_id.as_str(), node))
+        .collect::<HashMap<_, _>>();
+    let missing = requested_node_ids
+        .iter()
+        .map(String::as_str)
+        .filter(|node_id| !nodes_by_id.contains_key(node_id))
+        .collect::<Vec<_>>();
+    if !missing.is_empty() {
+        return Err(format!(
+            "period requested unknown node_id(s): {}",
+            missing.join(", ")
+        )
+        .into());
+    }
+
+    Ok(requested_node_ids
+        .iter()
+        .map(|node_id| {
+            (*nodes_by_id
+                .get(node_id.as_str())
+                .expect("requested node ids were validated"))
+            .clone()
+        })
+        .collect())
+}
+
+fn filter_edges(edges: Vec<TopologyEdge>, nodes: &[TopologyNode]) -> Vec<TopologyEdge> {
+    let node_ids = nodes
+        .iter()
+        .map(|node| node.node_id.as_str())
+        .collect::<HashSet<_>>();
+    edges
+        .into_iter()
+        .filter(|edge| {
+            node_ids.contains(edge.from_node_id.as_str())
+                && node_ids.contains(edge.to_node_id.as_str())
+        })
+        .collect()
 }
 
 fn outgoing_edges_by_node(edges: &[TopologyEdge]) -> HashMap<String, Vec<TopologyEdge>> {
@@ -866,6 +924,7 @@ mod tests {
             output_dir: output.clone(),
             start_date: "2005-01-01".to_string(),
             end_date: "2005-01-02".to_string(),
+            node_ids: None,
         })
         .expect("snapshot should assemble");
 
@@ -912,6 +971,49 @@ mod tests {
         assert_eq!(result.periods.len(), 2);
         assert!(result.summary.total_inflow > 0.0);
         assert!(result.summary.total_food_produced > 0.0);
+
+        fs::remove_dir_all(&dir).expect("temporary directory should be removed");
+    }
+
+    #[test]
+    fn assembles_requested_node_subset_from_topology() {
+        let unique = format!(
+            "nrsm-horizon-data-subset-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system time should be after epoch")
+                .as_nanos()
+        );
+        let dir = std::env::temp_dir().join(unique);
+        let input = dir.join("horizon_data");
+        write_fixture_data(&input);
+        let output = dir.join("generated");
+
+        assemble_horizon_data_snapshot(&AssembleOptions {
+            input_dir: input,
+            output_dir: output.clone(),
+            start_date: "2005-01-01".to_string(),
+            end_date: "2005-01-02".to_string(),
+            node_ids: Some(vec!["res".to_string(), "src".to_string()]),
+        })
+        .expect("subset snapshot should assemble");
+
+        let config = fs::read_to_string(output.join("config.yaml"))
+            .expect("generated config should be readable");
+        assert!(config.contains("id: src"));
+        assert!(config.contains("id: res"));
+        assert!(!config.contains("id: gezira_irr"));
+        assert!(config.contains("node_id: res"));
+        assert!(
+            config.find("id: res").expect("res should be in config")
+                < config.find("id: src").expect("src should be in config")
+        );
+        assert!(
+            !output
+                .join("modules")
+                .join("gezira_irr.drink_water.csv")
+                .exists()
+        );
 
         fs::remove_dir_all(&dir).expect("temporary directory should be removed");
     }

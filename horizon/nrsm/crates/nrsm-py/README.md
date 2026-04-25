@@ -34,8 +34,8 @@ Python module for `import nrsm_py`.
 
 Use `from_period` when you want Python to run a named scenario window with the
 real CSV-backed data path. The period file only supplies
-`settings.start_date` and `settings.end_date`; node inputs are assembled from
-`horizon/data` before the simulator is prepared.
+`settings.start_date`, `settings.end_date`, and optional `settings.node_ids`;
+node inputs are assembled from `horizon/data` before the simulator is prepared.
 
 From `horizon/nrsm`:
 
@@ -91,10 +91,10 @@ summary = json.loads(sim.run_actions_summary_json(actions))
 config file directory, validates the node graph, and compiles the DAG once.
 Use it for an already assembled `data/generated/.../config.yaml`.
 
-If you call `from_yaml` with a catalog file such as
-`scenarios/nile-mvp/past/1963-september-30d.yaml`, Python runs that hand-written
-demo scenario exactly as written. It does not replace the node inputs with
-`horizon/data` CSVs. Use `from_period` for that.
+Do not call `from_yaml` with a catalog period file such as
+`scenarios/nile-mvp/past/1963-september-30d.yaml`; those files intentionally do
+not contain simulator nodes. Use `from_period` so Python assembles the real
+CSV-backed config first.
 
 ## Action Matrix
 
