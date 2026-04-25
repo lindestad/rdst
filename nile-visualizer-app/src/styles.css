@@ -770,13 +770,15 @@ h3 {
 }
 
 .basin-frame {
-  fill: #d8e0e2;
-  stroke: rgba(31, 39, 50, 0.18);
-  stroke-width: 1.5;
+  fill: #e8eef0;
+  stroke: rgba(31, 39, 50, 0.14);
+  stroke-width: 1;
 }
 
 .map-tile {
   image-rendering: auto;
+  filter: saturate(0.55) contrast(0.85) brightness(1.06) sepia(0.05);
+  opacity: 0.85;
 }
 
 .region-risk {
@@ -794,6 +796,43 @@ h3 {
 
 .region-risk.critical {
   stroke-dasharray: 6 5;
+}
+
+.impact-zone-wash {
+  pointer-events: none;
+}
+
+.impact-zone-scribble {
+  pointer-events: none;
+  animation: impact-pulse 3.6s ease-in-out infinite;
+}
+
+.impact-zone.critical .impact-zone-wash {
+  fill: rgba(212, 72, 60, 0.42);
+  stroke: none;
+}
+
+.impact-zone.warning .impact-zone-wash {
+  fill: rgba(216, 155, 36, 0.32);
+  stroke: none;
+}
+
+.impact-zone.critical .impact-zone-scribble {
+  opacity: 0.95;
+}
+
+.impact-zone.warning .impact-zone-scribble {
+  opacity: 0.85;
+}
+
+@keyframes impact-pulse {
+  0%, 100% {
+    opacity: 0.95;
+  }
+
+  50% {
+    opacity: 0.7;
+  }
 }
 
 .map-attribution {
@@ -942,7 +981,7 @@ h3 {
 }
 
 .edge-shadow {
-  stroke: rgba(31, 39, 50, 0.08);
+  stroke: rgba(31, 39, 50, 0.05);
   stroke-linecap: round;
 }
 
@@ -961,6 +1000,17 @@ h3 {
 .edge-line.selected {
   filter: drop-shadow(0 3px 8px rgba(31, 39, 50, 0.22));
   opacity: 1;
+}
+
+.edge-flow-tracer {
+  fill: none;
+  pointer-events: none;
+  stroke: rgba(255, 255, 255, 0.85);
+  stroke-linecap: round;
+  stroke-dasharray: 4 18;
+  opacity: 0.75;
+  animation: flow-drift 3.2s linear infinite;
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.4));
 }
 
 .edge-loss-label {
@@ -984,52 +1034,62 @@ h3 {
   cursor: pointer;
 }
 
-.node-pulse {
-  display: none;
-}
-
 .node-body {
-  stroke: #fff;
-  stroke-width: 2px;
+  stroke: #1f2732;
+  stroke-width: 1.4px;
   transition:
     fill 180ms ease,
-    r 180ms ease,
     filter 180ms ease;
 }
 
-.node-ring {
+.node-halo {
+  fill: rgba(255, 255, 255, 0.85);
+  stroke: rgba(31, 39, 50, 0.18);
+  stroke-width: 1px;
+}
+
+.node-glyph {
   fill: none;
-  stroke: rgba(31, 39, 50, 0.35);
-  stroke-width: 1.25px;
-  transition: stroke 180ms ease;
+  stroke: rgba(255, 255, 255, 0.92);
+  stroke-width: 1.1px;
+  stroke-linecap: round;
+  pointer-events: none;
 }
 
 .node:hover .node-body,
 .node.selected .node-body {
-  filter: drop-shadow(0 5px 11px rgba(31, 39, 50, 0.28));
-}
-
-.node.selected .node-ring {
   stroke: #1f2732;
-  stroke-width: 2.5px;
+  stroke-width: 2px;
+  filter: drop-shadow(0 4px 10px rgba(31, 39, 50, 0.3));
 }
 
-.node-label,
-.node-sublabel {
-  text-anchor: middle;
-  paint-order: stroke;
-  stroke: rgba(248, 249, 250, 0.92);
-  stroke-width: 5px;
-  fill: #1f2732;
+.node.selected .node-halo {
+  stroke: #1f2732;
+  stroke-width: 1.6px;
+  fill: rgba(255, 255, 255, 0.95);
 }
 
 .node-label {
-  font-size: 11px;
-  font-weight: 850;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: rgba(248, 249, 250, 0.94);
+  stroke-width: 4px;
+  fill: #1f2732;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.15px;
 }
 
-.node-sublabel {
-  display: none;
+.country-label {
+  text-anchor: middle;
+  fill: rgba(31, 39, 50, 0.42);
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: 5px;
+  paint-order: stroke;
+  stroke: rgba(248, 249, 250, 0.55);
+  stroke-width: 3px;
+  pointer-events: none;
 }
 
 .inspector-heading {

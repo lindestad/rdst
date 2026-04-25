@@ -25,7 +25,8 @@ import {
 } from "lucide-react";
 import { datasetFromCsvFiles, datasetFromFile } from "./adapters/nrsm";
 import { sampleDataset } from "./data/nile";
-import { osmTiles, roundedPoint } from "./lib/geo";
+import { osmTiles, roundedPoint, smoothPolygonFromGeo } from "./lib/geo";
+import { impactZones, type ImpactZone } from "./lib/riverPaths";
 import type {
   EdgePeriodResult,
   Lens,
@@ -527,9 +528,8 @@ function App() {
               <span className="legend-item flow">River flow</span>
               <span className="legend-item warning-swatch">Allocation strain</span>
               <span className="legend-item critical-swatch">Severe shortage</span>
-              <span className="legend-item storage-swatch">Reservoir below safe storage</span>
               <span className="risk-note">
-                Risk badges mark where current flows fail to meet regional water, food, or power needs.
+                Red areas show where current flows fail to meet regional water, food, or power needs.
               </span>
             </div>
           </div>
@@ -539,17 +539,20 @@ function App() {
               <clipPath id="basin-clip">
                 <rect x="70" y="42" width="900" height="626" rx="8" />
               </clipPath>
-              <pattern id="scribble-critical" width="64" height="64" patternUnits="userSpaceOnUse">
-                <path d="M2 12 Q 14 4 26 12 T 50 14 T 66 8" fill="none" stroke="#d4483c" strokeWidth="2.4" strokeLinecap="round" opacity="0.78" />
-                <path d="M-2 28 Q 16 20 28 28 T 52 30 T 68 24" fill="none" stroke="#b8392e" strokeWidth="2.1" strokeLinecap="round" opacity="0.66" />
-                <path d="M0 44 Q 18 36 30 44 T 54 46 T 68 40" fill="none" stroke="#d4483c" strokeWidth="2.6" strokeLinecap="round" opacity="0.7" />
-                <path d="M-2 60 Q 14 52 26 60 T 50 62 T 66 56" fill="none" stroke="#a3322a" strokeWidth="1.9" strokeLinecap="round" opacity="0.6" />
-                <path d="M10 0 L 14 18 L 6 36 L 14 54 L 6 64" fill="none" stroke="#a3322a" strokeWidth="1.5" strokeLinecap="round" opacity="0.45" />
-                <path d="M50 0 L 42 18 L 48 36 L 40 54 L 48 64" fill="none" stroke="#a3322a" strokeWidth="1.5" strokeLinecap="round" opacity="0.45" />
+              <pattern id="scribble-critical" width="38" height="38" patternUnits="userSpaceOnUse">
+                <path d="M-6 6 Q 4 -2 13 7 T 28 10 T 44 4" fill="none" stroke="#c8362a" strokeWidth="1.7" strokeLinecap="round" opacity="0.95" />
+                <path d="M-6 14 Q 6 6 16 15 T 30 18 T 46 12" fill="none" stroke="#a52d22" strokeWidth="1.6" strokeLinecap="round" opacity="0.88" />
+                <path d="M-6 22 Q 4 14 13 23 T 28 26 T 44 20" fill="none" stroke="#c8362a" strokeWidth="1.8" strokeLinecap="round" opacity="0.95" />
+                <path d="M-6 30 Q 6 22 16 31 T 30 34 T 46 28" fill="none" stroke="#891f17" strokeWidth="1.5" strokeLinecap="round" opacity="0.85" />
+                <path d="M5 -4 L 9 10 L 3 22 L 11 32 L 5 42" fill="none" stroke="#a52d22" strokeWidth="1.1" strokeLinecap="round" opacity="0.6" />
+                <path d="M22 -4 L 17 12 L 24 24 L 19 36 L 24 44" fill="none" stroke="#c8362a" strokeWidth="1.1" strokeLinecap="round" opacity="0.55" />
+                <path d="M34 -4 L 30 12 L 36 24 L 32 36 L 36 44" fill="none" stroke="#891f17" strokeWidth="1.0" strokeLinecap="round" opacity="0.55" />
               </pattern>
-              <pattern id="scribble-warning" width="22" height="22" patternUnits="userSpaceOnUse" patternTransform="rotate(38)">
-                <line x1="0" y1="0" x2="0" y2="22" stroke="#d89b24" strokeWidth="2.6" opacity="0.55" />
-                <line x1="11" y1="0" x2="11" y2="22" stroke="#b07c1a" strokeWidth="1.4" opacity="0.42" />
+              <pattern id="scribble-warning" width="24" height="24" patternUnits="userSpaceOnUse" patternTransform="rotate(38)">
+                <line x1="0" y1="0" x2="0" y2="24" stroke="#b07c1a" strokeWidth="2.0" opacity="0.85" />
+                <line x1="12" y1="0" x2="12" y2="24" stroke="#8a6213" strokeWidth="1.4" opacity="0.7" />
+                <line x1="6" y1="0" x2="6" y2="24" stroke="#d89b24" strokeWidth="0.9" opacity="0.55" />
+                <line x1="18" y1="0" x2="18" y2="24" stroke="#d89b24" strokeWidth="0.9" opacity="0.55" />
               </pattern>
               {edges.map((edge) => {
                 const edgeResult = period.edgeResults.find((result) => result.edgeId === edge.id);
@@ -586,7 +589,20 @@ function App() {
             </g>
 
             <g clipPath="url(#basin-clip)">
-              <RegionRiskOverlay nodes={nodes} period={period} periods={periods} />
+              <ImpactZoneOverlay nodes={nodes} period={period} periods={periods} />
+            </g>
+
+            <g className="country-label-layer" pointerEvents="none">
+              {regions.map((region) => (
+                <text
+                  className="country-label"
+                  key={`country-${region.id}`}
+                  x={region.centroid.x}
+                  y={region.centroid.y}
+                >
+                  {region.name.toUpperCase()}
+                </text>
+              ))}
             </g>
 
             <g className="edge-layer">
@@ -604,6 +620,11 @@ function App() {
                       stroke={`url(#edge-gradient-${edge.id})`}
                       strokeWidth={strokeWidth}
                     />
+                    <path
+                      className="edge-flow-tracer"
+                      d={edge.path}
+                      strokeWidth={Math.max(2, strokeWidth * 0.45)}
+                    />
                     <text className="edge-loss-label">
                       <textPath href={`#edge-label-${edge.id}`} startOffset="50%">
                         {edgeLabel(lens, edge, edgeResult, periods)}
@@ -620,22 +641,40 @@ function App() {
                 const nodeResult = period.nodeResults.find((result) => result.nodeId === node.id);
                 const radius = nodeRadius(node, nodeResult, maxNodeAvailable);
                 const fill = nodeFill(lens, node, nodeResult, periods);
+                const isReservoir = node.kind === "reservoir";
+                const labelOffsetY = (isReservoir ? radius + 4 : radius) + 14;
 
                 return (
                   <g
-                    className={`node ${selectedNode.id === node.id ? "selected" : ""}`}
+                    className={`node ${isReservoir ? "reservoir" : "river"} ${selectedNode.id === node.id ? "selected" : ""}`}
                     key={node.id}
                     onClick={() => setSelectedNodeId(node.id)}
                     transform={`translate(${node.x} ${node.y})`}
                   >
-                    <circle className="node-pulse" r={radius + 12} />
-                    <circle className="node-body" fill={fill} r={radius} />
-                    <circle className="node-ring" r={radius + 4} />
-                    <text className="node-label" y={radius + 27}>
+                    {isReservoir ? (
+                      <>
+                        <rect
+                          className="node-body"
+                          fill={fill}
+                          x={-radius - 1}
+                          y={-radius - 1}
+                          width={(radius + 1) * 2}
+                          height={(radius + 1) * 2}
+                          rx={2}
+                        />
+                        <path
+                          className="node-glyph"
+                          d={`M ${-radius + 1.5} ${-radius * 0.45} L ${radius - 1.5} ${-radius * 0.45} M ${-radius + 1.5} ${radius * 0.15} L ${radius - 1.5} ${radius * 0.15} M ${-radius + 1.5} ${radius * 0.7} L ${radius - 1.5} ${radius * 0.7}`}
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <circle className="node-halo" r={radius + 5} />
+                        <circle className="node-body" fill={fill} r={radius} />
+                      </>
+                    )}
+                    <text className="node-label" y={labelOffsetY}>
                       {node.shortName}
-                    </text>
-                    <text className="node-sublabel" y={radius + 44}>
-                      {node.kind === "reservoir" ? "reservoir" : node.country}
                     </text>
                   </g>
                 );
@@ -803,7 +842,81 @@ function SummaryItem({ label, value }: { label: string; value: string }) {
   );
 }
 
-function RegionRiskOverlay({
+function computeZoneRisk(
+  zone: ImpactZone,
+  nodes: NileNode[],
+  resultById: Map<string, NodePeriodResult>,
+  periods: PeriodResult[],
+): { level: "none" | "warning" | "critical"; ratio: number } {
+  let worst = 1;
+  let active = false;
+
+  for (const nodeId of zone.trigger.nodeIds) {
+    const result = resultById.get(nodeId);
+    if (!result) continue;
+    const node = nodes.find((candidate) => candidate.id === nodeId);
+    if (!node) continue;
+
+    let ratio = 1;
+    switch (zone.trigger.kind) {
+      case "drinking":
+        if (result.drinkingWater && result.drinkingWater.totalTarget > 0) {
+          ratio = result.drinkingWater.actualDelivery / result.drinkingWater.totalTarget;
+          active = true;
+        }
+        break;
+      case "food":
+        if (result.irrigation && result.irrigation.water.totalTarget > 0) {
+          ratio = result.irrigation.water.actualDelivery / result.irrigation.water.totalTarget;
+          active = true;
+        }
+        break;
+      case "power":
+        if (result.hydropower && result.hydropower.totalTargetEnergy > 0) {
+          ratio = result.hydropower.energyGenerated / result.hydropower.totalTargetEnergy;
+          active = true;
+        }
+        break;
+      case "storage":
+        if (node.capacity && node.capacity > 0) {
+          ratio = result.endingStorage / node.capacity;
+          active = true;
+        }
+        break;
+      case "flow": {
+        const max = Math.max(
+          1,
+          ...periods.flatMap((entry) =>
+            entry.nodeResults
+              .filter((candidate) => candidate.nodeId === nodeId)
+              .map((candidate) => candidate.totalDownstreamOutflow),
+          ),
+        );
+        if (max > 0) {
+          ratio = result.totalDownstreamOutflow / max;
+          active = true;
+        }
+        break;
+      }
+    }
+
+    if (ratio < worst) worst = ratio;
+  }
+
+  if (!active) return { level: "none", ratio: 1 };
+
+  if (zone.trigger.kind === "storage") {
+    if (worst < 0.18) return { level: "critical", ratio: worst };
+    if (worst < 0.4) return { level: "warning", ratio: worst };
+    return { level: "none", ratio: worst };
+  }
+
+  if (worst < 0.75) return { level: "critical", ratio: worst };
+  if (worst < 0.97) return { level: "warning", ratio: worst };
+  return { level: "none", ratio: worst };
+}
+
+function ImpactZoneOverlay({
   nodes,
   period,
   periods,
@@ -813,19 +926,20 @@ function RegionRiskOverlay({
   periods: PeriodResult[];
 }) {
   const resultById = new Map(period.nodeResults.map((result) => [result.nodeId, result]));
+
   return (
-    <g className="region-risk-layer" pointerEvents="none">
-      {regions.map((region) => {
-        const risk = computeRegionRisk(region, nodes, resultById, periods);
+    <g className="impact-zone-layer" pointerEvents="none">
+      {impactZones.map((zone) => {
+        const risk = computeZoneRisk(zone, nodes, resultById, periods);
         if (risk.level === "none") return null;
+        const path = smoothPolygonFromGeo(zone.geo);
+        if (!path) return null;
+        const scribble = risk.level === "critical" ? "url(#scribble-critical)" : "url(#scribble-warning)";
         return (
-          <circle
-            className={`region-risk ${risk.level}`}
-            cx={region.pillAnchor.x}
-            cy={region.pillAnchor.y}
-            key={`region-risk-${region.id}`}
-            r={risk.level === "critical" ? 72 : 56}
-          />
+          <g className={`impact-zone ${risk.level}`} key={`zone-${zone.id}`}>
+            <path className="impact-zone-wash" d={path} />
+            <path className="impact-zone-scribble" d={path} fill={scribble} />
+          </g>
         );
       })}
     </g>
@@ -1252,18 +1366,18 @@ function edgeLabel(
 
 function edgeWidth(result: EdgePeriodResult | undefined, max: number) {
   if (!result) {
-    return 5;
+    return 3;
   }
 
-  return 4 + (result.totalRoutedFlow / max) * 15;
+  return 2.5 + (result.totalRoutedFlow / max) * 7;
 }
 
 function nodeRadius(node: NileNode, result: NodePeriodResult | undefined, max: number) {
   if (!result) {
-    return node.kind === "reservoir" ? 15 : 11;
+    return node.kind === "reservoir" ? 8 : 5;
   }
 
-  return (node.kind === "reservoir" ? 13 : 9) + (result.totalAvailableWater / max) * 10;
+  return (node.kind === "reservoir" ? 7 : 4) + (result.totalAvailableWater / max) * 5;
 }
 
 function nodeFill(
