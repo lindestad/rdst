@@ -32,9 +32,12 @@ data/
 │   ├── daily/                Normalized daily CSV per hydmod catchment node
 │   └── raw/                  Original hydmod .txt files copied verbatim
 │
+├── evaporation/
+│   └── direct/               Direct per-node daily evaporation, canonical MVP nodes
+│
 ├── agriculture/
 │   ├── water_usage/          nile_<node>_water.csv + nile_water_usage_all.csv
-│   │                         (legacy node naming)
+│   │                         (canonical MVP node naming)
 │   ├── ndvi/                 NDVI timeseries CSVs (gezira, egypt_delta)
 │   └── egypt_ndvi.tiff       NDVI raster
 │
@@ -52,11 +55,32 @@ The canonical NRSM MVP now uses the **hydmod catchment nodes**:
 `tsengh`, `kashm`, `karthoum`, `merowe`, `aswand`, `cairo`.
 
 These nodes are defined in `topology/nodes.csv` and `topology/edges.csv`.
-Their simulator catchment inflows and evaporation inputs come from
-`hydmod/daily/<node>.csv`.
+Their simulator catchment inflows come from `hydmod/daily/<node>.csv`.
+Their simulator evaporation inputs prefer
+`evaporation/direct/<node>.csv` when present. If a direct evaporation file or
+date is missing, the NRSM assembler falls back to the older ERA5 daily
+temperature regression over `surface_area_km2_at_full` when a fallback climate
+date exists.
 Their hydropower valuation uses `electricity_price/<node>.csv`; the NRSM
 assembler takes the mean of the latest 365 daily price records for each node and
 combines that with `topology/nodes.csv` `effective_head_m`.
+
+For simulator evaporation, `evaporation/direct/<node>.csv` is expected to
+contain:
+
+```csv
+date,evaporation_m3_day
+2005-01-01,1000000.0
+```
+
+The current direct evaporation import is available for all canonical MVP nodes.
+The original Cairo direct evaporation source contained no non-empty values, so
+`main/modules/evaporation/evap_csv/cairo_1950_2026_direct.csv` has been filled
+from the Aswand direct evaporation series as the MVP proxy. The direct files
+cover `1950-01-01` through `2024-12-31`; the `2025-2026` blank tail in the root
+source was intentionally not copied into `horizon/data`. Requests outside the
+available direct and fallback date coverage should fail assembly rather than
+treating missing evaporation as zero.
 
 For simulator economics, `electricity_price/<node>.csv` is expected to contain:
 
@@ -90,8 +114,8 @@ mixed into a topology without an explicit mapping:
   `atbara_confluence`, `merowe`, `main_nile_to_aswan`, `aswan`, `egypt_ag`,
   `cairo_muni`, `delta`.
 
-- **Legacy nodes** (used in `climate/era5_legacy/`, `agriculture/water_usage/`,
-  `electricity_price/`):
+- **Legacy/canonical MVP nodes** (used in `climate/era5_legacy/`,
+  `agriculture/water_usage/`, `electricity_price/`):
   `aswand`, `cairo`, `gerd`, `karthoum`, `kashm`, `merowe`, `ozentari`,
   `roseires`, `singa`, `southwest`, `tana`, `tsengh`, `victoria`.
 
@@ -105,17 +129,20 @@ mixed into a topology without an explicit mapping:
 | `hydmod/raw/`                        | `hydmod/*.txt`                                       |
 | `hydmod/catchments.csv`              | Normalized from `hydmod/catchments.txt` and station centroids |
 | `hydmod/daily/`                      | Normalized from `hydmod/hydro_*.txt`                 |
+| `evaporation/direct/`                | Normalized from `main/modules/evaporation/evap_csv/*_direct.csv` |
 | `climate/era5_daily/`                | `horizon/nile-digital-twin/data/csv/era5_daily/`     |
 | `climate/era5_monthly/`              | `horizon/nile-digital-twin/data/csv/era5_monthly/`   |
 | `climate/era5_land_monthly/`         | `horizon/nile-digital-twin/data/csv/era5_land_monthly/` |
 | `climate/era5_legacy/`               | `agriculture/era5_cache/`                            |
 | `hydrology/glofas/`                  | `horizon/nile-digital-twin/data/csv/glofas/`         |
-| `agriculture/water_usage/`           | `agriculture/nile_*_water.csv`                       |
+| `agriculture/water_usage/`           | Normalized from `main/modules/food_production/final/*.csv`; `water_m3_s` converted to `water_m3_day` |
 | `agriculture/ndvi/`                  | `horizon/nile-digital-twin/data/csv/ndvi/`           |
 | `agriculture/egypt_ndvi.tiff`        | `agriculture/egypt_ndvi.tiff`                        |
 | `electricity_price/`                 | `electricity_price/price_csv/`                       |
 | `examples/headwater_inflow.csv`      | `main/example/data/headwater_inflow.csv`             |
 
-`main/modules/food_production/` and `main/modules/energy_price/price_csv/` were
-verified to be byte-identical duplicates of `agriculture/` and
-`electricity_price/price_csv/` respectively, so they were not copied separately.
+`main/modules/food_production/final/` is the canonical agricultural demand split
+for the MVP. The per-node files are stored in `water_m3_s`; `horizon/data`
+retains that source column and adds `water_m3_day` for the simulator. The
+aggregate `agriculture/water_usage/nile_water_demand.csv` is the sum of the
+normalized per-node `water_m3_day` columns and is kept as a validation aid.

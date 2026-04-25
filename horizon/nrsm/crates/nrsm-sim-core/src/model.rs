@@ -81,6 +81,10 @@ pub struct SimulationSettings {
     pub timestep_days: f64,
     #[serde(default)]
     pub horizon_days: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start_date: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub end_date: Option<String>,
     #[serde(default)]
     pub reporting: ReportingFrequency,
     #[serde(default = "default_production_level_fraction")]
@@ -92,6 +96,8 @@ impl Default for SimulationSettings {
         Self {
             timestep_days: default_timestep_days(),
             horizon_days: None,
+            start_date: None,
+            end_date: None,
             reporting: ReportingFrequency::default(),
             production_level_fraction: default_production_level_fraction(),
         }
@@ -732,5 +738,30 @@ nodes:
         assert_eq!(modules.evaporation.rate.value_at(0), 1.0);
         assert_eq!(modules.drink_water.daily_demand.value_at(0), 2.0);
         assert_eq!(modules.energy.price_per_unit.value_at(0), 0.5);
+    }
+
+    #[test]
+    fn accepts_calendar_window_metadata() {
+        let scenario: Scenario = serde_yaml::from_str(
+            r#"
+settings:
+  start_date: 2030-01-01
+  end_date: 2030-01-31
+  horizon_days: 31
+nodes:
+  - id: test_node
+    reservoir:
+      initial_level: 0.0
+      max_capacity: 1000.0
+    max_production: 100.0
+    catchment_inflow:
+      rate: 10.0
+"#,
+        )
+        .expect("scenario yaml should parse");
+
+        assert_eq!(scenario.settings.start_date.as_deref(), Some("2030-01-01"));
+        assert_eq!(scenario.settings.end_date.as_deref(), Some("2030-01-31"));
+        assert_eq!(scenario.horizon_days(), 31);
     }
 }

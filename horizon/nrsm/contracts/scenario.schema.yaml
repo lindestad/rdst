@@ -18,6 +18,14 @@ properties:
       horizon_days:
         type: integer
         minimum: 1
+      start_date:
+        type: string
+        format: date
+        description: Optional calendar label for the first simulated day.
+      end_date:
+        type: string
+        format: date
+        description: Optional calendar label for the last simulated day.
       reporting:
         type: string
         enum: [daily, monthly30_day]

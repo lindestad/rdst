@@ -1,0 +1,213 @@
+settings:
+  timestep_days: 1.0
+  start_date: 1963-09-01
+  end_date: 1963-09-30
+  horizon_days: 30
+  reporting: daily
+  production_level_fraction: 1.0
+
+nodes:
+  - id: victoria
+    reservoir:
+      initial_level: 0
+      max_capacity: 100000
+    max_production: 1000
+    catchment_inflow:
+      type: constant
+      rate: 168.75
+    connections:
+      - node_id: southwest
+        fraction: 1
+        delay: 18
+
+  - id: southwest
+    reservoir:
+      initial_level: 0
+      max_capacity: 100000
+    max_production: 1000
+    catchment_inflow:
+      type: constant
+      rate: 64.8
+    connections:
+      - node_id: karthoum
+        fraction: 1
+        delay: 13
+    modules:
+      evaporation:
+        rate: 63
+
+  - id: karthoum
+    reservoir:
+      initial_level: 0
+      max_capacity: 100000
+    max_production: 1000
+    catchment_inflow:
+      type: constant
+      rate: 16.2
+    connections:
+      - node_id: merowe
+        fraction: 1
+        delay: 6
+    modules:
+      drink_water:
+        daily_demand: 17.5
+      food_production:
+        water_coefficient: 0.9090909091
+        max_food_units: 18.7
+
+  - id: merowe
+    reservoir:
+      initial_level: 462
+      max_capacity: 720
+    max_production: 240
+    catchment_inflow:
+      type: constant
+      rate: 2.7
+    connections:
+      - node_id: aswand
+        fraction: 1
+        delay: 10
+    modules:
+      energy:
+        price_per_unit: 0.285
+        effective_head_m: 67
+        turbine_efficiency: 0.9
+
+  - id: aswand
+    reservoir:
+      initial_level: 990
+      max_capacity: 1600
+    max_production: 290
+    catchment_inflow:
+      type: constant
+      rate: 6.75
+    connections:
+      - node_id: cairo
+        fraction: 1
+        delay: 13
+    modules:
+      energy:
+        price_per_unit: 0.4425
+        effective_head_m: 111
+        turbine_efficiency: 0.9
+
+  - id: cairo
+    reservoir:
+      initial_level: 0
+      max_capacity: 100000
+    max_production: 1000
+    catchment_inflow:
+      type: constant
+      rate: 0
+    connections: []
+    modules:
+      drink_water:
+        daily_demand: 63
+      food_production:
+        water_coefficient: 0.6111111111
+        max_food_units: 279.225
+
+  - id: singa
+    reservoir:
+      initial_level: 0
+      max_capacity: 100000
+    max_production: 1000
+    catchment_inflow:
+      type: constant
+      rate: 0
+    connections:
+      - node_id: merowe
+        fraction: 1
+        delay: 1
+    modules:
+      food_production:
+        water_coefficient: 0.8333333333
+        max_food_units: 63.24
+
+  - id: roseires
+    reservoir:
+      initial_level: 286
+      max_capacity: 420
+    max_production: 150
+    catchment_inflow:
+      type: constant
+      rate: 10.8
+    connections:
+      - node_id: singa
+        fraction: 1
+        delay: 2
+    modules:
+      energy:
+        price_per_unit: 0.2325
+        effective_head_m: 68
+        turbine_efficiency: 0.9
+
+  - id: gerd
+    reservoir:
+      initial_level: 550
+      max_capacity: 950
+    max_production: 220
+    catchment_inflow:
+      type: constant
+      rate: 0
+    connections:
+      - node_id: roseires
+        fraction: 1
+        delay: 2
+    modules:
+      energy:
+        price_per_unit: 0.51
+        effective_head_m: 145
+        turbine_efficiency: 0.9
+
+  - id: tana
+    reservoir:
+      initial_level: 0
+      max_capacity: 100000
+    max_production: 1000
+    catchment_inflow:
+      type: constant
+      rate: 229.5
+    connections:
+      - node_id: gerd
+        fraction: 1
+        delay: 2
+
+  - id: kashm
+    reservoir:
+      initial_level: 0
+      max_capacity: 100000
+    max_production: 1000
+    catchment_inflow:
+      type: constant
+      rate: 0
+    connections:
+      - node_id: merowe
+        fraction: 1
+        delay: 2
+
+  - id: tsengh
+    reservoir:
+      initial_level: 0
+      max_capacity: 100000
+    max_production: 1000
+    catchment_inflow:
+      type: constant
+      rate: 0
+    connections:
+      - node_id: kashm
+        fraction: 1
+        delay: 1
+
+  - id: ozentari
+    reservoir:
+      initial_level: 0
+      max_capacity: 100000
+    max_production: 1000
+    catchment_inflow:
+      type: constant
+      rate: 94.5
+    connections:
+      - node_id: tsengh
+        fraction: 1
+        delay: 1
