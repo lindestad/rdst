@@ -215,8 +215,11 @@ cargo run -p nrsm-cli -- data\generated\config.yaml --json --pretty
 The `assemble` command reads the checked-in canonical data bundle under
 `horizon/data` and writes simulator-ready files. The current MVP topology uses
 the 13 hydmod catchment nodes in `horizon/data/topology/nodes.csv`; catchment
-inflow and evaporation come from `horizon/data/hydmod/daily`, while food and
-energy modules come from the agriculture and electricity-price folders.
+inflow comes from `horizon/data/hydmod/daily`. Evaporation is estimated from
+`horizon/data/climate/era5_daily` temperature and each node's configured lake
+area using `evap_mm_day = max(0, 0.2301 * temp_c - 3.0550)`, then converted to
+`m3/day` with `evap_mm_day * surface_area_km2_at_full * 1000`. Food and energy
+modules come from the agriculture and electricity-price folders.
 Agriculture files supply `water_m3_day`, which the assembler writes as the
 food-production module with `water_coefficient: 1.0`; outputs therefore expose
 the agricultural water balance directly through `food_water_demand`,
