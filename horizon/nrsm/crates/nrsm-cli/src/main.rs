@@ -153,7 +153,7 @@ fn write_result_csvs(
     Ok(outputs)
 }
 
-const NODE_RESULT_HEADER: &str = "period_index,start_day,end_day_exclusive,duration_days,node_id,reservoir_level,total_inflow,evaporation,drink_water_met,unmet_drink_water,food_produced,production_release,spill,release_for_routing,downstream_release,routing_loss,energy_value";
+const NODE_RESULT_HEADER: &str = "period_index,start_day,end_day_exclusive,duration_days,node_id,action,reservoir_level,total_inflow,evaporation,drink_water_met,unmet_drink_water,food_produced,production_release,spill,release_for_routing,downstream_release,routing_loss,energy_value";
 
 fn render_node_result_row(period: &PeriodResult, node: &NodeResult) -> String {
     let duration_days = period.end_day_exclusive - period.start_day;
@@ -165,6 +165,7 @@ fn render_node_result_row(period: &PeriodResult, node: &NodeResult) -> String {
         period.end_day_exclusive.to_string(),
         duration_days.to_string(),
         node.node_id.clone(),
+        node.action.to_string(),
         node.reservoir_level.to_string(),
         node.total_inflow.to_string(),
         node.evaporation.to_string(),
@@ -324,6 +325,7 @@ mod tests {
             catchment_inflow: ModuleSeries::constant(inflow),
             connections,
             modules: Default::default(),
+            actions: None,
         }
     }
 }

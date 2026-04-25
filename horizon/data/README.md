@@ -55,6 +55,13 @@ These nodes are defined in `topology/nodes.csv` and `topology/edges.csv`.
 Their simulator catchment inflows and evaporation inputs come from
 `hydmod/daily/<node>.csv`.
 
+When `horizon/nrsm` assembles this bundle into a simulator snapshot, it also
+writes a default per-node action CSV named `<node_id>.actions.csv` in the
+generated `modules/` directory. Those files are not source data; they are policy
+placeholders with daily `scenario_N` columns of production-level fractions.
+External optimizers or scenario tools can replace them to control hydropower
+release per node per day.
+
 Older data still exists in two historical naming conventions and should not be
 mixed into a topology without an explicit mapping:
 

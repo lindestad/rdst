@@ -31,7 +31,6 @@ fn simulate_daily_periods(scenario: &Scenario, compiled: &CompiledNetwork) -> Ve
     let horizon_days = scenario.horizon_days();
     let max_delay = compiled.max_delay;
     let dt_days = scenario.settings.timestep_days;
-    let action_fraction = scenario.settings.production_level_fraction.clamp(0.0, 1.0);
     let mut reservoir_levels = scenario
         .nodes
         .iter()
@@ -68,6 +67,12 @@ fn simulate_daily_periods(scenario: &Scenario, compiled: &CompiledNetwork) -> Ve
                 .produce(available, day, dt_days);
             available -= food_water_consumed;
 
+            let action_fraction = node
+                .actions
+                .as_ref()
+                .map(|actions| actions.production_level.value_at(day))
+                .unwrap_or(scenario.settings.production_level_fraction)
+                .clamp(0.0, 1.0);
             let max_release = (node.max_production * dt_days * action_fraction).max(0.0);
             let production_release = max_release.min(available);
             available -= production_release;
@@ -96,6 +101,7 @@ fn simulate_daily_periods(scenario: &Scenario, compiled: &CompiledNetwork) -> Ve
 
             node_results.push(NodeResult {
                 node_id: node.id.clone(),
+                action: action_fraction,
                 reservoir_level,
                 production_release,
                 energy_value,
@@ -137,12 +143,15 @@ fn aggregate_periods(
 fn aggregate_chunk(period_index: usize, chunk: &[PeriodResult]) -> PeriodResult {
     let mut node_positions = HashMap::<String, usize>::new();
     let mut node_results = Vec::<NodeResult>::new();
+    let mut node_counts = Vec::<usize>::new();
 
     for period in chunk {
         for node in &period.node_results {
             match node_positions.get(&node.node_id).copied() {
                 Some(position) => {
+                    node_counts[position] += 1;
                     let aggregate = &mut node_results[position];
+                    aggregate.action += node.action;
                     aggregate.reservoir_level = node.reservoir_level;
                     aggregate.production_release += node.production_release;
                     aggregate.energy_value += node.energy_value;
@@ -158,9 +167,15 @@ fn aggregate_chunk(period_index: usize, chunk: &[PeriodResult]) -> PeriodResult 
                     let position = node_results.len();
                     node_positions.insert(node.node_id.clone(), position);
                     node_results.push(node.clone());
+                    node_counts.push(1);
                 }
             }
         }
+    }
+
+    for (index, aggregate) in node_results.iter_mut().enumerate() {
+        let count = node_counts.get(index).copied().unwrap_or(1);
+        aggregate.action /= count as f64;
     }
 
     PeriodResult {
@@ -325,6 +340,12 @@ fn validate_node(node: &NodeConfig) -> Result<(), SimulationError> {
         .price_per_unit
         .validate(&format!("node `{}` energy", node.id))
         .map_err(SimulationError::Validation)?;
+    if let Some(actions) = &node.actions {
+        actions
+            .production_level
+            .validate(&format!("node `{}` actions.production_level", node.id))
+            .map_err(SimulationError::Validation)?;
+    }
 
     Ok(())
 }
@@ -428,8 +449,8 @@ mod tests {
     use crate::{
         model::{
             ConnectionConfig, DrinkWaterModule, EnergyModule, EvaporationModule,
-            FoodProductionModule, ModuleSeries, NodeConfig, NodeModules, ReportingFrequency,
-            ReservoirConfig, Scenario, SimulationSettings,
+            FoodProductionModule, ModuleSeries, ModuleSourceType, NodeActions, NodeConfig,
+            NodeModules, ReportingFrequency, ReservoirConfig, Scenario, SimulationSettings,
         },
         simulate,
     };
@@ -445,6 +466,7 @@ mod tests {
             catchment_inflow: ModuleSeries::constant(inflow),
             connections,
             modules: NodeModules::default(),
+            actions: None,
         }
     }
 
@@ -464,6 +486,7 @@ mod tests {
                 max_production: 10.0,
                 catchment_inflow: ModuleSeries::constant(20.0),
                 connections: vec![],
+                actions: None,
                 modules: NodeModules {
                     evaporation: EvaporationModule {
                         rate: ModuleSeries::constant(5.0),
@@ -510,6 +533,7 @@ mod tests {
                 max_production: 25.0,
                 catchment_inflow: ModuleSeries::constant(100.0),
                 connections: vec![],
+                actions: None,
                 modules: NodeModules {
                     evaporation: EvaporationModule {
                         rate: ModuleSeries::constant(10.0),
@@ -667,6 +691,45 @@ mod tests {
         let source = &result.periods[0].node_results[0];
 
         assert_eq!(source.production_release, 100.0);
+        assert_eq!(source.action, 1.0);
+    }
+
+    #[test]
+    fn applies_per_node_time_series_actions() {
+        let scenario = Scenario {
+            settings: SimulationSettings {
+                horizon_days: Some(2),
+                production_level_fraction: 1.0,
+                ..SimulationSettings::default()
+            },
+            nodes: vec![NodeConfig {
+                id: "source".to_string(),
+                reservoir: ReservoirConfig {
+                    initial_level: 0.0,
+                    max_capacity: 1_000.0,
+                },
+                max_production: 100.0,
+                catchment_inflow: ModuleSeries::constant(100.0),
+                connections: vec![],
+                modules: NodeModules::default(),
+                actions: Some(NodeActions {
+                    production_level: ModuleSeries {
+                        source_type: Some(ModuleSourceType::Csv),
+                        values: vec![0.25, 0.75],
+                        ..ModuleSeries::constant(1.0)
+                    },
+                }),
+            }],
+        };
+
+        let result = simulate(&scenario).expect("time-series actions should simulate");
+        let day_0 = &result.periods[0].node_results[0];
+        let day_1 = &result.periods[1].node_results[0];
+
+        assert_eq!(day_0.action, 0.25);
+        assert_eq!(day_0.production_release, 25.0);
+        assert_eq!(day_1.action, 0.75);
+        assert_eq!(day_1.production_release, 75.0);
     }
 
     #[test]

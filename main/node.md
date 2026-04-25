@@ -135,6 +135,7 @@ After each timestep the node returns the following values:
 
 | Field | Unit | Description |
 |---|---|---|
+| `action` | — | Production level fraction applied this timestep |
 | `reservoir_level` | m³ | Reservoir volume at end of timestep |
 | `production_release` | m³ | Water released for hydropower |
 | `energy_value` | currency | `production_release × energy_price` |
@@ -212,6 +213,11 @@ nodes:
       energy:
         price_per_unit: <float>     # currency/m³ (constant)
         # or: type: csv, filepath: <path>
+
+    actions:
+      production_level:
+        value: <float>              # constant fraction in [0, 1]
+        # or: type: csv, filepath: <path>, column: <scenario_N>
 ```
 
 ### Example — two-node cascade

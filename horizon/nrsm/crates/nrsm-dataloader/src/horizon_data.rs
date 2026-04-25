@@ -103,14 +103,23 @@ pub fn assemble_horizon_data_snapshot(
             &energy.rows,
         )?);
 
+        let actions = action_rows(&dates);
+        outputs.push(write_module_csv(
+            &modules_dir,
+            &node.node_id,
+            "actions",
+            &actions.rows,
+        )?);
+
         warnings.push(format!(
-            "{},{},{},{},{},{}",
+            "{},{},{},{},{},{},{}",
             node.node_id,
             catchment.source_note,
             evaporation.source_note,
             drink_water.source_note,
             food_production.source_note,
-            energy.source_note
+            energy.source_note,
+            actions.source_note
         ));
     }
 
@@ -123,7 +132,7 @@ pub fn assemble_horizon_data_snapshot(
     fs::write(
         &warnings_path,
         format!(
-            "node_id,catchment_inflow,evaporation,drink_water,food_production,energy\n{}\n",
+            "node_id,catchment_inflow,evaporation,drink_water,food_production,energy,actions\n{}\n",
             warnings.join("\n")
         ),
     )?;
@@ -308,6 +317,14 @@ fn energy_rows(
     })
 }
 
+fn action_rows(dates: &[SimpleDate]) -> ModuleRows {
+    ModuleRows {
+        rows: dates.iter().map(|date| (date.to_string(), 1.0)).collect(),
+        source_note: "default full-production action; override per node/day for policy runs"
+            .to_string(),
+    }
+}
+
 fn water_usage_path(input_dir: &Path, node_id: &str) -> Option<PathBuf> {
     let dir = input_dir.join("agriculture").join("water_usage");
     for name in water_usage_file_candidates(node_id) {
@@ -393,8 +410,8 @@ fn render_config(nodes: &[TopologyNode], outgoing: &HashMap<String, Vec<Topology
         }
 
         yaml.push_str(&format!(
-            "    modules:\n      evaporation:\n        type: csv\n        filepath: modules/{}.evaporation.csv\n        column: scenario_1\n      drink_water:\n        type: csv\n        filepath: modules/{}.drink_water.csv\n        column: scenario_1\n      food_production:\n        type: csv\n        filepath: modules/{}.food_production.csv\n        column: scenario_1\n        water_coefficient: 1.0\n      energy:\n        type: csv\n        filepath: modules/{}.energy.csv\n        column: scenario_1\n",
-            node.node_id, node.node_id, node.node_id, node.node_id
+            "    modules:\n      evaporation:\n        type: csv\n        filepath: modules/{}.evaporation.csv\n        column: scenario_1\n      drink_water:\n        type: csv\n        filepath: modules/{}.drink_water.csv\n        column: scenario_1\n      food_production:\n        type: csv\n        filepath: modules/{}.food_production.csv\n        column: scenario_1\n        water_coefficient: 1.0\n      energy:\n        type: csv\n        filepath: modules/{}.energy.csv\n        column: scenario_1\n    actions:\n      production_level:\n        type: csv\n        filepath: modules/{}.actions.csv\n        column: scenario_1\n",
+            node.node_id, node.node_id, node.node_id, node.node_id, node.node_id
         ));
     }
 

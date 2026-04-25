@@ -73,6 +73,30 @@ Each timestep every node receives a **production level fraction** — a float in
 outside `[0, 1]` are clamped. If no action matrix is supplied (simulation-only
 mode) all nodes default to `action = 1.0` (full production).
 
+In the YAML contract, each node supplies this matrix column as
+`actions.production_level`. It accepts the same constant-or-CSV series shape as
+modules:
+
+```yaml
+actions:
+  production_level:
+    type: csv
+    filepath: modules/gerd.actions.csv
+    column: scenario_1
+```
+
+The action CSV is daily and scenario-column based:
+
+```csv
+date,scenario_1,scenario_2
+2005-01-01,1.0,0.75
+2005-01-02,0.4,0.2
+```
+
+This action only controls the controlled hydropower/production release. It does
+not directly reduce drinking-water withdrawal or food-production allocation,
+which still run first in the node water balance.
+
 ### Upstream inflow
 
 Water dispatched from node `u` to node `v` with `delay = d` arrives exactly
