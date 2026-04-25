@@ -269,12 +269,19 @@ Python bindings live in `crates/nrsm-py` and expose the same prepared simulator:
 import json
 import nrsm_py
 
-sim = nrsm_py.PreparedScenario.from_yaml("data/generated/config.yaml")
+sim = nrsm_py.PreparedScenario.from_period(
+    "scenarios/nile-mvp/past/1963-september-30d.yaml"
+)
 actions = [1.0] * sim.expected_action_len()
 summary = json.loads(sim.run_actions_summary_json(actions))
 ```
 
-Build the Python extension with maturin from `horizon/nrsm/crates/nrsm-py`.
+`from_period` is the default Python path for real-data runs: it reads only the
+period dates from the YAML, assembles node inputs from `horizon/data`, and then
+loads the generated CSV-backed config. `from_yaml("data/generated/.../config.yaml")`
+loads an already assembled CSV-backed config. `from_yaml("scenarios/...yaml")`
+runs that hand-written demo scenario as written. Build the Python extension with
+maturin from `horizon/nrsm/crates/nrsm-py`.
 
 ## Assemble Canonical Data
 

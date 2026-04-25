@@ -30,7 +30,48 @@ cargo build -p nrsm-py
 Cargo build verifies the binding crate compiles, but it does not install the
 Python module for `import nrsm_py`.
 
-## Basic Usage
+## Basic Usage: Real Data By Default
+
+Use `from_period` when you want Python to run a named scenario window with the
+real CSV-backed data path. The period file only supplies
+`settings.start_date` and `settings.end_date`; node inputs are assembled from
+`horizon/data` before the simulator is prepared.
+
+From `horizon/nrsm`:
+
+```python
+import json
+from pathlib import Path
+
+import nrsm_py
+
+sim = nrsm_py.PreparedScenario.from_period(
+    Path("scenarios/nile-mvp/past/1963-september-30d.yaml")
+)
+
+actions = [1.0] * sim.expected_action_len()
+summary = json.loads(sim.run_actions_summary_json(actions))
+```
+
+By default this writes the generated simulator files to
+`data/generated/<period-file-name>/` and loads that generated `config.yaml`.
+The generated config references CSV module files produced by the dataloader.
+
+If you run from another working directory, pass explicit paths:
+
+```python
+sim = nrsm_py.PreparedScenario.from_period(
+    r"C:\Users\danie\dev\cassini\horizon\nrsm\scenarios\nile-mvp\past\1963-september-30d.yaml",
+    data_dir=r"C:\Users\danie\dev\cassini\horizon\data",
+    output_dir=r"C:\Users\danie\dev\cassini\horizon\nrsm\data\generated\1963-september-30d",
+)
+```
+
+Historical windows must be covered by the source CSVs in `horizon/data`.
+Future windows will need an explicit extrapolation step before they can be
+assembled through this real-data path.
+
+## Loading Existing YAML
 
 Prepare the scenario once, then reuse it for many rollouts:
 
@@ -46,9 +87,14 @@ actions = [1.0] * sim.expected_action_len()
 summary = json.loads(sim.run_actions_summary_json(actions))
 ```
 
-`from_yaml` reads the YAML config, loads all CSV-backed modules relative to the
+`from_yaml` reads the YAML config, loads any CSV-backed modules relative to the
 config file directory, validates the node graph, and compiles the DAG once.
-After that, action rollouts do not touch YAML or CSV files.
+Use it for an already assembled `data/generated/.../config.yaml`.
+
+If you call `from_yaml` with a catalog file such as
+`scenarios/nile-mvp/past/1963-september-30d.yaml`, Python runs that hand-written
+demo scenario exactly as written. It does not replace the node inputs with
+`horizon/data` CSVs. Use `from_period` for that.
 
 ## Action Matrix
 
@@ -87,7 +133,16 @@ already present in the scenario YAML.
 
 `PreparedScenario.from_yaml(path)`
 
-Loads and prepares a simulator from a generated `config.yaml`.
+Loads and prepares a simulator from a YAML file. For real-data runs this should
+usually be a generated `data/generated/.../config.yaml`.
+
+`PreparedScenario.from_period(path, data_dir=None, output_dir=None)`
+
+Assembles a real-data scenario from a period YAML, then loads the generated
+config. `path` must contain `settings.start_date` and `settings.end_date`.
+`data_dir` defaults to the repository's `horizon/data` folder when it can be
+inferred. `output_dir` defaults to
+`horizon/nrsm/data/generated/<period-file-name>/`.
 
 `node_ids() -> list[str]`
 
@@ -130,7 +185,9 @@ import random
 
 import nrsm_py
 
-sim = nrsm_py.PreparedScenario.from_yaml("data/generated/config.yaml")
+sim = nrsm_py.PreparedScenario.from_period(
+    "scenarios/nile-mvp/past/1963-september-30d.yaml"
+)
 
 def evaluate(actions: list[float]) -> float:
     summary = json.loads(sim.run_actions_summary_json(actions))
