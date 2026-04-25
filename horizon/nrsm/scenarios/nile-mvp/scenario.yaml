@@ -5,7 +5,7 @@ settings:
   production_level_fraction: 1.0
 
 nodes:
-  - id: lake_victoria_outlet
+  - id: victoria
     reservoir:
       initial_level: 0.0
       max_capacity: 100000.0
@@ -14,51 +14,131 @@ nodes:
       type: constant
       rate: 125.0
     connections:
-      - node_id: sudd_wetland
+      - node_id: southwest
         fraction: 1.0
-        delay: 0
+        delay: 18
 
-  - id: sudd_wetland
+  - id: southwest
     reservoir:
       initial_level: 0.0
       max_capacity: 100000.0
     max_production: 1000.0
     catchment_inflow:
       type: constant
-      rate: 30.0
+      rate: 48.0
     connections:
-      - node_id: malakal
+      - node_id: karthoum
         fraction: 1.0
-        delay: 0
+        delay: 13
     modules:
       evaporation:
         rate: 60.0
 
-  - id: malakal
+  - id: karthoum
     reservoir:
       initial_level: 0.0
       max_capacity: 100000.0
     max_production: 1000.0
     catchment_inflow:
       type: constant
-      rate: 18.0
+      rate: 12.0
     connections:
-      - node_id: khartoum
+      - node_id: merowe
         fraction: 1.0
-        delay: 0
+        delay: 6
+    modules:
+      drink_water:
+        daily_demand: 25.0
+      food_production:
+        water_coefficient: 0.9090909091
+        max_food_units: 22.0
 
-  - id: lake_tana_outlet
+  - id: merowe
+    reservoir:
+      initial_level: 420.0
+      max_capacity: 720.0
+    max_production: 240.0
+    catchment_inflow:
+      type: constant
+      rate: 2.0
+    connections:
+      - node_id: aswand
+        fraction: 1.0
+        delay: 10
+    modules:
+      energy:
+        price_per_unit: 0.38
+        effective_head_m: 67.0
+        turbine_efficiency: 0.9
+
+  - id: aswand
+    reservoir:
+      initial_level: 900.0
+      max_capacity: 1600.0
+    max_production: 290.0
+    catchment_inflow:
+      type: constant
+      rate: 5.0
+    connections:
+      - node_id: cairo
+        fraction: 1.0
+        delay: 13
+    modules:
+      energy:
+        price_per_unit: 0.59
+        effective_head_m: 111.0
+        turbine_efficiency: 0.9
+
+  - id: cairo
     reservoir:
       initial_level: 0.0
       max_capacity: 100000.0
     max_production: 1000.0
     catchment_inflow:
       type: constant
-      rate: 170.0
+      rate: 0.0
+    connections: []
+    modules:
+      drink_water:
+        daily_demand: 90.0
+      food_production:
+        water_coefficient: 0.6111111111
+        max_food_units: 328.5
+
+  - id: singa
+    reservoir:
+      initial_level: 0.0
+      max_capacity: 100000.0
+    max_production: 1000.0
+    catchment_inflow:
+      type: constant
+      rate: 0.0
     connections:
-      - node_id: gerd
+      - node_id: merowe
         fraction: 1.0
-        delay: 0
+        delay: 1
+    modules:
+      food_production:
+        water_coefficient: 0.8333333333
+        max_food_units: 74.4
+
+  - id: roseires
+    reservoir:
+      initial_level: 260.0
+      max_capacity: 420.0
+    max_production: 150.0
+    catchment_inflow:
+      type: constant
+      rate: 8.0
+    connections:
+      - node_id: singa
+        fraction: 1.0
+        delay: 2
+    modules:
+      energy:
+        price_per_unit: 0.31
+        effective_head_m: 68.0
+        turbine_efficiency: 0.9
 
   - id: gerd
     reservoir:
@@ -71,32 +151,27 @@ nodes:
     connections:
       - node_id: roseires
         fraction: 1.0
-        delay: 0
+        delay: 2
     modules:
       energy:
         price_per_unit: 0.68
         effective_head_m: 145.0
         turbine_efficiency: 0.9
 
-  - id: roseires
+  - id: tana
     reservoir:
-      initial_level: 260.0
-      max_capacity: 420.0
-    max_production: 150.0
+      initial_level: 0.0
+      max_capacity: 100000.0
+    max_production: 1000.0
     catchment_inflow:
       type: constant
-      rate: 8.0
+      rate: 170.0
     connections:
-      - node_id: gezira_irrigation
+      - node_id: gerd
         fraction: 1.0
-        delay: 0
-    modules:
-      energy:
-        price_per_unit: 0.31
-        effective_head_m: 68.0
-        turbine_efficiency: 0.9
+        delay: 2
 
-  - id: gezira_irrigation
+  - id: kashm
     reservoir:
       initial_level: 0.0
       max_capacity: 100000.0
@@ -105,34 +180,24 @@ nodes:
       type: constant
       rate: 0.0
     connections:
-      - node_id: khartoum
+      - node_id: merowe
         fraction: 1.0
-        delay: 0
-    modules:
-      food_production:
-        water_coefficient: 0.8333333333
-        max_food_units: 74.4
+        delay: 2
 
-  - id: khartoum
+  - id: tsengh
     reservoir:
       initial_level: 0.0
       max_capacity: 100000.0
     max_production: 1000.0
     catchment_inflow:
       type: constant
-      rate: 12.0
+      rate: 0.0
     connections:
-      - node_id: atbara_confluence
+      - node_id: kashm
         fraction: 1.0
-        delay: 0
-    modules:
-      drink_water:
-        daily_demand: 25.0
-      food_production:
-        water_coefficient: 0.9090909091
-        max_food_units: 22.0
+        delay: 1
 
-  - id: atbara_headwaters
+  - id: ozentari
     reservoir:
       initial_level: 0.0
       max_capacity: 100000.0
@@ -141,104 +206,6 @@ nodes:
       type: constant
       rate: 70.0
     connections:
-      - node_id: atbara_confluence
+      - node_id: tsengh
         fraction: 1.0
-        delay: 0
-
-  - id: atbara_confluence
-    reservoir:
-      initial_level: 0.0
-      max_capacity: 100000.0
-    max_production: 1000.0
-    catchment_inflow:
-      type: constant
-      rate: 3.0
-    connections:
-      - node_id: merowe
-        fraction: 1.0
-        delay: 0
-
-  - id: merowe
-    reservoir:
-      initial_level: 420.0
-      max_capacity: 720.0
-    max_production: 240.0
-    catchment_inflow:
-      type: constant
-      rate: 2.0
-    connections:
-      - node_id: aswan
-        fraction: 1.0
-        delay: 0
-    modules:
-      energy:
-        price_per_unit: 0.38
-        effective_head_m: 67.0
-        turbine_efficiency: 0.9
-
-  - id: aswan
-    reservoir:
-      initial_level: 900.0
-      max_capacity: 1600.0
-    max_production: 290.0
-    catchment_inflow:
-      type: constant
-      rate: 5.0
-    connections:
-      - node_id: cairo_municipal
-        fraction: 1.0
-        delay: 0
-    modules:
-      energy:
-        price_per_unit: 0.59
-        effective_head_m: 111.0
-        turbine_efficiency: 0.9
-
-  - id: cairo_municipal
-    reservoir:
-      initial_level: 0.0
-      max_capacity: 100000.0
-    max_production: 1000.0
-    catchment_inflow:
-      type: constant
-      rate: 0.0
-    connections:
-      - node_id: egypt_agriculture
-        fraction: 1.0
-        delay: 0
-    modules:
-      drink_water:
-        daily_demand: 62.0
-
-  - id: egypt_agriculture
-    reservoir:
-      initial_level: 0.0
-      max_capacity: 100000.0
-    max_production: 1000.0
-    catchment_inflow:
-      type: constant
-      rate: 0.0
-    connections:
-      - node_id: nile_delta
-        fraction: 1.0
-        delay: 0
-    modules:
-      food_production:
-        water_coefficient: 0.6666666667
-        max_food_units: 202.5
-
-  - id: nile_delta
-    reservoir:
-      initial_level: 0.0
-      max_capacity: 100000.0
-    max_production: 1000.0
-    catchment_inflow:
-      type: constant
-      rate: 0.0
-    connections: []
-    modules:
-      drink_water:
-        daily_demand: 28.0
-      food_production:
-        water_coefficient: 0.5555555556
-        max_food_units: 126.0
+        delay: 1
