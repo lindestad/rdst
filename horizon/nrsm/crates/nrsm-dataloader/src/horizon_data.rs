@@ -214,12 +214,72 @@ fn catchment_inflow_rows(
 
 const EVAPORATION_TEMP_SLOPE_MM_PER_C: f64 = 0.2301;
 const EVAPORATION_TEMP_INTERCEPT_MM: f64 = -3.0550;
+const SECONDS_PER_DAY: f64 = 86_400.0;
 
 fn evaporation_rows(
     input_dir: &Path,
     node: &TopologyNode,
     dates: &[SimpleDate],
     _warnings: &mut Vec<String>,
+) -> Result<ModuleRows, Box<dyn std::error::Error>> {
+    let direct_path = direct_evaporation_path(input_dir, &node.node_id);
+    if let Some(path) = direct_path {
+        let direct_values =
+            read_optional_date_value_map_any(&path, &["evaporation_m3_day", "evaporation_m3"])?
+                .into_iter()
+                .map(|(date, value)| (date, value.max(0.0)))
+                .collect::<HashMap<_, _>>();
+
+        if !direct_values.is_empty() {
+            let missing_direct_count = dates
+                .iter()
+                .filter(|date| !direct_values.contains_key(&date.to_string()))
+                .count();
+            let fallback_rows = if missing_direct_count > 0 {
+                Some(temperature_evaporation_rows(input_dir, node, dates)?)
+            } else {
+                None
+            };
+            let fallback_values = fallback_rows
+                .as_ref()
+                .map(|rows| rows.rows.iter().cloned().collect::<HashMap<String, f64>>())
+                .unwrap_or_default();
+
+            let mut rows = Vec::with_capacity(dates.len());
+            for date in dates {
+                let key = date.to_string();
+                let value = direct_values
+                    .get(&key)
+                    .copied()
+                    .or_else(|| fallback_values.get(&key).copied())
+                    .ok_or_else(|| {
+                        format!(
+                            "{} is missing direct evaporation_m3_day or evaporation_m3 for date {} and no fallback value was available",
+                            path.display(),
+                            key
+                        )
+                    })?;
+                rows.push((key, value));
+            }
+
+            let source_note = if missing_direct_count == 0 {
+                "direct evaporation_m3_day from horizon/data/evaporation/direct".to_string()
+            } else {
+                format!(
+                    "direct evaporation_m3_day from horizon/data/evaporation/direct with {missing_direct_count} date(s) filled by ERA5 temperature regression"
+                )
+            };
+            return Ok(ModuleRows { rows, source_note });
+        }
+    }
+
+    temperature_evaporation_rows(input_dir, node, dates)
+}
+
+fn temperature_evaporation_rows(
+    input_dir: &Path,
+    node: &TopologyNode,
+    dates: &[SimpleDate],
 ) -> Result<ModuleRows, Box<dyn std::error::Error>> {
     let Some(surface_area_km2) = node.surface_area_km2_at_full else {
         return Ok(zero_rows(
@@ -249,6 +309,14 @@ fn evaporation_rows(
             .collect(),
         source_note: "ERA5 daily temp_c with evap_mm_day = max(0, 0.2301 * temp_c - 3.0550) over lake_area_km2 converted to m3/day".to_string(),
     })
+}
+
+fn direct_evaporation_path(input_dir: &Path, node_id: &str) -> Option<PathBuf> {
+    let path = input_dir
+        .join("evaporation")
+        .join("direct")
+        .join(format!("{node_id}.csv"));
+    path.exists().then_some(path)
 }
 
 fn daily_temperature_path(input_dir: &Path, node_id: &str) -> Option<PathBuf> {
@@ -312,11 +380,11 @@ fn food_production_rows(
         .into());
     };
 
-    let values = read_date_value_map(&path, "water_m3_day")?;
+    let values = read_food_water_value_map(&path)?;
     Ok(ModuleRows {
         rows: rows_for_dates(&values, dates, &path, "water_m3_day")?,
         source_note: format!(
-            "{} water_m3_day used as agricultural water demand with water_coefficient 1.0",
+            "{} agricultural water demand used as water_m3_day with water_coefficient 1.0",
             path.file_name()
                 .and_then(|name| name.to_str())
                 .unwrap_or("water usage")
@@ -498,6 +566,52 @@ fn read_date_value_map(
         let date = required(&row, "date").or_else(|_| required(&row, "month"))?;
         let value = optional_f64(&row, value_column)?.unwrap_or(0.0);
         values.insert(date, value);
+    }
+    Ok(values)
+}
+
+fn read_optional_date_value_map_any(
+    path: &Path,
+    value_columns: &[&str],
+) -> Result<HashMap<String, f64>, Box<dyn std::error::Error>> {
+    let rows = read_csv(path)?;
+    let mut values = HashMap::new();
+    for row in rows {
+        let date = required(&row, "date").or_else(|_| required(&row, "month"))?;
+        let mut parsed_value = None;
+        for column in value_columns {
+            if let Some(value) = optional_f64(&row, column)? {
+                parsed_value = Some(value);
+                break;
+            }
+        }
+        if let Some(value) = parsed_value {
+            values.insert(date, value);
+        }
+    }
+    Ok(values)
+}
+
+fn read_food_water_value_map(
+    path: &Path,
+) -> Result<HashMap<String, f64>, Box<dyn std::error::Error>> {
+    let rows = read_csv(path)?;
+    let mut values = HashMap::new();
+    for row in rows {
+        let date = required(&row, "date")?;
+        let value = if let Some(value) = optional_f64(&row, "water_m3_day")? {
+            value
+        } else if let Some(value) = optional_f64(&row, "water_m3_s")? {
+            value * SECONDS_PER_DAY
+        } else {
+            return Err(format!(
+                "{} is missing `water_m3_day` or `water_m3_s` for date {}",
+                path.display(),
+                date
+            )
+            .into());
+        };
+        values.insert(date, value.max(0.0));
     }
     Ok(values)
 }
@@ -773,11 +887,15 @@ mod tests {
                 .join("gezira_irr.food_production.csv"),
         )
         .expect("food module csv should be readable");
-        assert!(food.contains("2005-01-01,42.000000"));
+        assert!(food.contains("2005-01-01,216000.000000"));
+        assert!(food.contains("2005-01-02,259200.000000"));
         let evaporation = fs::read_to_string(output.join("modules").join("res.evaporation.csv"))
             .expect("evaporation module csv should be readable");
-        assert!(evaporation.contains("2005-01-01,3094.000000"));
+        assert!(evaporation.contains("2005-01-01,123.000000"));
         assert!(evaporation.contains("2005-01-02,3094.000000"));
+        let warnings = fs::read_to_string(output.join("staging").join("assembly_warnings.csv"))
+            .expect("warnings csv should be readable");
+        assert!(warnings.contains("direct evaporation_m3_day"));
         assert!(
             output
                 .join("staging")
@@ -802,6 +920,7 @@ mod tests {
         fs::create_dir_all(root.join("topology")).expect("topology dir");
         fs::create_dir_all(root.join("hydmod").join("daily")).expect("hydmod dir");
         fs::create_dir_all(root.join("climate").join("era5_daily")).expect("era5 daily dir");
+        fs::create_dir_all(root.join("evaporation").join("direct")).expect("evaporation dir");
         fs::create_dir_all(root.join("agriculture").join("water_usage")).expect("ag dir");
         fs::create_dir_all(root.join("electricity_price")).expect("electricity dir");
         fs::write(
@@ -838,11 +957,16 @@ mod tests {
                 "date,precip_mm_day,temp_c,dewpoint_c,radiation_mj_m2_day,wind_ms,runoff_mm_day,quality_flag\n2005-01-01,1,20,5,10,2,1,fixture\n2005-01-02,1,20,5,10,2,1,fixture\n",
             )
             .expect("era5 daily csv");
+            let water_usage = if node_id == "gezira_irr" {
+                "date,water_m3_s\n2005-01-01,2.5\n2005-01-02,3.0\n"
+            } else {
+                "date,et0_mm_day,kc,water_m3_day\n2005-01-01,1,1,42\n2005-01-02,1,1,43\n"
+            };
             fs::write(
                 root.join("agriculture")
                     .join("water_usage")
                     .join(format!("nile_{node_id}_water.csv")),
-                "date,et0_mm_day,kc,water_m3_day\n2005-01-01,1,1,42\n2005-01-02,1,1,43\n",
+                water_usage,
             )
             .expect("water usage csv");
             fs::write(
@@ -852,5 +976,10 @@ mod tests {
             )
             .expect("electricity csv");
         }
+        fs::write(
+            root.join("evaporation").join("direct").join("res.csv"),
+            "date,evaporation_m3_day\n2005-01-01,123\n",
+        )
+        .expect("direct evaporation csv");
     }
 }
