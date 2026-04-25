@@ -6,7 +6,6 @@ herss/
 !.env.example
 horizon/nrsm/data/
 !horizon/nrsm/data/.gitkeep
-horizon/nile-digital-twin/data/
 
 # Rust
 target/

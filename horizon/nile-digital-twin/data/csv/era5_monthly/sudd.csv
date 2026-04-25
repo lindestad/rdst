@@ -1,0 +1,2 @@
+month,precip_mm,temp_c,radiation_mj_m2,wind_ms,dewpoint_c,pet_mm,runoff_mm,historical_discharge_m3s,quality_flag
+2005-01-01,0.0,19.01649746722727,13.303081738040728,2.4935196041380046,7.0980165483100865,86.80792168591552,0.5591888208600881,,stub

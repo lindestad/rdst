@@ -1,8 +1,9 @@
 import pandas as pd
+import xarray as xr
 
 from dataloader import config
 from dataloader import nodes as nodes_mod
-from dataloader.copernicus_csv import CATALOG_ROWS, build
+from dataloader.copernicus_csv import CATALOG_ROWS, _era5_node_dataframes_from_months, build
 
 
 def test_stub_csv_bundle_writes_logical_folder_structure(tmp_path, monkeypatch):
@@ -50,3 +51,40 @@ def test_catalog_documents_broad_copernicus_sources():
     assert "era5_land_monthly_hydro" in dataset_ids
     assert "glofas_historical_discharge" in dataset_ids
     assert "sentinel2_ndvi_zones" in dataset_ids
+
+
+def test_shared_era5_month_file_can_feed_node_csvs(tmp_path):
+    times = pd.date_range("2005-01-01", periods=2, freq="D")
+    lat = [0.0, 1.0]
+    lon = [32.0, 33.0]
+    shape = (len(times), len(lat), len(lon))
+    ds = xr.Dataset(
+        {
+            "tp": (("time", "latitude", "longitude"), 0.001 * _ones(shape)),
+            "t2m": (("time", "latitude", "longitude"), 295.0 * _ones(shape)),
+            "d2m": (("time", "latitude", "longitude"), 285.0 * _ones(shape)),
+            "ssrd": (("time", "latitude", "longitude"), 18_000_000.0 * _ones(shape)),
+            "u10": (("time", "latitude", "longitude"), 2.0 * _ones(shape)),
+            "v10": (("time", "latitude", "longitude"), 1.0 * _ones(shape)),
+            "ro": (("time", "latitude", "longitude"), 0.0001 * _ones(shape)),
+        },
+        coords={"time": times, "latitude": lat, "longitude": lon},
+    )
+    path = tmp_path / "era5_daily_2005_01.nc"
+    ds.to_netcdf(path)
+
+    daily, monthly = _era5_node_dataframes_from_months(
+        [path],
+        bbox=(1.5, 31.5, -0.5, 33.5),
+    )
+
+    assert len(daily) == 2
+    assert daily["precip_mm_day"].round(3).tolist() == [1.0, 1.0]
+    assert len(monthly) == 1
+    assert round(float(monthly["precip_mm"].iloc[0]), 3) == 2.0
+
+
+def _ones(shape):
+    import numpy as np
+
+    return np.ones(shape)

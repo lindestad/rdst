@@ -11,10 +11,12 @@ import json
 import os
 import re
 import zipfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import date
 from hashlib import blake2b
 from pathlib import Path
+from threading import Lock
 
 import numpy as np
 import pandas as pd
@@ -81,7 +83,7 @@ CATALOG_ROWS = [
         "output_folder": "glofas",
         "variables": "river_discharge_in_the_last_24_hours",
         "why_relevant": "River discharge baseline for calibration at headwaters, confluences, and dams.",
-        "notes": "Real conversion requires cfgrib/eccodes in the Python environment.",
+        "notes": "Requested as NetCDF through EWDS; the account must accept the CEMS terms first.",
     },
     {
         "dataset_id": "sentinel2_ndvi_zones",
@@ -139,6 +141,7 @@ def build(
     start: str | None = None,
     end: str | None = None,
     overwrite: bool = False,
+    workers: int = 1,
 ) -> None:
     """Build CSV outputs under `data/csv`.
 
@@ -148,6 +151,7 @@ def build(
     - full: hydro + GloFAS daily discharge
     """
     profile = _validate_profile(profile)
+    workers = _validate_workers(workers)
     start = start or config.PERIOD_START
     end = end or config.PERIOD_END
 
@@ -158,13 +162,34 @@ def build(
     _write_edges_csv(overwrite=overwrite)
 
     nodes = _load_node_refs()
-    _write_era5_csvs(nodes, start=start, end=end, stub=stub, overwrite=overwrite)
+    _write_era5_csvs(
+        nodes,
+        start=start,
+        end=end,
+        stub=stub,
+        overwrite=overwrite,
+        workers=workers,
+    )
     _write_ndvi_csvs(start=start, end=end, stub=stub, overwrite=overwrite)
 
     if _profile_at_least(profile, "hydro"):
-        _write_era5_land_csvs(nodes, start=start, end=end, stub=stub, overwrite=overwrite)
+        _write_era5_land_csvs(
+            nodes,
+            start=start,
+            end=end,
+            stub=stub,
+            overwrite=overwrite,
+            workers=workers,
+        )
     if _profile_at_least(profile, "full"):
-        _write_glofas_csvs(nodes, start=start, end=end, stub=stub, overwrite=overwrite)
+        _write_glofas_csvs(
+            nodes,
+            start=start,
+            end=end,
+            stub=stub,
+            overwrite=overwrite,
+            workers=workers,
+        )
 
 
 def _validate_profile(profile: str) -> str:
@@ -174,8 +199,60 @@ def _validate_profile(profile: str) -> str:
     return normalized
 
 
+def _validate_workers(workers: int) -> int:
+    if workers < 1:
+        raise ValueError("workers must be >= 1")
+    return min(workers, 8)
+
+
 def _profile_at_least(profile: str, minimum: str) -> bool:
     return PROFILE_ORDER[profile] >= PROFILE_ORDER[minimum]
+
+
+def _run_parallel(jobs, *, workers: int, label: str, func) -> None:
+    total = len(jobs)
+    if total == 0:
+        return
+    progress = _progress_bar(total=total, desc=label)
+    if workers <= 1 or total == 1:
+        try:
+            for index, job in enumerate(jobs, start=1):
+                if progress is None:
+                    print(f"{label} {index}/{total}", flush=True)
+                func(job)
+                if progress is not None:
+                    progress.update(1)
+        finally:
+            if progress is not None:
+                progress.close()
+        return
+
+    if progress is None:
+        print(f"{label}: running {total} jobs with {workers} workers", flush=True)
+    progress_lock = Lock()
+    done = 0
+    try:
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = [executor.submit(func, job) for job in jobs]
+            for future in as_completed(futures):
+                future.result()
+                with progress_lock:
+                    done += 1
+                    if progress is not None:
+                        progress.update(1)
+                    else:
+                        print(f"{label} {done}/{total}", flush=True)
+    finally:
+        if progress is not None:
+            progress.close()
+
+
+def _progress_bar(*, total: int, desc: str):
+    try:
+        from tqdm.auto import tqdm
+    except ImportError:
+        return None
+    return tqdm(total=total, desc=desc, unit="job", dynamic_ncols=True)
 
 
 def _ensure_nodes_geojson() -> None:
@@ -264,13 +341,14 @@ def _load_node_refs() -> list[NodeRef]:
 
 
 def _write_era5_csvs(
-    nodes: list[NodeRef], *, start: str, end: str, stub: bool, overwrite: bool
+    nodes: list[NodeRef], *, start: str, end: str, stub: bool, overwrite: bool, workers: int
 ) -> None:
     daily_dir = config.CSV_DIR / "era5_daily"
     monthly_dir = config.CSV_DIR / "era5_monthly"
     daily_dir.mkdir(parents=True, exist_ok=True)
     monthly_dir.mkdir(parents=True, exist_ok=True)
 
+    pending_nodes = []
     for node in nodes:
         daily_path = daily_dir / f"{node.node_id}.csv"
         monthly_path = monthly_dir / f"{node.node_id}.csv"
@@ -284,29 +362,37 @@ def _write_era5_csvs(
         if daily_path.exists() and monthly_path.exists() and not overwrite:
             continue
 
-        bbox = _bbox_for_node(node.node_type, node.lat, node.lon)
-        nc_path = config.DATA_DIR / "raw_era5" / f"{node.node_id}_{start}_{end}.nc"
-        from dataloader.era5 import fetch_era5_daily
+        pending_nodes.append(node)
 
-        fetch_era5_daily(bbox, start, end, nc_path)
+    if not pending_nodes:
+        return
+
+    bundle_bbox = _union_bbox([_node_bbox(node) for node in pending_nodes])
+    month_paths = fetch_era5_daily_monthly_bundle(
+        bundle_bbox,
+        start,
+        end,
+        config.DATA_DIR / "raw_era5_bundle" / f"nile_{start}_{end}",
+        workers=workers,
+    )
+
+    for node in pending_nodes:
+        daily_path = daily_dir / f"{node.node_id}.csv"
+        monthly_path = monthly_dir / f"{node.node_id}.csv"
+        bbox = _bbox_for_node(node.node_type, node.lat, node.lon)
+        daily, monthly = _era5_node_dataframes_from_months(month_paths, bbox=bbox)
         if overwrite or not daily_path.exists():
-            _era5_daily_dataframe(nc_path, bbox=bbox).to_csv(daily_path, index=False)
+            daily.to_csv(daily_path, index=False)
         if overwrite or not monthly_path.exists():
-            monthly = monthly_forcings_from_era5(
-                nc_path,
-                lat_min=bbox[2],
-                lat_max=bbox[0],
-                lon_min=bbox[1],
-                lon_max=bbox[3],
-            )
             monthly.to_csv(monthly_path, index=False)
 
 
 def _write_era5_land_csvs(
-    nodes: list[NodeRef], *, start: str, end: str, stub: bool, overwrite: bool
+    nodes: list[NodeRef], *, start: str, end: str, stub: bool, overwrite: bool, workers: int
 ) -> None:
     out_dir = config.CSV_DIR / "era5_land_monthly"
     out_dir.mkdir(parents=True, exist_ok=True)
+    jobs = []
     for node in nodes:
         out_path = out_dir / f"{node.node_id}.csv"
         if out_path.exists() and not overwrite:
@@ -314,18 +400,22 @@ def _write_era5_land_csvs(
         if stub:
             _stub_era5_land_monthly(node, start, end).to_csv(out_path, index=False)
             continue
-
-        bbox = _bbox_for_node(node.node_type, node.lat, node.lon)
-        nc_path = config.DATA_DIR / "raw_era5_land" / f"{node.node_id}_{start}_{end}.nc"
-        fetch_era5_land_monthly(bbox, start, end, nc_path)
-        _era5_land_monthly_dataframe(nc_path, bbox=bbox).to_csv(out_path, index=False)
+        jobs.append((node, out_path))
+    if jobs:
+        _run_parallel(
+            jobs,
+            workers=workers,
+            label="ERA5-Land node",
+            func=lambda job: _write_one_era5_land_csv(job[0], job[1], start, end),
+        )
 
 
 def _write_glofas_csvs(
-    nodes: list[NodeRef], *, start: str, end: str, stub: bool, overwrite: bool
+    nodes: list[NodeRef], *, start: str, end: str, stub: bool, overwrite: bool, workers: int
 ) -> None:
     out_dir = config.CSV_DIR / "glofas"
     out_dir.mkdir(parents=True, exist_ok=True)
+    jobs = []
     for node in nodes:
         out_path = out_dir / f"{node.node_id}.csv"
         if out_path.exists() and not overwrite:
@@ -333,11 +423,28 @@ def _write_glofas_csvs(
         if stub:
             _stub_glofas_discharge(node, start, end).to_csv(out_path, index=False)
             continue
+        jobs.append((node, out_path))
+    if jobs:
+        _run_parallel(
+            jobs,
+            workers=workers,
+            label="GloFAS node",
+            func=lambda job: _write_one_glofas_csv(job[0], job[1], start, end),
+        )
 
-        bbox = _small_bbox(node.lat, node.lon, radius=0.15)
-        nc_path = config.DATA_DIR / "raw_glofas" / f"{node.node_id}_{start}_{end}.nc"
-        fetch_glofas_daily(bbox, start, end, nc_path)
-        _glofas_dataframe(nc_path, bbox=bbox).to_csv(out_path, index=False)
+
+def _write_one_era5_land_csv(node: NodeRef, out_path: Path, start: str, end: str) -> None:
+    bbox = _bbox_for_node(node.node_type, node.lat, node.lon)
+    nc_path = config.DATA_DIR / "raw_era5_land" / f"{node.node_id}_{start}_{end}.nc"
+    fetch_era5_land_monthly(bbox, start, end, nc_path)
+    _era5_land_monthly_dataframe(nc_path, bbox=bbox).to_csv(out_path, index=False)
+
+
+def _write_one_glofas_csv(node: NodeRef, out_path: Path, start: str, end: str) -> None:
+    bbox = _small_bbox(node.lat, node.lon, radius=0.15)
+    nc_path = config.DATA_DIR / "raw_glofas" / f"{node.node_id}_{start}_{end}.nc"
+    fetch_glofas_daily(bbox, start, end, nc_path)
+    _glofas_dataframe(nc_path, bbox=bbox).to_csv(out_path, index=False)
 
 
 def _write_ndvi_csvs(*, start: str, end: str, stub: bool, overwrite: bool) -> None:
@@ -393,6 +500,142 @@ def fetch_era5_land_monthly(
     )
     _move_unzipped_netcdf(tmp_path, out_path)
     return out_path
+
+
+def fetch_era5_daily_monthly_bundle(
+    bbox: tuple[float, float, float, float],
+    start: str,
+    end: str,
+    out_dir: Path,
+    *,
+    workers: int = 1,
+) -> list[Path]:
+    """Download ERA5 daily statistics once per month for a shared bbox.
+
+    The older per-node path performs `nodes * months * variables` CDS requests.
+    This bundle path performs `months` requests when CDS accepts multi-variable
+    NetCDF, with a per-variable fallback for individual months if needed.
+    """
+    from dataloader.era5 import CDS_DATASET, VARIABLES, _iter_month_requests
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    month_jobs = [
+        (year, month, days, out_dir / f"era5_daily_{year}_{month}.nc")
+        for year, month, days in _iter_month_requests(start, end)
+    ]
+    missing_jobs = [job for job in month_jobs if not job[3].exists()]
+    if missing_jobs:
+        _run_parallel(
+            missing_jobs,
+            workers=workers,
+            label="ERA5 month",
+            func=lambda job: _fetch_one_era5_bundle_month(
+                dataset=CDS_DATASET,
+                variables=VARIABLES,
+                bbox=bbox,
+                year=job[0],
+                month=job[1],
+                days=job[2],
+                month_path=job[3],
+            ),
+        )
+    month_paths = [job[3] for job in month_jobs]
+    return month_paths
+
+
+def _fetch_one_era5_bundle_month(
+    *,
+    dataset: str,
+    variables: list[str],
+    bbox: tuple[float, float, float, float],
+    year: str,
+    month: str,
+    days: list[str],
+    month_path: Path,
+) -> None:
+    import cdsapi
+
+    if month_path.exists():
+        return
+    client = cdsapi.Client()
+    tmp_path = month_path.with_suffix(".download")
+    request = {
+        "product_type": "reanalysis",
+        "variable": variables,
+        "year": [year],
+        "month": [month],
+        "day": days,
+        "daily_statistic": "daily_mean",
+        "time_zone": "UTC+00:00",
+        "frequency": "1_hourly",
+        "area": list(bbox),
+        "format": "netcdf",
+    }
+    print(f"fetching ERA5 Nile bundle {year}-{month} ({len(variables)} variables)", flush=True)
+    try:
+        client.retrieve(dataset, request, str(tmp_path))
+        _move_unzipped_netcdf(tmp_path, month_path)
+    except Exception as error:
+        tmp_path.unlink(missing_ok=True)
+        print(
+            f"ERA5 multi-variable request failed for {year}-{month}; "
+            "falling back to per-variable requests",
+            flush=True,
+        )
+        _fetch_era5_month_by_variable(
+            client=client,
+            bbox=bbox,
+            year=year,
+            month=month,
+            days=days,
+            out_path=month_path,
+            cause=error,
+        )
+
+
+def _fetch_era5_month_by_variable(
+    *,
+    client,
+    bbox: tuple[float, float, float, float],
+    year: str,
+    month: str,
+    days: list[str],
+    out_path: Path,
+    cause: Exception,
+) -> None:
+    from dataloader.era5 import CDS_DATASET, VARIABLES, _merge_variable_chunks
+
+    chunk_dir = out_path.parent / f".{out_path.stem}_variables"
+    chunk_dir.mkdir(parents=True, exist_ok=True)
+    variable_paths = []
+    for variable in VARIABLES:
+        variable_path = chunk_dir / f"{out_path.stem}_{variable}.nc"
+        variable_paths.append(variable_path)
+        if variable_path.exists():
+            continue
+        tmp_path = variable_path.with_suffix(".download")
+        print(f"fetching ERA5 fallback {year}-{month} {variable}", flush=True)
+        client.retrieve(
+            CDS_DATASET,
+            {
+                "product_type": "reanalysis",
+                "variable": [variable],
+                "year": [year],
+                "month": [month],
+                "day": days,
+                "daily_statistic": "daily_mean",
+                "time_zone": "UTC+00:00",
+                "frequency": "1_hourly",
+                "area": list(bbox),
+                "format": "netcdf",
+            },
+            str(tmp_path),
+        )
+        _move_unzipped_netcdf(tmp_path, variable_path)
+    try:
+        _merge_variable_chunks(variable_paths, out_path)
+    except Exception as merge_error:
+        raise RuntimeError(f"Could not build fallback ERA5 month {year}-{month}") from merge_error
 
 
 def fetch_glofas_daily(
@@ -503,6 +746,36 @@ def _glofas_dataframe(source: Path | str, *, bbox: tuple[float, float, float, fl
         ds.close()
 
 
+def _era5_node_dataframes_from_months(
+    month_paths: list[Path], *, bbox: tuple[float, float, float, float]
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    daily_frames = []
+    monthly_frames = []
+    for path in month_paths:
+        ds = _open_normalized_dataset(path)
+        try:
+            daily_frames.append(_era5_daily_dataframe(ds, bbox=bbox))
+            monthly_frames.append(
+                monthly_forcings_from_era5(
+                    ds,
+                    lat_min=bbox[2],
+                    lat_max=bbox[0],
+                    lon_min=bbox[1],
+                    lon_max=bbox[3],
+                )
+            )
+        finally:
+            ds.close()
+    daily = pd.concat(daily_frames, ignore_index=True)
+    monthly = pd.concat(monthly_frames, ignore_index=True)
+    daily["date"] = pd.to_datetime(daily["date"])
+    monthly["month"] = pd.to_datetime(monthly["month"])
+    daily = daily.sort_values("date").drop_duplicates("date")
+    monthly = monthly.sort_values("month").drop_duplicates("month")
+    daily["date"] = daily["date"].dt.date
+    return daily, monthly
+
+
 def _open_normalized_dataset(source: Path | str | xr.Dataset) -> xr.Dataset:
     ds = source if isinstance(source, xr.Dataset) else xr.open_dataset(source)
     return _normalize_coords(ds)
@@ -535,6 +808,20 @@ def _crop_and_spatial_mean(
             weights = np.cos(np.deg2rad(ds.latitude))
             return ds.weighted(weights).mean(dim=("latitude", "longitude"))
     return ds
+
+
+def _node_bbox(node: NodeRef) -> tuple[float, float, float, float]:
+    return _bbox_for_node(node.node_type, node.lat, node.lon)
+
+
+def _union_bbox(bboxes: list[tuple[float, float, float, float]]) -> tuple[float, float, float, float]:
+    if not bboxes:
+        raise ValueError("Cannot build a union bbox from no boxes")
+    lat_max = max(bbox[0] for bbox in bboxes)
+    lon_min = min(bbox[1] for bbox in bboxes)
+    lat_min = min(bbox[2] for bbox in bboxes)
+    lon_max = max(bbox[3] for bbox in bboxes)
+    return (lat_max, lon_min, lat_min, lon_max)
 
 
 def _stub_daily_forcings(node: NodeRef, start: str, end: str) -> pd.DataFrame:

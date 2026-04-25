@@ -34,10 +34,18 @@ def csv_bundle(
     start: str | None = typer.Option(None, help="Inclusive start date, YYYY-MM-DD"),
     end: str | None = typer.Option(None, help="Inclusive end date, YYYY-MM-DD"),
     overwrite: bool = typer.Option(False, help="Rewrite existing CSV outputs"),
+    workers: int = typer.Option(1, min=1, max=8, help="Concurrent remote download workers"),
 ) -> None:
     """Write a structured Copernicus/ERA5 CSV bundle under data/csv."""
     from dataloader import copernicus_csv as _csv
-    _csv.build(stub=stub, profile=profile, start=start, end=end, overwrite=overwrite)
+    _csv.build(
+        stub=stub,
+        profile=profile,
+        start=start,
+        end=end,
+        overwrite=overwrite,
+        workers=workers,
+    )
 
 
 @app.command()

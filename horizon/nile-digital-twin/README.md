@@ -78,10 +78,12 @@ The CSV sidecar is for inspection, notebooks, and the Rust dataloader path. It d
 - `hydro` adds ERA5-Land monthly hydrology fields: precipitation, runoff, evaporation, soil moisture, and skin temperature.
 - `full` adds GloFAS historical discharge CSVs. Real GloFAS pulls need `EWDS_API_KEY` or `CDS_API_KEY`.
 
+ERA5 daily CSVs are fetched as a shared Nile monthly bundle under `data/raw_era5_bundle/`, then sliced locally into per-node CSVs. This avoids the slow per-node CDS request pattern.
+
 Real Copernicus pull example:
 
 ```bash
-python -m dataloader csv-bundle --profile hydro --start 2005-01-01 --end 2024-12-01
+python -m dataloader csv-bundle --profile hydro --start 2005-01-01 --end 2024-12-01 --workers 4
 ```
 
 ## Project layout
