@@ -24,6 +24,30 @@ def overlays(stub: bool = False) -> None:
     _overlays.build(stub=stub)
 
 
+@app.command("csv-bundle")
+def csv_bundle(
+    stub: bool = typer.Option(False, help="Produce schema-correct synthetic CSVs"),
+    profile: str = typer.Option(
+        "core",
+        help="Dataset profile to build: core, hydro, or full",
+    ),
+    start: str | None = typer.Option(None, help="Inclusive start date, YYYY-MM-DD"),
+    end: str | None = typer.Option(None, help="Inclusive end date, YYYY-MM-DD"),
+    overwrite: bool = typer.Option(False, help="Rewrite existing CSV outputs"),
+    workers: int = typer.Option(1, min=1, max=8, help="Concurrent remote download workers"),
+) -> None:
+    """Write a structured Copernicus/ERA5 CSV bundle under data/csv."""
+    from dataloader import copernicus_csv as _csv
+    _csv.build(
+        stub=stub,
+        profile=profile,
+        start=start,
+        end=end,
+        overwrite=overwrite,
+        workers=workers,
+    )
+
+
 @app.command()
 def tiles() -> None:
     """Render NDVI raster tile pyramid."""

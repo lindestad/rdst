@@ -40,6 +40,7 @@ data/
 ├── nodes.geojson               # geometry + topology
 ├── node_config.yaml            # static params per node
 ├── timeseries/<id>.parquet     # monthly forcings (precip, PET, runoff, ...)
+├── csv/                        # optional Copernicus/ERA5 CSV inspection bundle
 ├── overlays/ndvi/<zone>.parquet
 └── scenarios/<uuid>.json       # saved scenarios with results
 ```
@@ -55,6 +56,9 @@ cd frontend && npm install && cd ..
 # Produce stub data (0.6 s):
 python -m dataloader all --stub
 
+# Produce an inspection-friendly CSV bundle:
+python -m dataloader csv-bundle --stub --profile full
+
 # Terminal 1 — API:
 NILE_USE_REAL_SIM=1 python -m api
 
@@ -65,6 +69,22 @@ cd frontend && npm run dev
 ```
 
 Click **Run**, move sliders, watch KPIs update, **Save** a scenario, open **Compare** with a second scenario and see deltas.
+
+## CSV bundle
+
+The CSV sidecar is for inspection, notebooks, and the Rust dataloader path. It does not replace the simulator's Parquet contract.
+
+- `core` writes `catalog.csv`, `nodes.csv`, `edges.csv`, ERA5 daily CSVs, ERA5 monthly forcing CSVs, and NDVI zone CSVs.
+- `hydro` adds ERA5-Land monthly hydrology fields: precipitation, runoff, evaporation, soil moisture, and skin temperature.
+- `full` adds GloFAS historical discharge CSVs. Real GloFAS pulls need `EWDS_API_KEY` or `CDS_API_KEY`.
+
+ERA5 daily CSVs are fetched as a shared Nile monthly bundle under `data/raw_era5_bundle/`, then sliced locally into per-node CSVs. This avoids the slow per-node CDS request pattern.
+
+Real Copernicus pull example:
+
+```bash
+python -m dataloader csv-bundle --profile hydro --start 2005-01-01 --end 2024-12-01 --workers 4
+```
 
 ## Project layout
 

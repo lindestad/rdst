@@ -1,0 +1,20 @@
+node_id,name,node_type,country,latitude,longitude,upstream,downstream,catchment_area_km2,storage_capacity_mcm,surface_area_km2_at_full,area_ha_baseline,population_baseline
+lake_victoria_outlet,Lake Victoria outlet (Jinja),source,UG,0.42,33.19,,white_nile_to_sudd,195000.0,,,,
+white_nile_to_sudd,White Nile reach to Sudd,reach,SS,5.0,31.5,lake_victoria_outlet,sudd,,,,,
+sudd,Sudd wetland,wetland,SS,7.5,30.5,white_nile_to_sudd,malakal,,,,,
+malakal,Malakal (post-Sudd),confluence,SS,9.53,31.65,sudd,khartoum,,,,,
+lake_tana_outlet,Lake Tana outlet,source,ET,11.6,37.38,,blue_nile_to_gerd,15000.0,,,,
+blue_nile_to_gerd,Blue Nile reach to GERD,reach,ET,11.0,35.1,lake_tana_outlet,gerd,,,,,
+gerd,Grand Ethiopian Renaissance Dam,reservoir,ET,11.22,35.09,blue_nile_to_gerd,blue_nile_to_khartoum,,74000.0,1874.0,,
+blue_nile_to_khartoum,Blue Nile reach (Roseires → Khartoum),reach,SD,13.5,34.0,gerd,gezira_irr,,,,,
+gezira_irr,Gezira irrigation scheme,demand_irrigation,SD,14.4,33.0,blue_nile_to_khartoum,khartoum,,,,900000.0,
+khartoum,Khartoum confluence,confluence,SD,15.6,32.53,malakal;gezira_irr,khartoum_muni;atbara_confluence,,,,,
+khartoum_muni,Khartoum municipal demand,demand_municipal,SD,15.58,32.53,khartoum,atbara_confluence,,,,,5500000.0
+atbara_source,Atbara River (Ethiopian highlands),source,ET,13.5,37.0,,atbara_confluence,112000.0,,,,
+atbara_confluence,Atbara confluence,confluence,SD,17.67,33.97,khartoum_muni;atbara_source,merowe,,,,,
+merowe,Merowe Dam,reservoir,SD,18.68,31.93,atbara_confluence,main_nile_to_aswan,,12500.0,800.0,,
+main_nile_to_aswan,Main Nile reach to Aswan,reach,EG,22.0,32.0,merowe,aswan,,,,,
+aswan,Aswan High Dam / Lake Nasser,reservoir,EG,23.97,32.88,main_nile_to_aswan,egypt_ag,,162000.0,5250.0,,
+egypt_ag,Egypt agriculture (Delta + Valley),demand_irrigation,EG,30.0,31.0,aswan,cairo_muni,,,,3500000.0,
+cairo_muni,Cairo municipal demand,demand_municipal,EG,30.05,31.25,egypt_ag,delta,,,,,20000000.0
+delta,Nile Delta / Mediterranean,sink,EG,31.5,31.5,cairo_muni,,,,,,
