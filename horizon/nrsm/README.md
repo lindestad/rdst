@@ -86,6 +86,21 @@ energy fields across all nodes. Calendar dates are not emitted yet; consumers
 should treat `start_day` and `end_day_exclusive` as offsets from the scenario
 start date used by the data assembler.
 
+## Plot Simulator Outputs
+
+`plotting/` contains a small uv-managed Python project that turns `--results-dir`
+CSV output into validation and debugging figures:
+
+```powershell
+cd plotting
+uv run nrsm-plots --results-dir ..\data\results\nile-mvp --output-dir ..\data\results\nile-mvp\plots
+```
+
+It writes network water-balance, reliability, energy, per-node comparison,
+shortage heatmap, and per-node diagnostic plots, plus `node_metrics.csv` and a
+machine-readable `plot_manifest.json`. The plotter reads CSV output directly so
+it works with archived simulator runs and external visualization tools.
+
 ## Actions
 
 Each node can receive a per-day production action through
