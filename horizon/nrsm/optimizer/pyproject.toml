@@ -1,0 +1,24 @@
+[project]
+name = "nrsm-optimizer"
+version = "0.1.0"
+description = "Multi-objective optimizers for NRSM simulator actions"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "pymoo>=0.6.1",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+nrsm-optimize = "nrsm_optimizer.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.0,<0.12.0"]
+build-backend = "uv_build"

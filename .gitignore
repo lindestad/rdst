@@ -6,6 +6,7 @@ herss/
 !.env.example
 horizon/nrsm/data/
 !horizon/nrsm/data/.gitkeep
+horizon/nrsm/optimizer/runs/
 
 # Rust
 target/
