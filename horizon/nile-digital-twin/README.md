@@ -48,7 +48,7 @@ data/
 ## Quick start
 
 ```bash
-git clone <repo> && cd rdst && git checkout storm
+git clone <repo> && cd fairwater && git checkout storm
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 cd frontend && npm install && cd ..

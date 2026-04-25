@@ -72,7 +72,7 @@ frontend/
 - [ ] **Step 1: Scaffold**
 
 ```bash
-cd /home/storms/persprojects/aenergi/rdst
+cd /home/storms/persprojects/aenergi/fairwater
 npm create vite@latest frontend -- --template react-ts
 cd frontend
 npm install
