@@ -144,6 +144,25 @@ cargo run -p nrsm-cli -- data\generated\config.yaml --json --results-dir data\re
 selected action column. Runtime overrides replace the scenario's configured
 `actions.production_level` series before the simulator loads CSV data.
 
+## Initial Levels
+
+By default, each node starts from `reservoir.initial_level` in the scenario YAML.
+To sweep starting storage without rewriting the generated scenario, pass a small
+override YAML:
+
+```yaml
+initial_levels:
+  gerd: 37000000000
+  aswan: 81000000000
+```
+
+```powershell
+cargo run -p nrsm-cli -- data\generated\config.yaml --json --initial-levels data\policy-a\initial-levels.yaml
+```
+
+Any node omitted from the override file keeps the scenario value. Unknown node
+ids fail fast so policy runs do not silently misspell a reservoir.
+
 ## Optimizer API
 
 The CLI and action CSVs are the reproducible file-based path. Optimizers should

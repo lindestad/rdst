@@ -21,6 +21,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(actions_dir) = &cli.actions_dir {
         apply_action_overrides(&mut scenario, actions_dir, &cli.action_column)?;
     }
+    if let Some(initial_levels_path) = &cli.initial_levels_path {
+        apply_initial_level_overrides(&mut scenario, initial_levels_path)?;
+    }
     scenario.load_module_csvs(base_dir)?;
     let result = simulate(&scenario)?;
 
@@ -50,6 +53,7 @@ struct Cli {
     results_dir: Option<PathBuf>,
     actions_dir: Option<PathBuf>,
     action_column: String,
+    initial_levels_path: Option<PathBuf>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -66,6 +70,7 @@ fn parse_args() -> Result<Cli, Box<dyn std::error::Error>> {
     let mut results_dir = None;
     let mut actions_dir = None;
     let mut action_column = "scenario_1".to_string();
+    let mut initial_levels_path = None;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -96,6 +101,12 @@ fn parse_args() -> Result<Cli, Box<dyn std::error::Error>> {
                 };
                 action_column = value;
             }
+            "--initial-levels" => {
+                let Some(value) = args.next() else {
+                    return Err("missing value for --initial-levels".into());
+                };
+                initial_levels_path = Some(PathBuf::from(value));
+            }
             "--help" | "-h" => {
                 print_help();
                 std::process::exit(0);
@@ -124,6 +135,7 @@ fn parse_args() -> Result<Cli, Box<dyn std::error::Error>> {
         results_dir,
         actions_dir,
         action_column,
+        initial_levels_path,
     })
 }
 
@@ -137,8 +149,112 @@ fn parse_output_format(value: &str) -> Result<OutputFormat, Box<dyn std::error::
 
 fn print_help() {
     eprintln!(
-        "Usage: nrsm-cli <SCENARIO_PATH> [--output yaml|json] [--json] [--yaml] [--pretty] [--results-dir DIR] [--actions-dir DIR] [--action-column COLUMN]"
+        "Usage: nrsm-cli <SCENARIO_PATH> [--output yaml|json] [--json] [--yaml] [--pretty] [--results-dir DIR] [--actions-dir DIR] [--action-column COLUMN] [--initial-levels FILE]"
     );
+}
+
+fn apply_initial_level_overrides(
+    scenario: &mut Scenario,
+    path: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let overrides = read_initial_level_overrides(path)?;
+    let mut remaining = overrides.keys().cloned().collect::<Vec<_>>();
+
+    for node in &mut scenario.nodes {
+        if let Some(initial_level) = overrides.get(&node.id) {
+            node.reservoir.initial_level = *initial_level;
+            remaining.retain(|node_id| node_id != &node.id);
+        }
+    }
+
+    if !remaining.is_empty() {
+        return Err(format!(
+            "initial level override references unknown node id(s): {}",
+            remaining.join(", ")
+        )
+        .into());
+    }
+
+    Ok(())
+}
+
+fn read_initial_level_overrides(
+    path: &Path,
+) -> Result<BTreeMap<String, f64>, Box<dyn std::error::Error>> {
+    let contents = fs::read_to_string(path)?;
+    let value: serde_yaml::Value = serde_yaml::from_str(&contents)?;
+
+    if let Some(levels) = value.get("initial_levels") {
+        return parse_initial_level_map(levels, "initial_levels");
+    }
+
+    if let Some(nodes) = value.get("nodes") {
+        return parse_node_initial_levels(nodes);
+    }
+
+    parse_initial_level_map(&value, "top-level mapping")
+}
+
+fn parse_initial_level_map(
+    value: &serde_yaml::Value,
+    label: &str,
+) -> Result<BTreeMap<String, f64>, Box<dyn std::error::Error>> {
+    let Some(mapping) = value.as_mapping() else {
+        return Err(format!("{label} must be a mapping from node id to initial level").into());
+    };
+
+    let mut levels = BTreeMap::new();
+    for (key, value) in mapping {
+        let Some(node_id) = key.as_str() else {
+            return Err(format!("{label} keys must be node id strings").into());
+        };
+        levels.insert(
+            node_id.to_string(),
+            parse_initial_level_value(value, node_id)?,
+        );
+    }
+
+    Ok(levels)
+}
+
+fn parse_node_initial_levels(
+    value: &serde_yaml::Value,
+) -> Result<BTreeMap<String, f64>, Box<dyn std::error::Error>> {
+    let Some(nodes) = value.as_sequence() else {
+        return Err("nodes must be a list of node objects".into());
+    };
+
+    let mut levels = BTreeMap::new();
+    for node in nodes {
+        let Some(node_id) = node.get("id").and_then(|id| id.as_str()) else {
+            return Err("each node initial-level override must include an id".into());
+        };
+        let Some(initial_level) = node
+            .get("reservoir")
+            .and_then(|reservoir| reservoir.get("initial_level"))
+        else {
+            continue;
+        };
+        levels.insert(
+            node_id.to_string(),
+            parse_initial_level_value(initial_level, node_id)?,
+        );
+    }
+
+    Ok(levels)
+}
+
+fn parse_initial_level_value(
+    value: &serde_yaml::Value,
+    node_id: &str,
+) -> Result<f64, Box<dyn std::error::Error>> {
+    if let Some(number) = value.as_f64() {
+        return Ok(number);
+    }
+    if let Some(text) = value.as_str() {
+        return Ok(text.parse()?);
+    }
+    Err(format!("initial level for node `{node_id}` must be numeric").into())
 }
 
 fn apply_action_overrides(
@@ -348,7 +464,7 @@ mod tests {
         simulate,
     };
 
-    use super::{apply_action_overrides, write_result_csvs};
+    use super::{apply_action_overrides, apply_initial_level_overrides, write_result_csvs};
 
     #[test]
     fn writes_per_node_and_summary_csvs() {
@@ -437,6 +553,75 @@ mod tests {
         assert_eq!(result.periods[0].node_results[0].production_release, 50.0);
         assert_eq!(result.periods[0].node_results[1].action, 0.25);
         assert_eq!(result.periods[0].node_results[1].production_release, 25.0);
+
+        fs::remove_dir_all(&dir).expect("temporary directory should be removed");
+    }
+
+    #[test]
+    fn applies_initial_level_override_file() {
+        let unique = format!(
+            "nrsm-cli-initial-levels-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system time should be after epoch")
+                .as_nanos()
+        );
+        let dir = std::env::temp_dir().join(unique);
+        fs::create_dir_all(&dir).expect("temporary directory should be created");
+        let override_path = dir.join("initial-levels.yaml");
+        fs::write(
+            &override_path,
+            "initial_levels:\n  upper: 250.0\n  lower: 125.0\n",
+        )
+        .expect("initial levels should be written");
+
+        let mut scenario = Scenario {
+            settings: SimulationSettings {
+                horizon_days: Some(1),
+                ..SimulationSettings::default()
+            },
+            nodes: vec![node("upper", 0.0, vec![]), node("lower", 0.0, vec![])],
+        };
+
+        apply_initial_level_overrides(&mut scenario, &override_path)
+            .expect("initial level overrides should apply");
+
+        assert_eq!(scenario.nodes[0].reservoir.initial_level, 250.0);
+        assert_eq!(scenario.nodes[1].reservoir.initial_level, 125.0);
+
+        fs::remove_dir_all(&dir).expect("temporary directory should be removed");
+    }
+
+    #[test]
+    fn rejects_initial_level_overrides_for_unknown_nodes() {
+        let unique = format!(
+            "nrsm-cli-initial-levels-unknown-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system time should be after epoch")
+                .as_nanos()
+        );
+        let dir = std::env::temp_dir().join(unique);
+        fs::create_dir_all(&dir).expect("temporary directory should be created");
+        let override_path = dir.join("initial-levels.yaml");
+        fs::write(&override_path, "initial_levels:\n  missing: 250.0\n")
+            .expect("initial levels should be written");
+
+        let mut scenario = Scenario {
+            settings: SimulationSettings {
+                horizon_days: Some(1),
+                ..SimulationSettings::default()
+            },
+            nodes: vec![node("upper", 0.0, vec![])],
+        };
+
+        let error = apply_initial_level_overrides(&mut scenario, &override_path)
+            .expect_err("unknown node override should fail");
+        assert!(
+            error
+                .to_string()
+                .contains("initial level override references unknown node id")
+        );
 
         fs::remove_dir_all(&dir).expect("temporary directory should be removed");
     }
