@@ -105,6 +105,10 @@ class NrsmParetoProblem(ElementwiseProblem):
         out["F"] = pareto_objectives(
             summary,
             baseline_energy_value=float(self.baseline_summary.get("total_energy_value", 0.0)),
+            terminal_storage=float(summary.get("terminal_reservoir_storage", 0.0)),
+            baseline_terminal_storage=float(
+                self.baseline_summary.get("terminal_reservoir_storage", 0.0)
+            ),
         )
 
 
@@ -124,7 +128,7 @@ def optimize_pareto(
     )
     baseline_actions = np.ones(simulator.expected_action_len(), dtype=float)
     baseline_summary = simulator.summary(baseline_actions.tolist())
-    objective_names = ObjectiveNames().as_tuple()
+    objective_names = ObjectiveNames().as_tuple(include_terminal_storage=True)
 
     problem = NrsmParetoProblem(
         simulator,

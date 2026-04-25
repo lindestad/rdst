@@ -375,7 +375,7 @@ fn render_node_result_row(period: &PeriodResult, node: &NodeResult) -> String {
 
 fn render_summary_csv(result: &SimulationResult) -> String {
     let mut contents = String::from(
-        "period_index,start_day,end_day_exclusive,duration_days,total_inflow,total_evaporation,total_drink_water_met,total_unmet_drink_water,total_food_water_demand,total_food_water_met,total_unmet_food_water,total_food_produced,total_production_release,total_generated_electricity_kwh,total_generated_electricity_mwh,total_spill,total_release_for_routing,total_downstream_release,total_routing_loss,total_energy_value\n",
+        "period_index,start_day,end_day_exclusive,duration_days,total_inflow,total_evaporation,total_drink_water_met,total_unmet_drink_water,total_food_water_demand,total_food_water_met,total_unmet_food_water,total_food_produced,total_production_release,total_generated_electricity_kwh,total_generated_electricity_mwh,total_spill,total_release_for_routing,total_downstream_release,total_routing_loss,total_energy_value,terminal_reservoir_storage\n",
     );
 
     for period in &result.periods {
@@ -395,6 +395,7 @@ fn render_summary_csv(result: &SimulationResult) -> String {
         let mut total_downstream_release = 0.0;
         let mut total_routing_loss = 0.0;
         let mut total_energy_value = 0.0;
+        let mut terminal_reservoir_storage = 0.0;
 
         for node in &period.node_results {
             let release_for_routing = node.production_release + node.spill;
@@ -413,6 +414,7 @@ fn render_summary_csv(result: &SimulationResult) -> String {
             total_downstream_release += node.downstream_release;
             total_routing_loss += (release_for_routing - node.downstream_release).max(0.0);
             total_energy_value += node.energy_value;
+            terminal_reservoir_storage += node.reservoir_level;
         }
 
         contents.push_str(&csv_row([
@@ -436,6 +438,7 @@ fn render_summary_csv(result: &SimulationResult) -> String {
             total_downstream_release.to_string(),
             total_routing_loss.to_string(),
             total_energy_value.to_string(),
+            terminal_reservoir_storage.to_string(),
         ]));
         contents.push('\n');
     }

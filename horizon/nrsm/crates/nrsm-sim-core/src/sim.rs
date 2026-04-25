@@ -91,7 +91,7 @@ impl PreparedScenario {
     ) -> Result<SimulationResult, SimulationError> {
         let daily_periods = simulate_daily_periods(&self.scenario, &self.compiled, action_matrix);
         let periods = aggregate_periods(&daily_periods, self.scenario.settings.reporting);
-        let summary = summarize(&periods);
+        let summary = summarize(&daily_periods);
 
         Ok(SimulationResult {
             engine_time_step: EngineTimeStep::Daily,
@@ -269,6 +269,9 @@ fn simulate_daily_summary(
         .collect::<Vec<_>>();
     let mut scheduled_arrivals = vec![vec![0.0; node_count]; horizon_days + max_delay + 1];
     let mut summary = SimulationSummary::default();
+    summary.initial_reservoir_storage = reservoir_levels.iter().sum();
+    summary.terminal_reservoir_storage = summary.initial_reservoir_storage;
+    summary.minimum_reservoir_storage = summary.initial_reservoir_storage;
 
     for day in 0..horizon_days {
         let mut arrivals = scheduled_arrivals[day].clone();
@@ -345,6 +348,10 @@ fn simulate_daily_summary(
             summary.total_downstream_release += downstream_release;
             summary.total_routing_loss += (release_for_routing - downstream_release).max(0.0);
         }
+
+        let system_storage = reservoir_levels.iter().sum();
+        summary.terminal_reservoir_storage = system_storage;
+        summary.minimum_reservoir_storage = summary.minimum_reservoir_storage.min(system_storage);
     }
 
     summary
@@ -424,8 +431,10 @@ fn aggregate_chunk(period_index: usize, chunk: &[PeriodResult]) -> PeriodResult 
 
 fn summarize(periods: &[PeriodResult]) -> SimulationSummary {
     let mut summary = SimulationSummary::default();
+    let mut saw_reservoir_level = false;
 
     for period in periods {
+        let mut period_storage = 0.0;
         for node in &period.node_results {
             summary.total_inflow += node.total_inflow;
             summary.total_evaporation += node.evaporation;
@@ -443,10 +452,40 @@ fn summarize(periods: &[PeriodResult]) -> SimulationSummary {
 
             let routed_source = node.production_release + node.spill;
             summary.total_routing_loss += (routed_source - node.downstream_release).max(0.0);
+            period_storage += node.reservoir_level;
+        }
+
+        summary.terminal_reservoir_storage = period_storage;
+        if saw_reservoir_level {
+            summary.minimum_reservoir_storage =
+                summary.minimum_reservoir_storage.min(period_storage);
+        } else {
+            summary.minimum_reservoir_storage = period_storage;
+            saw_reservoir_level = true;
         }
     }
 
+    summary.initial_reservoir_storage = periods
+        .first()
+        .map(|period| {
+            period
+                .node_results
+                .iter()
+                .map(initial_storage_estimate)
+                .sum()
+        })
+        .unwrap_or_default();
+
     summary
+}
+
+fn initial_storage_estimate(node: &NodeResult) -> f64 {
+    node.reservoir_level - node.total_inflow
+        + node.evaporation
+        + node.drink_water_met
+        + node.food_water_met
+        + node.production_release
+        + node.spill
 }
 
 fn validate_scenario(scenario: &Scenario) -> Result<(), SimulationError> {
@@ -1155,6 +1194,53 @@ mod tests {
         assert_eq!(
             summary.total_energy_value,
             result.summary.total_energy_value
+        );
+    }
+
+    #[test]
+    fn summary_reports_initial_terminal_and_minimum_system_storage() {
+        let scenario = Scenario {
+            settings: SimulationSettings {
+                horizon_days: Some(2),
+                ..SimulationSettings::default()
+            },
+            nodes: vec![NodeConfig {
+                id: "storage".to_string(),
+                reservoir: ReservoirConfig {
+                    initial_level: 100.0,
+                    max_capacity: 1_000.0,
+                },
+                max_production: 50.0,
+                catchment_inflow: ModuleSeries::constant(10.0),
+                connections: vec![],
+                modules: NodeModules::default(),
+                actions: None,
+            }],
+        };
+        let prepared = PreparedScenario::try_new(scenario)
+            .expect("scenario should prepare for summary-only storage metrics");
+
+        let result = prepared
+            .simulate_with_actions(&[0.0, 1.0])
+            .expect("full result should simulate");
+        let summary = prepared
+            .simulate_summary_with_actions(&[0.0, 1.0])
+            .expect("summary-only result should simulate");
+
+        assert_eq!(result.summary.initial_reservoir_storage, 100.0);
+        assert_eq!(result.summary.terminal_reservoir_storage, 70.0);
+        assert_eq!(result.summary.minimum_reservoir_storage, 70.0);
+        assert_eq!(
+            summary.initial_reservoir_storage,
+            result.summary.initial_reservoir_storage
+        );
+        assert_eq!(
+            summary.terminal_reservoir_storage,
+            result.summary.terminal_reservoir_storage
+        );
+        assert_eq!(
+            summary.minimum_reservoir_storage,
+            result.summary.minimum_reservoir_storage
         );
     }
 

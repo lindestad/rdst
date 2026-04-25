@@ -91,9 +91,13 @@ Per-node columns:
 | `routing_loss` | `release_for_routing - downstream_release`, useful for plotting reach losses. |
 | `energy_value` | Hydropower value for the period in EUR. |
 
-`summary.csv` uses the same period columns and aggregates the water, food, and
-energy fields across all nodes, including total generated electricity. Calendar
-dates are not emitted yet; consumers should treat `start_day` and
+`summary.csv` uses the same period columns and aggregates the water, food,
+storage, and energy fields across all nodes, including total generated
+electricity and period-end `terminal_reservoir_storage`. The JSON summary also
+includes `initial_reservoir_storage`, `terminal_reservoir_storage`, and
+`minimum_reservoir_storage` for the whole run, which are useful for optimizers
+that should not win short-term energy by draining the system. Calendar dates
+are not emitted yet; consumers should treat `start_day` and
 `end_day_exclusive` as offsets from the scenario start date used by the data
 assembler.
 

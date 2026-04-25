@@ -33,6 +33,7 @@ The objectives are minimized:
 | `unmet_drink_water` | Total drinking-water shortage. |
 | `unmet_food_water` | Total irrigation water shortage. |
 | `spill` | Total uncontrolled spill. |
+| `terminal_storage_regret` | Baseline terminal reservoir storage minus candidate terminal storage. |
 
 The selected compromise is the Pareto candidate with the smallest normalized
 sum of these objectives. The full frontier is written so humans can choose a
