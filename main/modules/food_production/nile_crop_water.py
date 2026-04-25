@@ -61,6 +61,7 @@ NILE_YAML  = ROOT / "nile.yaml"
 CROP_YAML  = ROOT / "nile_crop_config.yaml"
 OUT_PNG    = ROOT / "nile_water_demand.png"
 OUT_CSV    = ROOT / "nile_water_demand.csv"
+FINAL_DIR  = ROOT / "final"
 
 YEAR_FROM, YEAR_TO = 1950, 2026
 R_EARTH = 6_378_137.0   # WGS-84 semi-major axis (m)
@@ -346,6 +347,17 @@ def main() -> None:
         OUT_CSV, float_format="%.0f"
     )
     print(f"\nSaved {OUT_CSV}  ({len(df)} rows, date + water_usage_m3 [m³/day])")
+
+    # Export per-zone CSVs in m³/s to final/
+    FINAL_DIR.mkdir(exist_ok=True)
+    for zdata in results:
+        nid  = zdata["id"]
+        s    = zdata["series"].rename("water_m3_s")
+        s.index.name = "date"
+        out  = FINAL_DIR / f"{nid}.csv"
+        s.to_csv(out, float_format="%.6f")
+        print(f"  Saved {out.relative_to(ROOT)}  ({len(s)} rows)")
+    print(f"\nAll {len(results)} zone CSVs written to {FINAL_DIR.relative_to(ROOT)}/")
 
     # Plot
     make_plot(results)
