@@ -71,6 +71,7 @@ dependencies = [
 name = "nrsm-py"
 version = "0.1.0"
 dependencies = [
+ "nrsm-dataloader",
  "nrsm-sim-core",
  "pyo3",
  "serde_json",

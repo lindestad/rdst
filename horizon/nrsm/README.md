@@ -269,12 +269,19 @@ Python bindings live in `crates/nrsm-py` and expose the same prepared simulator:
 import json
 import nrsm_py
 
-sim = nrsm_py.PreparedScenario.from_yaml("data/generated/config.yaml")
+sim = nrsm_py.PreparedScenario.from_period(
+    "scenarios/nile-mvp/past/1963-september-30d.yaml"
+)
 actions = [1.0] * sim.expected_action_len()
 summary = json.loads(sim.run_actions_summary_json(actions))
 ```
 
-Build the Python extension with maturin from `horizon/nrsm/crates/nrsm-py`.
+`from_period` is the default Python path for real-data runs: it reads only the
+period dates from the YAML, assembles node inputs from `horizon/data`, and then
+loads the generated CSV-backed config. `from_yaml("data/generated/.../config.yaml")`
+loads an already assembled CSV-backed config. `from_yaml("scenarios/...yaml")`
+runs that hand-written demo scenario as written. Build the Python extension with
+maturin from `horizon/nrsm/crates/nrsm-py`.
 
 ## Assemble Canonical Data
 
@@ -282,6 +289,15 @@ Build the Python extension with maturin from `horizon/nrsm/crates/nrsm-py`.
 cd horizon\nrsm
 cargo run -p nrsm-dataloader -- assemble --input ..\data --output data\generated --start-date 2005-01-01 --end-date 2005-01-31
 cargo run -p nrsm-cli -- data\generated\config.yaml --json --pretty
+```
+
+You can also use an existing scenario YAML as a period spec while ignoring its
+hand-written node data. The assembler reads `settings.start_date` and
+`settings.end_date`, then loads all node inputs from `horizon/data`:
+
+```powershell
+cargo run -p nrsm-dataloader -- assemble --period scenarios\nile-mvp\past\1963-september-30d.yaml --input ..\data
+cargo run -p nrsm-cli -- data\generated\1963-september-30d\config.yaml --json --pretty
 ```
 
 The `assemble` command reads the checked-in canonical data bundle under
@@ -306,6 +322,10 @@ uses `water_m3_s`, the assembler converts it with `water_m3_day = water_m3_s *
 86400`. It writes the result as the food-production module with
 `water_coefficient: 1.0`, so outputs expose the agricultural water balance
 directly through `food_water_demand`, `food_water_met`, and `unmet_food_water`.
+The assembled real-data path requires source data for the requested dates,
+except for electricity price, which is currently collapsed to the latest
+365-record mean. Future windows will need an explicit extrapolation policy
+before they can assemble from historical CSVs.
 
 The older deterministic seed path is still available for tests and demos:
 

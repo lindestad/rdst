@@ -9,6 +9,7 @@ name = "nrsm_py"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+nrsm-dataloader = { path = "../nrsm-dataloader" }
 nrsm-sim-core = { path = "../nrsm-sim-core" }
 pyo3 = { workspace = true, features = ["extension-module"] }
 serde_json.workspace = true
