@@ -1,0 +1,164 @@
+# fall_heights.yaml
+#
+# Effective hydraulic head (fall height) for each Nile-basin node.
+#
+# The effective head is the difference between the reservoir operating level
+# and the tailwater elevation at the turbine draft tubes — NOT the dam wall
+# height.  This is the physically correct value to use when converting
+# electricity prices from EUR/kWh to EUR/m³ via:
+#
+#     E  =  η · ρ · g · h  [J/m³]   →   kWh/m³  =  E / 3 600 000
+#
+# Reservoir levels are typical *operating* values (not design maxima) unless
+# otherwise noted.  Sources: dam operator data, ICOLD dam register, USACE
+# reports, peer-reviewed hydrology literature.
+
+fall_heights:
+
+  victoria:
+    height_m: 30
+    dam: "Nalubaale (Owen Falls) Dam + Kiira Dam"
+    reservoir_m_asl: 1134    # Lake Victoria controlled surface
+    tailwater_m_asl: 1104    # Victoria Nile immediately downstream
+    notes: >
+      Low-head run-of-river scheme at the Lake Victoria outlet.
+      Nalubaale (1954) and Kiira (2000) operate in parallel; both share the
+      ~30 m head between the lake surface and the White Nile downstream.
+
+  southwest:
+    height_m: 5
+    dam: "No major dam (Sudd / White Nile floodplain)"
+    reservoir_m_asl: 390     # Sudd wetland average water surface
+    tailwater_m_asl: 385
+    notes: >
+      The Sudd is an extremely flat, papyrus-choked wetland with no
+      impounding dam.  max_production = 0 in nile.yaml.  The 5 m head is
+      notional, representing the gradient available across low-head
+      regulating weirs; no significant hydropower is produced here.
+
+  karthoum:
+    height_m: 20
+    dam: "Jebel Aulia Dam (White Nile) + Blue Nile confluence backwater"
+    reservoir_m_asl: 383     # Jebel Aulia pool, typical operation
+    tailwater_m_asl: 363     # Nile channel at Khartoum reach
+    notes: >
+      Jebel Aulia Dam alone provides ~10 m head on the White Nile.
+      The Blue Nile confluence backwater raises the effective operating
+      pool, giving a combined head of ~20 m for integrated generation
+      across the Khartoum reach.
+
+  merowe:
+    height_m: 68
+    dam: "Merowe Dam (Hamdab Dam)"
+    reservoir_m_asl: 325     # Merowe Reservoir, typical FSL
+    tailwater_m_asl: 257
+    notes: >
+      Completed 2009; one of the largest dams in Africa (1 250 MW,
+      9 Francis turbines).  Dam structural height 67 m; the reservoir FSL
+      at ~325 m asl and tailrace at ~257 m asl confirm a working head of
+      68 m.
+
+  aswand:
+    height_m: 111
+    dam: "Aswan High Dam (Sadd al-Ali)"
+    reservoir_m_asl: 175     # Lake Nasser typical operating level (design FSL 183 m)
+    tailwater_m_asl: 64      # Nile channel at Aswan powerhouse
+    notes: >
+      Structural dam height 111 m.  The design FSL of 183 m is not
+      routinely reached (seepage management, downstream agreements);
+      the dam is typically operated with the reservoir at ~175 m asl,
+      giving an effective head of 111 m against a tailwater of 64 m.
+      12 Francis turbines; installed capacity 2 100 MW.
+
+  cairo:
+    height_m: 10
+    dam: "Naga Hammadi Barrage + Delta Barrages (Zifta, Esna, Assiut)"
+    reservoir_m_asl: 30      # Delta pool, low-lying alluvial terrain
+    tailwater_m_asl: 20
+    notes: >
+      The Nile Delta is flat alluvial terrain.  Delta barrages are
+      very low-head structures built primarily for irrigation control.
+      Naga Hammadi is the chief barrage with any appreciable power
+      generation.  The 10 m head is representative of this reach;
+      no high-head hydropower exists here.
+
+  singa:
+    height_m: 40
+    dam: "Sennar Dam"
+    reservoir_m_asl: 420     # Sennar Reservoir typical operation
+    tailwater_m_asl: 380     # Blue Nile channel downstream
+    notes: >
+      Sennar Dam (1925, refurbished) on the Blue Nile, upstream of
+      Singa town.  The extensive reservoir pool combined with the river
+      gradient gives an effective head of ~40 m at the turbines.
+
+  roseires:
+    height_m: 68
+    dam: "Roseires Dam (Damazin Dam)"
+    reservoir_m_asl: 490     # post-2012 heightening FSL
+    tailwater_m_asl: 422     # Blue Nile channel downstream
+    notes: >
+      Built 1966, heightened 1999 and again ~2012 (FSL raised to 490 m).
+      Four Francis turbines; installed capacity 280 MW.  The structural
+      height of 68 m and the reservoir-tailrace differential both
+      confirm a working head of 68 m.
+
+  gerd:
+    height_m: 145
+    dam: "Grand Ethiopian Renaissance Dam (GERD)"
+    reservoir_m_asl: 655     # design FSL; partial fill ~645-650 m as of 2024
+    tailwater_m_asl: 510     # Abay / Blue Nile channel downstream
+    notes: >
+      Africa's tallest dam (structural height ~145 m) on the upper
+      Blue Nile (Abay River).  Design FSL 655 m asl, tailrace ~510 m,
+      giving a design head of 145 m.  As of 2024 the reservoir is
+      partially filled (operational head ~135-140 m); full design head
+      used here as the long-run planning value.  16 turbines planned;
+      installed capacity 6 450 MW at full operation.
+
+  tana:
+    height_m: 18
+    dam: "Chara Chara Weir (Lake Tana outlet)"
+    reservoir_m_asl: 1786    # Lake Tana surface, typical
+    tailwater_m_asl: 1768    # Blue Nile (Abay) channel immediately below weir
+    notes: >
+      The Chara Chara weir at the Lake Tana outlet raises the lake level
+      by ~3-4 m; the effective head at the small turbines is ~18 m.
+      Note: Tis Abbay II (73 MW, ~265 m head) is a separate diversion
+      scheme that tunnels water 12 km away to a power station at the
+      base of the Blue Nile gorge — that infrastructure is not
+      co-located with this node's reservoir.
+
+  kashm:
+    height_m: 53
+    dam: "Khashm el Girba Dam (Halfa Dam)"
+    reservoir_m_asl: 490     # Atbara Reservoir typical operation
+    tailwater_m_asl: 437     # Atbara channel downstream
+    notes: >
+      Built 1964 on the Atbara River (eastern Nile tributary).
+      Structural height 53 m; reservoir FSL ~490 m, tailrace ~437 m
+      confirming 53 m effective head.  Supports both the Khashm el
+      Girba irrigation scheme and limited hydropower generation.
+
+  tsengh:
+    height_m: 185
+    dam: "Tekeze Dam (Tekezze Hydroelectric Dam)"
+    reservoir_m_asl: 820     # Tekeze Reservoir, typical operation
+    tailwater_m_asl: 635     # Tekezze channel in steep Ethiopian gorge
+    notes: >
+      Commissioned 2008; one of Africa's highest arch dams (structural
+      height ~185 m) exploiting the deep Ethiopian highland gorge.
+      Five turbines; installed capacity 300 MW.  Reservoir FSL ~820 m,
+      tailrace ~635 m — a steep 185 m head with minimal tailwater ponding
+      in the narrow gorge.
+
+  ozentari:
+    height_m: 35
+    dam: "Headwater tributary dam (estimated)"
+    reservoir_m_asl: 2200    # estimated high-altitude headwater reach
+    tailwater_m_asl: 2165
+    notes: >
+      Ozentari represents a small headwater sub-basin in the Ethiopian
+      highlands.  No named major dam; the 35 m head is an engineering
+      estimate based on the regional elevation gradient and typical
+      small-dam geometry for highland run-of-river schemes in this area.
