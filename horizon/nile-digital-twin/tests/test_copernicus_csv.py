@@ -51,6 +51,15 @@ def test_catalog_documents_broad_copernicus_sources():
     assert "era5_land_monthly_hydro" in dataset_ids
     assert "glofas_historical_discharge" in dataset_ids
     assert "sentinel2_ndvi_zones" in dataset_ids
+    assert "clms_evapotranspiration" in dataset_ids
+    assert "clms_dynamic_land_cover" in dataset_ids
+    assert "clms_water_bodies" in dataset_ids
+    assert "fao_wapor" in dataset_ids
+    assert "fao_aquastat" in dataset_ids
+    assert "nile_basin_information_systems" in dataset_ids
+    assert "galileo_rinex_navigation" in dataset_ids
+    assert "igs_mgex" in dataset_ids
+    assert "cddis_gnss_daily" in dataset_ids
 
 
 def test_shared_era5_month_file_can_feed_node_csvs(tmp_path):
