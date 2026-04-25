@@ -20,7 +20,7 @@ workspace under `horizon/` so it can grow cleanly inside a larger monorepo.
 - `crates/nrsm-cli`: command-line runner for YAML scenarios
 - `crates/nrsm-dataloader`: assembler for canonical `horizon/data` CSVs into simulator configs, module CSVs, and staging metadata
 - `contracts/scenario.schema.yaml`: machine-readable scenario contract
-- `scenarios/nile-mvp`: small Nile-inspired demo scenario
+- `scenarios/nile-mvp`: Nile-inspired demo and dated past/future scenario catalog
 - `docs/nile-dataloader-plan.md`: dataset research and visual loading plan
 - `docs/dataloader-node-generation-plan.md`: plan for generating `main/node.md` / `main/modules.md` simulator inputs from sourced data
 
@@ -47,6 +47,12 @@ Those choices keep the first implementation compact while leaving room for:
 ```powershell
 cargo run -p nrsm-cli -- scenarios/nile-mvp/scenario.yaml
 ```
+
+Additional ready-to-run variants live under `scenarios/nile-mvp/past`,
+`scenarios/nile-mvp/future`, and `scenarios/nile-mvp/few-nodes`. The dated
+variants use `settings.start_date`, `settings.end_date`, and `horizon_days`;
+the simulator currently executes by day count while retaining the calendar
+window as scenario metadata.
 
 Write visualization-ready time series CSVs while running a scenario:
 
