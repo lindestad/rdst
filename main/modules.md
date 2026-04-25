@@ -56,23 +56,9 @@ unless the config explicitly opts out.
 | Food production capacity | food units/day |
 | Energy price | currency/m³ |
 
-### Data Gatherer Mapping
-
-The data gatherer should convert source-specific units before writing module
-CSVs:
-
-| Source output | Module target | Conversion |
-|---|---|---|
-| GloFAS discharge | Catchment inflow | `m³/s × 86400 = m³/day` |
-| ERA5 runoff depth | Catchment inflow fallback | `runoff_mm × area_km2 × 1000 = m³/day` |
-| ERA5/ERA5-Land PET or ET | Evaporation | `depth_mm × surface_area_km2 × 1000 = m³/day` |
-| Population demand | Drinking-water demand | `population × liters/person/day / 1000 = m³/day` |
-| Irrigated area and crop proxy | Food production capacity | data-derived `food units/day` |
-| Hydropower valuation | Energy price | scenario-specific `currency/m³` |
-
-If richer source columns are useful for analysis, write them under a data bundle
-such as `data/csv/` or `data/staging/`, then have an assembler emit the simple
-module CSVs used by NRSM.
+Module CSVs must already be normalized to these units before the simulator reads
+them. Source-specific conversions, provenance, and richer inspection tables live
+outside this runtime contract.
 
 ### Example CSV — catchment inflow, 3 scenarios
 

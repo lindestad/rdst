@@ -9,25 +9,6 @@ rates, demand, food capacity, and energy prices — are supplied by
 [modules](modules.md) that write their data to CSV files before the simulation
 starts.
 
-## Contract Status
-
-This document describes the target simulator contract. The current Rust NRSM
-engine already supports YAML configs, module CSV loading, DAG validation,
-delayed routing, daily stepping, and JSON/YAML result output.
-
-The target contract is slightly ahead of the implementation in a few places:
-
-- `start_date` / `end_date` are not yet parsed by the Rust CLI.
-- CSV `date` values are loaded but not used for run-window slicing.
-- one global `production_level_fraction` is supported; per-node action matrices
-  are planned.
-- results are printed as JSON/YAML; per-node result CSVs and `summary.csv` are
-  planned.
-
-When this document and the Rust implementation differ, prefer the current Rust
-behavior for hackathon demos and use this document to guide the next simulator
-iteration.
-
 ---
 
 ## Input
@@ -41,16 +22,25 @@ iteration.
 | `scenario` | — | Scenario column name to use from every module CSV (default `scenario_1`) |
 | `initial_levels` | — | Per-node override of starting reservoir volume in m³; any node not listed uses the value from `config.yaml` |
 
+Generated simulator inputs should live at:
+
+```text
+horizon/nrsm/data/generated/config.yaml
+```
+
+Hand-authored examples may live under `horizon/nrsm/scenarios/<name>/`. Relative
+module file paths are resolved from the directory containing the selected config.
+
 Current Rust CLI:
 
 ```powershell
-cargo run -p nrsm-cli -- path\to\config.yaml --json --pretty
+cargo run -p nrsm-cli -- data\generated\config.yaml --json --pretty
 ```
 
 Planned Rust CLI:
 
 ```powershell
-nrsm-cli path\to\config.yaml --start-date 2020-01-01 --end-date 2020-12-31 --scenario scenario_2 --actions actions.csv --output-dir runs\scenario_2
+nrsm-cli data\generated\config.yaml --start-date 2020-01-01 --end-date 2020-12-31 --scenario scenario_2 --actions actions.csv --output-dir runs\scenario_2
 ```
 
 ---

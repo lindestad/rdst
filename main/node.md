@@ -9,23 +9,6 @@ receives inflow, releases water for hydropower, satisfies drinking-water and
 food-production demands, stores whatever remains in the reservoir (up to the
 reservoir's capacity), and routes excess water downstream.
 
-## Contract Status
-
-This document is the simulator input contract. The current Rust NRSM engine
-implements the bucket-style node, module CSVs, DAG connections, delayed routing,
-and the water-balance order described below.
-
-The following fields are useful for data gathering and visualization, but should
-not change node physics unless explicitly wired into the simulator:
-
-- `latitude`, `longitude`, `area_km2`, `country`, and `node_role`
-- source/provenance fields such as dataset ids, transforms, and quality flags
-- display names and UI labels
-
-Those fields should live in staging tables such as `nodes.csv`, `edges.csv`, and
-`source_manifest.csv`. If they are needed in `config.yaml`, put them under an
-optional `metadata` block so the runtime physics contract stays stable.
-
 ---
 
 ## Properties
@@ -203,13 +186,6 @@ settings:
 
 nodes:
   - id: <string>              # unique identifier
-
-    metadata:                 # planned optional block; ignored by physics
-      name: <string>
-      latitude: <float>
-      longitude: <float>
-      area_km2: <float>
-      node_role: <string>
 
     reservoir:
       initial_level: <float>  # m³ — starting volume
