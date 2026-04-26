@@ -17,8 +17,8 @@ export function ScenarioPage({ onOpenVisualization }: { onOpenVisualization: () 
           <p className="app-kicker">Scenario lab</p>
           <h2>Optimized basin operation beats baseline reservoir policies</h2>
           <p>
-            The optimizer runs the same Nile stress case through NRSM, compares
-            basin-wide coordinated actions against standard operating rules, and
+            The optimizer runs Nile operating scenarios through NRSM, compares
+            basin-wide coordinated actions against standard reservoir rules, and
             shows the payoff in energy, storage, food, and water reliability.
           </p>
         </div>
