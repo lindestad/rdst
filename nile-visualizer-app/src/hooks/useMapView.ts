@@ -34,11 +34,13 @@ export function useMapView(): UseMapView {
   const screenToView = useCallback((clientX: number, clientY: number) => {
     const svg = svgRef.current;
     if (!svg) return { x: 0, y: 0 };
-    const rect = svg.getBoundingClientRect();
-    return {
-      x: ((clientX - rect.left) / rect.width) * VIEWBOX_W,
-      y: ((clientY - rect.top) / rect.height) * VIEWBOX_H,
-    };
+    const point = svg.createSVGPoint();
+    point.x = clientX;
+    point.y = clientY;
+    const matrix = svg.getScreenCTM();
+    if (!matrix) return { x: 0, y: 0 };
+    const viewPoint = point.matrixTransform(matrix.inverse());
+    return { x: viewPoint.x, y: viewPoint.y };
   }, []);
 
   const zoomAt = useCallback((sx: number, sy: number, factor: number) => {
@@ -70,9 +72,10 @@ export function useMapView(): UseMapView {
 
   const handleMouseDown = (event: React.MouseEvent<SVGSVGElement>) => {
     if (event.button !== 0) return;
+    const start = screenToView(event.clientX, event.clientY);
     dragRef.current = {
-      startX: event.clientX,
-      startY: event.clientY,
+      startX: start.x,
+      startY: start.y,
       tx: view.tx,
       ty: view.ty,
       moved: false,
@@ -83,11 +86,9 @@ export function useMapView(): UseMapView {
   const handleMouseMove = (event: React.MouseEvent<SVGSVGElement>) => {
     const drag = dragRef.current;
     if (!drag) return;
-    const svg = svgRef.current;
-    if (!svg) return;
-    const rect = svg.getBoundingClientRect();
-    const dx = ((event.clientX - drag.startX) / rect.width) * VIEWBOX_W;
-    const dy = ((event.clientY - drag.startY) / rect.height) * VIEWBOX_H;
+    const current = screenToView(event.clientX, event.clientY);
+    const dx = current.x - drag.startX;
+    const dy = current.y - drag.startY;
     if (!drag.moved && Math.hypot(dx, dy) > 3) {
       drag.moved = true;
     }

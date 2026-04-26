@@ -11,7 +11,6 @@ import { BasinMap } from "./components/BasinMap";
 import { LeftRail } from "./components/LeftRail";
 import { ProvenanceBadge } from "./components/ProvenanceBadge";
 import { RightRail } from "./components/RightRail";
-import { SummaryItem } from "./components/SummaryItem";
 import { ShowcasePage } from "./pages/ShowcasePage";
 import { TeamPage } from "./pages/TeamPage";
 import { defaultScenarioRunId, packagedScenarioRuns } from "./data/scenarioCatalog";
@@ -168,15 +167,6 @@ function App() {
         </div>
 
         {page === "visualization" && (
-          <div className="scenario-strip" aria-label="Scenario summary">
-            <SummaryItem label="Scenario" value={metadata.name} />
-            <SummaryItem label="Horizon" value={metadata.horizon} />
-            <SummaryItem label="Source" value={metadata.source} />
-            <SummaryItem label="Reporting" value={metadata.reporting} />
-          </div>
-        )}
-
-        {page === "visualization" && (
           <div className="file-tools">
             <ProvenanceBadge metadata={metadata} />
             <label className="scenario-select-wrap" title="Choose a packaged NRSM scenario run">
@@ -204,7 +194,7 @@ function App() {
             </label>
             <label className="file-button" title="Load NRSM --results-dir CSV files">
               <FileJson size={16} />
-              <span>Load CSVs</span>
+              <span>CSV</span>
               <input
                 accept=".csv,text/csv"
                 multiple
@@ -215,7 +205,7 @@ function App() {
             </label>
             <label className="file-button" title="Load NRSM JSON output">
               <FileJson size={16} />
-              <span>Load JSON</span>
+              <span>JSON</span>
               <input
                 accept="application/json,.json"
                 onChange={(event) => void loadJsonFile(event.currentTarget.files?.[0] ?? null)}
@@ -254,6 +244,7 @@ function App() {
         <section className="workspace">
           <LeftRail
             lens={lens}
+            metadata={metadata}
             onLensChange={setLens}
             period={period}
             periods={periods}
