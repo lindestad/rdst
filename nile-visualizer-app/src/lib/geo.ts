@@ -1,9 +1,11 @@
 import type { NileNode } from "../types";
 import { rivers } from "./riverPaths";
 
+import { VIEWBOX_H, VIEWBOX_W } from "../config";
+
 export const MAP_VIEWBOX = {
-  width: 1040,
-  height: 720,
+  width: VIEWBOX_W,
+  height: VIEWBOX_H,
   west: 28.4,
   east: 38.9,
   south: -1.2,

@@ -91,9 +91,13 @@ Per-node columns:
 | `routing_loss` | `release_for_routing - downstream_release`, useful for plotting reach losses. |
 | `energy_value` | Hydropower value for the period in EUR. |
 
-`summary.csv` uses the same period columns and aggregates the water, food, and
-energy fields across all nodes, including total generated electricity. Calendar
-dates are not emitted yet; consumers should treat `start_day` and
+`summary.csv` uses the same period columns and aggregates the water, food,
+storage, and energy fields across all nodes, including total generated
+electricity and period-end `terminal_reservoir_storage`. The JSON summary also
+includes `initial_reservoir_storage`, `terminal_reservoir_storage`, and
+`minimum_reservoir_storage` for the whole run, which are useful for optimizers
+that should not win short-term energy by draining the system. Calendar dates
+are not emitted yet; consumers should treat `start_day` and
 `end_day_exclusive` as offsets from the scenario start date used by the data
 assembler.
 
@@ -294,8 +298,9 @@ through the `nrsm_py` binding and writes action CSVs that can be replayed with
 The optimizer compresses the action space into piecewise-constant intervals, for
 example one action per node per 14 or 30 days, then expands the candidate policy
 to the simulator's daily `T x N` action matrix. It minimizes separate objectives
-for energy regret, drinking-water shortage, food-water shortage, and spill so
-the tradeoff frontier remains visible.
+for energy regret, drinking-water shortage, food-water shortage, spill, and
+storage depletion so the tradeoff frontier remains visible. The full-production
+policy is always included as an explicit selectable baseline.
 
 ```powershell
 cd optimizer
@@ -306,8 +311,24 @@ uv run nrsm-optimize `
   --output-dir runs\2005-q1-pareto `
   --interval-days 14 `
   --generations 30 `
-  --population-size 48
+  --population-size 48 `
+  --compromise-mode energy_food
 ```
+
+Compare the selected optimizer policy with simple baselines:
+
+```powershell
+uv run nrsm-benchmark `
+  --period ..\scenarios\nile-mvp\past\2005-q1-90d-baseline.yaml `
+  --data-dir ..\..\data `
+  --generated-dir ..\data\generated\benchmark-2005-q1 `
+  --optimized-actions runs\2005-q1-pareto\actions `
+  --output-dir runs\benchmarks\2005-q1
+```
+
+The benchmark writes standard per-policy result folders under
+`policies/<policy>/results` so comparison plots can stay in the external
+plotting package.
 
 ## Assemble Canonical Data
 

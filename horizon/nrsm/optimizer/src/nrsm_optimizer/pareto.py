@@ -14,6 +14,7 @@ from pymoo.termination import get_termination
 from nrsm_optimizer.actions import PiecewiseActionSpace
 from nrsm_optimizer.objectives import (
     ObjectiveNames,
+    compromise_weights,
     compromise_score,
     pareto_objectives,
 )
@@ -27,6 +28,8 @@ class ParetoOptimizationResult:
     action_space: PiecewiseActionSpace
     objective_names: tuple[str, ...]
     baseline_summary: dict[str, float]
+    candidate_labels: list[str]
+    compromise_mode: str
     best_index: int
 
     @property
@@ -44,7 +47,11 @@ class ParetoOptimizationResult:
     def results_frame(self) -> pd.DataFrame:
         rows = []
         for index, (objectives, summary) in enumerate(zip(self.objectives, self.summaries)):
-            row = {"candidate": index, "is_selected_compromise": index == self.best_index}
+            row = {
+                "candidate": index,
+                "candidate_label": self.candidate_labels[index],
+                "is_selected_compromise": index == self.best_index,
+            }
             row.update(
                 {
                     name: float(value)
@@ -105,6 +112,8 @@ class NrsmParetoProblem(ElementwiseProblem):
         out["F"] = pareto_objectives(
             summary,
             baseline_energy_value=float(self.baseline_summary.get("total_energy_value", 0.0)),
+            initial_storage=float(summary.get("initial_reservoir_storage", 0.0)),
+            terminal_storage=float(summary.get("terminal_reservoir_storage", 0.0)),
         )
 
 
@@ -116,6 +125,7 @@ def optimize_pareto(
     population_size: int = 48,
     generations: int = 40,
     seed: int = 7,
+    compromise_mode: str = "energy_food",
 ) -> ParetoOptimizationResult:
     action_space = PiecewiseActionSpace.from_simulator(
         simulator,
@@ -124,7 +134,7 @@ def optimize_pareto(
     )
     baseline_actions = np.ones(simulator.expected_action_len(), dtype=float)
     baseline_summary = simulator.summary(baseline_actions.tolist())
-    objective_names = ObjectiveNames().as_tuple()
+    objective_names = ObjectiveNames().as_tuple(include_storage_depletion=True)
 
     problem = NrsmParetoProblem(
         simulator,
@@ -132,7 +142,11 @@ def optimize_pareto(
         baseline_summary=baseline_summary,
         objective_names=objective_names,
     )
-    algorithm = NSGA2(pop_size=population_size, eliminate_duplicates=True)
+    algorithm = NSGA2(
+        pop_size=population_size,
+        sampling=seeded_sampling(action_space.variable_count, population_size, seed),
+        eliminate_duplicates=True,
+    )
     result = minimize(
         problem,
         algorithm,
@@ -144,7 +158,22 @@ def optimize_pareto(
     variables = np.atleast_2d(result.X).astype(float)
     objectives = np.atleast_2d(result.F).astype(float)
     summaries = [simulator.summary(action_space.flatten(row)) for row in variables]
-    scores = [compromise_score(objective, scales=np.maximum(objectives.max(axis=0), 1.0)) for objective in objectives]
+    candidate_labels = ["pareto"] * len(summaries)
+    variables, objectives, summaries, candidate_labels = append_full_production_candidate(
+        variables,
+        objectives,
+        summaries,
+        candidate_labels,
+        action_space,
+        baseline_summary,
+        objective_names,
+    )
+    weights = compromise_weights(objective_names, compromise_mode)
+    scales = np.maximum(objectives.max(axis=0), 1.0)
+    scores = [
+        compromise_score(objective, scales=scales, weights=weights)
+        for objective in objectives
+    ]
     best_index = int(np.argmin(scores))
 
     return ParetoOptimizationResult(
@@ -154,5 +183,43 @@ def optimize_pareto(
         action_space=action_space,
         objective_names=objective_names,
         baseline_summary=baseline_summary,
+        candidate_labels=candidate_labels,
+        compromise_mode=compromise_mode,
         best_index=best_index,
     )
+
+
+def append_full_production_candidate(
+    variables: np.ndarray,
+    objectives: np.ndarray,
+    summaries: list[dict[str, float]],
+    candidate_labels: list[str],
+    action_space: PiecewiseActionSpace,
+    baseline_summary: dict[str, float],
+    objective_names: tuple[str, ...],
+) -> tuple[np.ndarray, np.ndarray, list[dict[str, float]], list[str]]:
+    full_production_variables = np.ones(action_space.variable_count, dtype=float)
+    full_production_objectives = pareto_objectives(
+        baseline_summary,
+        baseline_energy_value=float(baseline_summary.get("total_energy_value", 0.0)),
+        initial_storage=float(baseline_summary.get("initial_reservoir_storage", 0.0)),
+        terminal_storage=float(baseline_summary.get("terminal_reservoir_storage", 0.0)),
+    )
+    if full_production_objectives.shape != (len(objective_names),):
+        raise ValueError("full-production objective shape does not match objective names")
+
+    return (
+        np.vstack([variables, full_production_variables]),
+        np.vstack([objectives, full_production_objectives]),
+        [*summaries, baseline_summary],
+        [*candidate_labels, "full_production_baseline"],
+    )
+
+
+def seeded_sampling(variable_count: int, population_size: int, seed: int) -> np.ndarray:
+    if population_size <= 0:
+        raise ValueError("population_size must be positive")
+    rng = np.random.default_rng(seed)
+    sampling = rng.random((population_size, variable_count))
+    sampling[0, :] = 1.0
+    return sampling

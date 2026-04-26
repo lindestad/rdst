@@ -1,9 +1,14 @@
 # Nile MVP Scenario Catalog
 
-This folder contains period specs for the Nile MVP topology. The YAML files do
-not define node data, topology, population, evaporation, inflow, agriculture, or
-energy prices. They only select a date window, plus an optional node subset.
-The simulator-ready files are generated from `horizon/data` by the dataloader.
+This folder contains period specs for the Nile MVP topology, plus simulator-ready
+stress cases under `extremes/`. The period YAML files do not define node data,
+topology, population, evaporation, inflow, agriculture, or energy prices. They
+only select a date window, plus an optional node subset. The simulator-ready
+files are generated from `horizon/data` by the dataloader.
+
+The `extremes/` folder contains simulator-native stress cases used by the
+visualizer preset buttons. The `few-nodes/` folder contains one deliberately
+small Blue Nile period spec for quick smoke tests.
 
 | File | Nodes | Window | Days | Shape |
 | --- | ---: | --- | ---: | --- |
@@ -29,6 +34,7 @@ The simulator-ready files are generated from `horizon/data` by the dataloader.
 | `future/2060-hot-low-inflow-90d.yaml` | 13 | 2060-06-01 to 2060-08-29 | 90 | hot and low inflow |
 | `future/2075-short-emergency-14d.yaml` | 13 | 2075-07-01 to 2075-07-14 | 14 | emergency short run |
 | `future/2100-long-range-365d.yaml` | 13 | 2100-01-01 to 2100-12-31 | 365 | long-range annual run |
+| `extremes/upstream-holdback-90d.yaml` | 13 | 2030-01-01 to 2030-03-31 | 90 | GERD constrained release stress case |
 
 Run a period from `horizon/nrsm` by assembling it from `horizon/data` first:
 
@@ -102,4 +108,31 @@ and preferably run the dataloader tests:
 
 ```powershell
 cargo test -p nrsm-dataloader
+```
+
+Run simulator-native stress cases directly:
+
+```powershell
+cargo run -p nrsm-cli -- scenarios\nile-mvp\extremes\upstream-holdback-90d.yaml --json --results-dir data\results\extremes\upstream-holdback-90d
+```
+
+Refresh the packaged web visualizer catalog from `horizon/nrsm` after
+assembling period specs:
+
+```bash
+for file in scenarios/nile-mvp/scenario.yaml scenarios/nile-mvp/past/*.yaml scenarios/nile-mvp/future/*.yaml scenarios/nile-mvp/few-nodes/*.yaml; do
+  rel=${file#scenarios/nile-mvp/}
+  id=${rel%.yaml}
+  id=${id//\//__}
+  out="data/generated/$id"
+  cargo run -q -p nrsm-dataloader -- assemble --period "$file" --input ../data --output "$out"
+  cargo run -q -p nrsm-cli -- "$out/config.yaml" --json --results-dir "../../nile-visualizer-app/src/data/results/scenarios/$id" > "/tmp/nrsm-${id//__/-}.json"
+done
+
+for file in scenarios/nile-mvp/extremes/*.yaml; do
+  rel=${file#scenarios/nile-mvp/}
+  id=${rel%.yaml}
+  id=${id//\//__}
+  cargo run -q -p nrsm-cli -- "$file" --json --results-dir "../../nile-visualizer-app/src/data/results/scenarios/$id" > "/tmp/nrsm-${id//__/-}.json"
+done
 ```

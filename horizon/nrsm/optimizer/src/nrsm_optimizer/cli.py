@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
+from nrsm_optimizer.objectives import COMPROMISE_MODES
 from nrsm_optimizer.pareto import optimize_pareto
 from nrsm_optimizer.periods import read_period_start
 from nrsm_optimizer.simulator import NrsmSimulator
@@ -21,6 +22,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--generations", type=int, default=40)
     parser.add_argument("--population-size", type=int, default=48)
     parser.add_argument("--seed", type=int, default=7)
+    parser.add_argument(
+        "--compromise-mode",
+        choices=COMPROMISE_MODES,
+        default="energy_food",
+        help=(
+            "How to select one candidate from the Pareto frontier. "
+            "energy_food favors energy and service reliability, balanced keeps "
+            "storage in the mix, storage_safe heavily favors water conservation."
+        ),
+    )
     parser.add_argument("--nodes", nargs="*", help="Limit optimization to specific node ids.")
     args = parser.parse_args(argv)
 
@@ -42,6 +53,7 @@ def main(argv: list[str] | None = None) -> int:
         population_size=args.population_size,
         generations=args.generations,
         seed=args.seed,
+        compromise_mode=args.compromise_mode,
     )
     result.write_outputs(args.output_dir, start_date=start_date)
 
@@ -51,7 +63,9 @@ def main(argv: list[str] | None = None) -> int:
         "horizon_days": result.action_space.horizon_days,
         "interval_days": result.action_space.interval_days,
         "objective_names": result.objective_names,
+        "compromise_mode": result.compromise_mode,
         "selected_candidate": result.best_index,
+        "selected_candidate_label": result.candidate_labels[result.best_index],
         "selected_objectives": {
             name: float(value)
             for name, value in zip(result.objective_names, result.best_objectives, strict=True)

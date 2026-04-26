@@ -560,6 +560,9 @@ pub struct SimulationSummary {
     pub total_spill: f64,
     pub total_downstream_release: f64,
     pub total_routing_loss: f64,
+    pub initial_reservoir_storage: f64,
+    pub terminal_reservoir_storage: f64,
+    pub minimum_reservoir_storage: f64,
 }
 
 #[derive(Clone, Debug, Serialize)]
