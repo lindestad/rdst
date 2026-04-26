@@ -16,7 +16,6 @@ type RightRailProps = {
   periods: PeriodResult[];
   activePeriodIndex: number;
   period: PeriodResult;
-  maxLoss: number;
 };
 
 export function RightRail({
@@ -27,13 +26,12 @@ export function RightRail({
   periods,
   activePeriodIndex,
   period,
-  maxLoss,
 }: RightRailProps) {
   return (
     <aside className="right-rail" aria-label="Selected details">
       <PlotPanel periods={periods} activeIndex={activePeriodIndex} />
       <NodeInspector node={selectedNode} result={selectedNodeResult} />
-      <EdgeInspector edge={selectedEdge} result={selectedEdgeResult} maxLoss={maxLoss} />
+      <EdgeInspector edge={selectedEdge} result={selectedEdgeResult} />
       <RunBalance period={period} />
     </aside>
   );
@@ -47,18 +45,21 @@ function PlotPanel({ periods, activeIndex }: { periods: PeriodResult[]; activeIn
         activeIndex={activeIndex}
         color="#1e96c8"
         label="Basin exit"
+        unit="m³"
         values={periods.map((item) => item.totalBasinExitFlow)}
       />
       <LinePlot
         activeIndex={activeIndex}
-        color="#d4483c"
-        label="Routing loss"
-        values={periods.map((item) => item.totalEdgeLoss)}
+        color="#b17621"
+        label="Energy"
+        unit="MWh"
+        values={periods.map((item) => sumNodes(item.nodeResults, (node) => node.hydropower?.energyGenerated ?? 0))}
       />
       <LinePlot
         activeIndex={activeIndex}
         color="#20a66a"
-        label="Food"
+        label="Food produced"
+        unit="units"
         values={periods.map((item) => sumNodes(item.nodeResults, (node) => node.irrigation?.foodProduced ?? 0))}
       />
     </section>
@@ -69,11 +70,13 @@ function LinePlot({
   activeIndex,
   color,
   label,
+  unit,
   values,
 }: {
   activeIndex: number;
   color: string;
   label: string;
+  unit: string;
   values: number[];
 }) {
   const width = 280;
@@ -91,7 +94,9 @@ function LinePlot({
     <div className="line-plot">
       <div>
         <span>{label}</span>
-        <strong>{format(values[activeIndex] ?? 0)}</strong>
+        <strong>
+          {format(values[activeIndex] ?? 0)} <em>{unit}</em>
+        </strong>
       </div>
       <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${label} trend`}>
         <path d={`M ${pad} ${height - pad} H ${width - pad}`} />
@@ -113,7 +118,8 @@ function NodeInspector({ node, result }: { node: NileNode; result: NodePeriodRes
   if (!result) return null;
 
   const storageDelta = result.endingStorage - result.startingStorage;
-  const storageLabel = node.capacity ? `${format(result.endingStorage)} / ${format(node.capacity)}` : "n/a";
+  const storageLabel = node.capacity ? `${format(result.endingStorage)} / ${format(node.capacity)} m³` : "n/a";
+  const hp = result.hydropower;
 
   return (
     <section className="inspector">
@@ -125,27 +131,43 @@ function NodeInspector({ node, result }: { node: NileNode; result: NodePeriodRes
         <Activity size={19} />
       </div>
       <dl className="data-list">
-        <DataItem label="Incoming" value={format(result.totalIncomingFlow)} />
-        <DataItem label="Local inflow" value={format(result.totalLocalInflow)} />
-        <DataItem label="Available" value={format(result.totalAvailableWater)} />
-        <DataItem label="Outflow" value={format(result.totalDownstreamOutflow)} />
+        <DataItem label="Inflow" value={`${format(result.totalIncomingFlow)} m³`} />
+        <DataItem label="Available" value={`${format(result.totalAvailableWater)} m³`} />
+        <DataItem label="Outflow" value={`${format(result.totalDownstreamOutflow)} m³`} />
         <DataItem label="Storage" value={storageLabel} />
-        <DataItem label="Storage change" value={signed(storageDelta)} tone={storageDelta >= 0 ? "good" : "warn"} />
+        <DataItem
+          label="Storage Δ"
+          value={`${signed(storageDelta)} m³`}
+          tone={storageDelta >= 0 ? "good" : "warn"}
+        />
+        {hp && (
+          <DataItem
+            label="Energy"
+            value={`${format(hp.energyGenerated)} MWh`}
+          />
+        )}
       </dl>
 
       <div className="sector-list">
-        <SectorBar label="Drinking" value={result.drinkingWater?.actualDelivery ?? 0} target={result.drinkingWater?.totalTarget ?? 0} />
-        <SectorBar label="Irrigation" value={result.irrigation?.water.actualDelivery ?? 0} target={result.irrigation?.water.totalTarget ?? 0} />
-        <SectorBar label="Energy" value={result.hydropower?.energyGenerated ?? 0} target={result.hydropower?.totalTargetEnergy ?? 0} />
+        <SectorBar
+          label="Drinking"
+          value={result.drinkingWater?.actualDelivery ?? 0}
+          target={result.drinkingWater?.totalTarget ?? 0}
+          unit="m³"
+        />
+        <SectorBar
+          label="Irrigation"
+          value={result.irrigation?.water.actualDelivery ?? 0}
+          target={result.irrigation?.water.totalTarget ?? 0}
+          unit="m³"
+        />
       </div>
     </section>
   );
 }
 
-function EdgeInspector({ edge, result, maxLoss }: { edge: NileEdge; result: EdgePeriodResult | undefined; maxLoss: number }) {
+function EdgeInspector({ edge, result }: { edge: NileEdge; result: EdgePeriodResult | undefined }) {
   if (!result) return null;
-
-  const lossScale = maxLoss > 0 ? (result.totalLostFlow / maxLoss) * 100 : 0;
 
   return (
     <section className="inspector">
@@ -157,34 +179,25 @@ function EdgeInspector({ edge, result, maxLoss }: { edge: NileEdge; result: Edge
         <Droplets size={19} />
       </div>
       <dl className="data-list">
-        <DataItem label="Sent" value={format(result.totalRoutedFlow)} />
-        <DataItem label="Received" value={format(result.totalReceivedFlow)} />
-        <DataItem label="Lost" value={format(result.totalLostFlow)} tone="warn" />
-        <DataItem label="Configured loss" value={`${(edge.lossFraction * 100).toFixed(1)}%`} />
+        <DataItem label="Flow" value={`${format(result.totalFlow)} m³`} />
+        <DataItem label="From" value={edge.from} />
+        <DataItem label="To" value={edge.to} />
       </dl>
-      <div className="loss-meter">
-        <span style={{ width: `${lossScale}%` }} />
-      </div>
     </section>
   );
 }
 
 function RunBalance({ period }: { period: PeriodResult }) {
-  const totalDemand = sumNodes(period.nodeResults, (node) => {
-    return (node.drinkingWater?.totalTarget ?? 0) + (node.irrigation?.water.totalTarget ?? 0);
-  });
-  const totalDelivered = sumNodes(period.nodeResults, (node) => {
-    return (node.drinkingWater?.actualDelivery ?? 0) + (node.irrigation?.water.actualDelivery ?? 0);
-  });
-  const energy = sumNodes(period.nodeResults, (node) => node.hydropower?.energyGenerated ?? 0);
-  const targetEnergy = sumNodes(period.nodeResults, (node) => node.hydropower?.totalTargetEnergy ?? 0);
+  const drinkDemand = sumNodes(period.nodeResults, (n) => n.drinkingWater?.totalTarget ?? 0);
+  const drinkDelivered = sumNodes(period.nodeResults, (n) => n.drinkingWater?.actualDelivery ?? 0);
+  const foodDemand = sumNodes(period.nodeResults, (n) => n.irrigation?.water.totalTarget ?? 0);
+  const foodDelivered = sumNodes(period.nodeResults, (n) => n.irrigation?.water.actualDelivery ?? 0);
 
   return (
     <section className="inspector balance">
-      <p className="control-label">Run balance</p>
-      <SectorBar label="Demand delivery" value={totalDelivered} target={totalDemand} />
-      <SectorBar label="Power target" value={energy} target={targetEnergy} />
-      <SectorBar label="Exit retention" value={period.totalBasinExitFlow} target={period.totalIncomingFlow + period.totalLocalInflow} invert />
+      <p className="control-label">Period balance</p>
+      <SectorBar label="Drinking met" value={drinkDelivered} target={drinkDemand} unit="m³" />
+      <SectorBar label="Food water met" value={foodDelivered} target={foodDemand} unit="m³" />
     </section>
   );
 }
@@ -202,18 +215,21 @@ function SectorBar({
   label,
   value,
   target,
+  unit,
   invert = false,
 }: {
   label: string;
   value: number;
   target: number;
+  unit?: string;
   invert?: boolean;
 }) {
   const ratio = target > 0 ? Math.min(1, value / target) : 0;
   const width = invert ? Math.max(4, 100 - ratio * 100) : ratio * 100;
+  const tooltip = target > 0 ? `${format(value)} / ${format(target)}${unit ? ` ${unit}` : ""}` : "no demand";
 
   return (
-    <div className="sector-bar">
+    <div className="sector-bar" title={tooltip}>
       <div>
         <span>{label}</span>
         <strong>{target > 0 ? `${Math.round(ratio * 100)}%` : "n/a"}</strong>

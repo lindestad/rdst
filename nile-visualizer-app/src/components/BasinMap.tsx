@@ -1,8 +1,24 @@
+import { useMemo } from "react";
 import { Locate, Minus, Plus } from "lucide-react";
+import { VIEWBOX_H, VIEWBOX_W, ZOOM_BUTTON_FACTOR } from "../config";
 import { osmTiles } from "../lib/geo";
+
+function legendNote(lens: Lens): string {
+  switch (lens) {
+    case "stress":
+      return "Hatched regions show downstream zones whose drinking or food deliveries are running short this period.";
+    case "water":
+      return "Hatched regions show wetlands and headwaters whose through-flow drops below their best period.";
+    case "storage":
+      return "Reservoir rings (around dam nodes) show storage running low. No region scribbling on this lens.";
+    case "production":
+      return "Hatched regions show hydropower facilities generating below their best period.";
+  }
+}
 import { useMapView } from "../hooks/useMapView";
 import { CountryLabels, ImpactZoneOverlay, RegionAnnotations } from "./MapOverlays";
 import { edgeLabel, edgeStops, edgeWidth, nodeFill, nodeRadius } from "./mapStyling";
+import { layoutMapEdges, layoutMapNodes } from "../lib/mapLayout";
 import type {
   Lens,
   NileEdge,
@@ -37,6 +53,19 @@ export function BasinMap({
   onSelectEdge,
 }: BasinMapProps) {
   const { nodes, edges } = dataset;
+  const nodeLayouts = useMemo(() => layoutMapNodes(nodes), [nodes]);
+  const layoutById = useMemo(
+    () => new Map(nodeLayouts.map((layout) => [layout.id, layout])),
+    [nodeLayouts],
+  );
+  const displayNodes = useMemo(
+    () => nodes.map((node) => {
+      const layout = layoutById.get(node.id);
+      return layout ? { ...node, x: layout.x, y: layout.y } : node;
+    }),
+    [layoutById, nodes],
+  );
+  const displayEdges = useMemo(() => layoutMapEdges(edges, nodeLayouts), [edges, nodeLayouts]);
   const {
     svgRef,
     view,
@@ -54,24 +83,20 @@ export function BasinMap({
       <div className="map-toolbar">
         <div>
           <p className="control-label">Active window</p>
-          <strong>
-            Days {period.startDay + 1}-{period.endDayExclusive}
-          </strong>
+          <strong>{period.label}</strong>
         </div>
-        <div className="legend">
-          <span className="legend-item flow">River flow</span>
-          <span className="legend-item warning-swatch">Allocation strain</span>
-          <span className="legend-item critical-swatch">Severe shortage</span>
-          <span className="risk-note">
-            Red areas show where current flows fail to meet regional water, food, or power needs.
-          </span>
+        <div className="legend" aria-label="Map legend">
+          <span className="legend-item flow">Routed flow</span>
+          <span className="legend-item warning-swatch">Strain</span>
+          <span className="legend-item critical-swatch">Severe</span>
+          <span className="risk-note">{legendNote(lens)}</span>
         </div>
       </div>
 
       <div className="map-zoom-controls" aria-label="Map zoom controls">
         <button
           className="icon-button"
-          onClick={() => zoomCenter(1.25)}
+          onClick={() => zoomCenter(ZOOM_BUTTON_FACTOR)}
           title="Zoom in"
           aria-label="Zoom in"
           type="button"
@@ -80,7 +105,7 @@ export function BasinMap({
         </button>
         <button
           className="icon-button"
-          onClick={() => zoomCenter(1 / 1.25)}
+          onClick={() => zoomCenter(1 / ZOOM_BUTTON_FACTOR)}
           title="Zoom out"
           aria-label="Zoom out"
           type="button"
@@ -100,18 +125,25 @@ export function BasinMap({
 
       <svg
         className={`basin-map ${isPanning ? "panning" : ""}`}
-        viewBox="0 0 1040 720"
+        viewBox={`0 0 ${VIEWBOX_W} ${VIEWBOX_H}`}
+        preserveAspectRatio="xMidYMin meet"
         role="img"
-        aria-label="Nile simulator graph"
+        aria-label="Nile basin simulator graph"
+        aria-describedby="basin-map-desc"
         ref={svgRef}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
       >
+        <desc id="basin-map-desc">
+          {period.label}. Edge thickness encodes routed flow magnitude. Node color
+          encodes the active lens (shortage, runoff, storage, or output). Hatched
+          regions mark stress hotspots. Click a node or reach to inspect details.
+        </desc>
         <defs>
           <clipPath id="basin-clip">
-            <rect x="70" y="42" width="900" height="626" rx="8" />
+            <rect x="24" y="18" width="992" height="684" rx="8" />
           </clipPath>
           <pattern id="scribble-critical" width="38" height="38" patternUnits="userSpaceOnUse">
             <path d="M-6 6 Q 4 -2 13 7 T 28 10 T 44 4" fill="none" stroke="#c8362a" strokeWidth="1.7" strokeLinecap="round" opacity="0.95" />
@@ -128,7 +160,7 @@ export function BasinMap({
             <line x1="6" y1="0" x2="6" y2="24" stroke="#d89b24" strokeWidth="0.9" opacity="0.55" />
             <line x1="18" y1="0" x2="18" y2="24" stroke="#d89b24" strokeWidth="0.9" opacity="0.55" />
           </pattern>
-          {edges.map((edge) => {
+          {displayEdges.map((edge) => {
             const edgeResult = period.edgeResults.find((result) => result.edgeId === edge.id);
             return (
               <linearGradient
@@ -146,7 +178,7 @@ export function BasinMap({
           })}
         </defs>
 
-        <rect className="basin-frame" x="70" y="42" width="900" height="626" rx="8" />
+        <rect className="basin-frame" x="24" y="18" width="992" height="684" rx="8" />
 
         <g className="map-clip-layer" clipPath="url(#basin-clip)">
         <g
@@ -168,12 +200,12 @@ export function BasinMap({
             ))}
           </g>
 
-          <ImpactZoneOverlay nodes={nodes} period={period} periods={periods} />
+          <ImpactZoneOverlay nodes={nodes} period={period} periods={periods} lens={lens} />
 
           <CountryLabels />
 
           <g className="edge-layer">
-            {edges.map((edge) => {
+            {displayEdges.map((edge) => {
               const edgeResult = period.edgeResults.find((result) => result.edgeId === edge.id);
               const strokeWidth = edgeWidth(edgeResult, maxEdgeFlow);
 
@@ -204,20 +236,43 @@ export function BasinMap({
           </g>
 
           <g className="node-layer">
+            <g className="node-leader-layer" pointerEvents="none">
+              {nodeLayouts.map((layout) => {
+                const offset = Math.hypot(layout.x - layout.anchorX, layout.y - layout.anchorY);
+                if (offset < 5) return null;
+                return (
+                  <line
+                    className={`node-leader ${selectedNode.id === layout.id ? "selected" : ""}`}
+                    key={`leader-${layout.id}`}
+                    x1={layout.anchorX}
+                    y1={layout.anchorY}
+                    x2={layout.x}
+                    y2={layout.y}
+                  />
+                );
+              })}
+            </g>
             {nodes.map((node) => {
               const nodeResult = period.nodeResults.find((result) => result.nodeId === node.id);
               const radius = nodeRadius(node, nodeResult, maxNodeAvailable);
               const fill = nodeFill(lens, node, nodeResult, periods);
               const isReservoir = node.kind === "reservoir";
-              const labelOffsetY = (isReservoir ? radius + 4 : radius) + 14;
+              const layout = layoutById.get(node.id) ?? {
+                x: node.x,
+                y: node.y,
+                labelX: node.x,
+                labelY: node.y + radius + 18,
+                labelAnchor: "middle" as const,
+              };
 
               return (
                 <g
                   className={`node ${isReservoir ? "reservoir" : "river"} ${selectedNode.id === node.id ? "selected" : ""}`}
                   key={node.id}
                   onClick={guardedClick(() => onSelectNode(node.id))}
-                  transform={`translate(${node.x} ${node.y})`}
+                  transform={`translate(${layout.x} ${layout.y})`}
                 >
+                  <title>{node.name}</title>
                   {isReservoir ? (
                     <>
                       <rect
@@ -240,7 +295,12 @@ export function BasinMap({
                       <circle className="node-body" fill={fill} r={radius} />
                     </>
                   )}
-                  <text className="node-label" y={labelOffsetY}>
+                  <text
+                    className="node-label"
+                    textAnchor={layout.labelAnchor}
+                    x={layout.labelX - layout.x}
+                    y={layout.labelY - layout.y}
+                  >
                     {node.shortName}
                   </text>
                 </g>
@@ -248,11 +308,16 @@ export function BasinMap({
             })}
           </g>
 
-          <RegionAnnotations nodes={nodes} period={period} periods={periods} />
+          <RegionAnnotations
+            nodes={displayNodes}
+            period={period}
+            periods={periods}
+            selectedNodeId={selectedNode.id}
+          />
         </g>
         </g>
 
-        <text className="map-attribution" x={942} y={652}>
+        <text className="map-attribution" x={994} y={690}>
           © OpenStreetMap contributors
         </text>
       </svg>

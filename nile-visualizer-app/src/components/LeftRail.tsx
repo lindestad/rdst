@@ -1,24 +1,20 @@
 import {
   Droplets,
-  GlassWater,
   Pause,
   Play,
-  TrendingUp,
+  ShieldAlert,
   Waves,
-  Wheat,
-  Zap,
   type LucideIcon,
+  Zap,
 } from "lucide-react";
 import { format, sumNodes } from "../lib/format";
 import type { Lens, PeriodResult } from "../types";
 
 const lensOptions: Array<{ id: Lens; label: string; Icon: LucideIcon }> = [
-  { id: "flow", label: "Flow", Icon: Waves },
-  { id: "loss", label: "Loss", Icon: Droplets },
-  { id: "delta", label: "Change", Icon: TrendingUp },
-  { id: "food", label: "Food", Icon: Wheat },
-  { id: "power", label: "Power", Icon: Zap },
-  { id: "drinking", label: "Drinking", Icon: GlassWater },
+  { id: "stress", label: "Shortage", Icon: ShieldAlert },
+  { id: "water", label: "Runoff", Icon: Waves },
+  { id: "storage", label: "Storage", Icon: Droplets },
+  { id: "production", label: "Output", Icon: Zap },
 ];
 
 type LeftRailProps = {
@@ -93,13 +89,17 @@ export function LeftRail({
       <MetricStack period={period} />
 
       <div className="control-group compact">
-        <p className="control-label">Monthly trend</p>
+        <p className="control-label">Period trend</p>
         <div className="spark-grid">
           <Sparkline label="Exit flow" values={periods.map((item) => item.totalBasinExitFlow)} activeIndex={activePeriodIndex} />
-          <Sparkline label="Edge loss" values={periods.map((item) => item.totalEdgeLoss)} activeIndex={activePeriodIndex} />
           <Sparkline
             label="Energy"
             values={periods.map((item) => sumNodes(item.nodeResults, (node) => node.hydropower?.energyGenerated ?? 0))}
+            activeIndex={activePeriodIndex}
+          />
+          <Sparkline
+            label="Drinking"
+            values={periods.map((item) => sumNodes(item.nodeResults, (node) => node.drinkingWater?.actualDelivery ?? 0))}
             activeIndex={activePeriodIndex}
           />
         </div>
@@ -113,24 +113,36 @@ function MetricStack({ period }: { period: PeriodResult }) {
   const irrigation = sumNodes(period.nodeResults, (node) => node.irrigation?.water.actualDelivery ?? 0);
   const food = sumNodes(period.nodeResults, (node) => node.irrigation?.foodProduced ?? 0);
   const energy = sumNodes(period.nodeResults, (node) => node.hydropower?.energyGenerated ?? 0);
+  const storage = sumNodes(period.nodeResults, (node) => node.endingStorage);
 
   return (
     <div className="metric-stack">
-      <Metric label="Exit flow" value={format(period.totalBasinExitFlow)} accent="blue" />
-      <Metric label="Edge loss" value={format(period.totalEdgeLoss)} accent="red" />
-      <Metric label="Food" value={format(food)} accent="green" />
-      <Metric label="Energy" value={format(energy)} accent="yellow" />
-      <Metric label="Drinking" value={format(drinking)} accent="cyan" />
-      <Metric label="Irrigation" value={format(irrigation)} accent="violet" />
+      <Metric label="Basin exit" value={format(period.totalBasinExitFlow)} unit="m³" accent="blue" />
+      <Metric label="Storage" value={format(storage)} unit="m³" accent="cyan" />
+      <Metric label="Drinking" value={format(drinking)} unit="m³" accent="cyan" />
+      <Metric label="Irrigation" value={format(irrigation)} unit="m³" accent="violet" />
+      <Metric label="Food" value={format(food)} unit="units" accent="green" />
+      <Metric label="Energy" value={format(energy)} unit="MWh" accent="yellow" />
     </div>
   );
 }
 
-function Metric({ label, value, accent }: { label: string; value: string; accent: string }) {
+function Metric({
+  label,
+  value,
+  unit,
+  accent,
+}: {
+  label: string;
+  value: string;
+  unit: string;
+  accent: string;
+}) {
   return (
     <div className={`metric ${accent}`}>
       <span>{label}</span>
       <strong>{value}</strong>
+      <small>{unit}</small>
     </div>
   );
 }

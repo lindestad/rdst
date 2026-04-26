@@ -1,10 +1,9 @@
-import { edges as fallbackEdges, nodes as fallbackNodes } from "../data/nile";
-import { pathBetweenNodes, roundedPoint } from "../lib/geo";
+import { z } from "zod";
+import { edges as fallbackEdges, nodes as fallbackNodes } from "../data/nileGraph";
+import { pathBetweenNodes } from "../lib/geo";
 import type {
   Delivery,
   EdgePeriodResult,
-  Hydropower,
-  Irrigation,
   NileEdge,
   NileNode,
   NodePeriodResult,
@@ -13,9 +12,70 @@ import type {
   VisualizerDataset,
 } from "../types";
 
+// IEEE rounding noise from NRSM CSV exports (e.g. -1.4e-14) is clamped to 0.
+// Anything more negative is preserved so a real bug surfaces instead of being
+// silently masked.
+const FLOAT_NOISE_EPSILON = 1e-6;
+
+const NumericField = z
+  .union([z.number(), z.string()])
+  .optional()
+  .transform((value) => {
+    if (value === undefined || value === null) return undefined;
+    if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+    const trimmed = value.trim();
+    if (trimmed === "") return undefined;
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed)) return undefined;
+    if (parsed < 0 && parsed > -FLOAT_NOISE_EPSILON) return 0;
+    return parsed;
+  });
+
+const RequiredNumericField = z
+  .union([z.number(), z.string()])
+  .transform((value, ctx) => {
+    const candidate = typeof value === "number" ? value : Number((value ?? "").trim());
+    if (!Number.isFinite(candidate)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Expected a finite number, got "${value}"` });
+      return z.NEVER;
+    }
+    return candidate;
+  });
+
+const ResultCsvRowSchema = z
+  .object({
+    period_index: RequiredNumericField,
+    start_day: RequiredNumericField,
+    end_day_exclusive: RequiredNumericField,
+    duration_days: NumericField,
+    node_id: z.string().optional(),
+    reservoir_level: NumericField,
+    total_inflow: NumericField,
+    evaporation: NumericField,
+    drink_water_met: NumericField,
+    unmet_drink_water: NumericField,
+    food_water_demand: NumericField,
+    food_water_met: NumericField,
+    unmet_food_water: NumericField,
+    food_produced: NumericField,
+    production_release: NumericField,
+    spill: NumericField,
+    release_for_routing: NumericField,
+    downstream_release: NumericField,
+    generated_electricity_kwh: NumericField,
+    generated_electricity_mwh: NumericField,
+    water_value_eur_per_m3: NumericField,
+    energy_value: NumericField,
+  })
+  .passthrough();
+
+export type ParsedCsvRow = z.infer<typeof ResultCsvRowSchema>;
+
+const REQUIRED_CSV_COLUMNS = ["period_index", "start_day", "end_day_exclusive"] as const;
+
 type RawGraph = {
   nodes?: Array<Partial<NileNode> & { id: string; label?: string; type?: string }>;
-  edges?: Array<Partial<NileEdge> & { id?: string; from: string; to: string; fraction?: number }>;
+  edges?: Array<Partial<NileEdge> & { id?: string; from: string; to: string }>;
 };
 
 type RawGraphNode = NonNullable<RawGraph["nodes"]>[number];
@@ -26,8 +86,12 @@ type RawRustNodeResult = {
   reservoir_level?: number;
   production_release?: number;
   energy_value?: number;
+  generated_electricity_kwh?: number;
+  generated_electricity_mwh?: number;
   evaporation?: number;
   food_produced?: number;
+  food_water_met?: number;
+  unmet_food_water?: number;
   drink_water_met?: number;
   unmet_drink_water?: number;
   spill?: number;
@@ -50,25 +114,7 @@ type RawRustResult = {
   periods?: RawRustPeriod[];
 };
 
-type ResultCsvRow = {
-  period_index: string;
-  start_day: string;
-  end_day_exclusive: string;
-  duration_days: string;
-  node_id?: string;
-  reservoir_level?: string;
-  total_inflow: string;
-  evaporation?: string;
-  drink_water_met?: string;
-  unmet_drink_water?: string;
-  food_produced?: string;
-  production_release?: string;
-  spill?: string;
-  release_for_routing?: string;
-  downstream_release: string;
-  routing_loss?: string;
-  energy_value?: string;
-};
+type ResultCsvRow = ParsedCsvRow;
 
 type RawVisualizerFile = {
   schema_version?: string;
@@ -82,50 +128,6 @@ type RawVisualizerFile = {
 };
 
 const terminalKinds = new Set(["sink", "delta", "terminal"]);
-
-const nileMvpNodes: NileNode[] = [
-  nodeFromGeo("lake_victoria_outlet", "Lake Victoria Outlet", "Victoria", "river", 33.19, 0.42, "UG"),
-  nodeFromGeo("white_nile_to_sudd", "White Nile to Sudd", "White Nile", "river", 31.5, 5.0, "SS"),
-  nodeFromGeo("sudd", "Sudd Wetland", "Sudd", "river", 30.5, 7.5, "SS"),
-  nodeFromGeo("malakal", "Malakal", "Malakal", "river", 31.65, 9.53, "SS"),
-  nodeFromGeo("lake_tana_outlet", "Lake Tana Outlet", "Tana", "river", 37.38, 11.6, "ET"),
-  nodeFromGeo("blue_nile_to_gerd", "Blue Nile to GERD", "Blue Nile", "river", 35.1, 11.0, "ET"),
-  nodeFromGeo("gerd", "GERD", "GERD", "reservoir", 35.09, 11.22, "ET", 74000, 37000),
-  nodeFromGeo("blue_nile_to_khartoum", "Blue Nile to Khartoum", "Blue Nile", "river", 34.0, 13.5, "SD"),
-  nodeFromGeo("gezira_irr", "Gezira Irrigation", "Gezira", "river", 33.0, 14.4, "SD"),
-  nodeFromGeo("khartoum", "Khartoum Confluence", "Khartoum", "river", 32.53, 15.6, "SD"),
-  nodeFromGeo("khartoum_muni", "Khartoum Municipal", "Khartoum Muni", "river", 32.53, 15.58, "SD"),
-  nodeFromGeo("atbara_source", "Atbara Headwaters", "Atbara", "river", 37.0, 13.5, "ET"),
-  nodeFromGeo("atbara_confluence", "Atbara Confluence", "Confluence", "river", 33.97, 17.67, "SD"),
-  nodeFromGeo("merowe", "Merowe Dam", "Merowe", "reservoir", 31.93, 18.68, "SD", 12500, 6250),
-  nodeFromGeo("main_nile_to_aswan", "Main Nile to Aswan", "Main Nile", "river", 32.0, 22.0, "EG"),
-  nodeFromGeo("aswan", "High Aswan", "Aswan", "reservoir", 32.88, 23.97, "EG", 162000, 90000),
-  nodeFromGeo("egypt_ag", "Egypt Agriculture", "Egypt Ag", "river", 31.0, 30.0, "EG"),
-  nodeFromGeo("cairo_muni", "Cairo Municipal", "Cairo", "river", 31.25, 30.05, "EG"),
-  nodeFromGeo("delta", "Nile Delta", "Delta", "river", 31.5, 31.5, "EG"),
-];
-
-const nileMvpEdges = [
-  edge("lake_victoria_outlet__white_nile_to_sudd", "lake_victoria_outlet", "white_nile_to_sudd", "Victoria to White Nile"),
-  edge("white_nile_to_sudd__sudd", "white_nile_to_sudd", "sudd", "White Nile to Sudd"),
-  edge("sudd__malakal", "sudd", "malakal", "Sudd to Malakal"),
-  edge("malakal__khartoum", "malakal", "khartoum", "White Nile to Khartoum"),
-  edge("lake_tana_outlet__blue_nile_to_gerd", "lake_tana_outlet", "blue_nile_to_gerd", "Tana to Blue Nile"),
-  edge("blue_nile_to_gerd__gerd", "blue_nile_to_gerd", "gerd", "Blue Nile to GERD"),
-  edge("gerd__blue_nile_to_khartoum", "gerd", "blue_nile_to_khartoum", "GERD to Blue Nile"),
-  edge("blue_nile_to_khartoum__gezira_irr", "blue_nile_to_khartoum", "gezira_irr", "Blue Nile to Gezira"),
-  edge("gezira_irr__khartoum", "gezira_irr", "khartoum", "Gezira to Khartoum"),
-  edge("khartoum__khartoum_muni", "khartoum", "khartoum_muni", "Khartoum municipal"),
-  edge("khartoum__atbara_confluence", "khartoum", "atbara_confluence", "Khartoum to Atbara"),
-  edge("khartoum_muni__atbara_confluence", "khartoum_muni", "atbara_confluence", "Khartoum to Atbara"),
-  edge("atbara_source__atbara_confluence", "atbara_source", "atbara_confluence", "Atbara tributary"),
-  edge("atbara_confluence__merowe", "atbara_confluence", "merowe", "Atbara to Merowe"),
-  edge("merowe__main_nile_to_aswan", "merowe", "main_nile_to_aswan", "Merowe to Main Nile"),
-  edge("main_nile_to_aswan__aswan", "main_nile_to_aswan", "aswan", "Main Nile to Aswan"),
-  edge("aswan__egypt_ag", "aswan", "egypt_ag", "Aswan to farms"),
-  edge("egypt_ag__cairo_muni", "egypt_ag", "cairo_muni", "Egypt farms to Cairo"),
-  edge("cairo_muni__delta", "cairo_muni", "delta", "Cairo to Delta"),
-];
 
 export async function datasetFromFile(file: File): Promise<VisualizerDataset> {
   const text = await file.text();
@@ -142,14 +144,35 @@ export async function datasetFromCsvFiles(files: FileList | File[]): Promise<Vis
 
   const rowsByNode = new Map<string, ResultCsvRow[]>();
   for (const file of nodeFiles) {
-    const rows = parseCsv(await file.text()) as ResultCsvRow[];
+    const rows = parseValidatedCsv(await file.text(), file.name);
     const nodeId = rows.find((row) => row.node_id)?.node_id ?? file.name.replace(/\.csv$/i, "");
     rowsByNode.set(nodeId, rows);
   }
 
+  return datasetFromCsvRows(selectNileMvpRows(rowsByNode), {
+    name: "NRSM saved results",
+    source: "results-dir CSV",
+    reporting: "saved CSV",
+  });
+}
+
+export function datasetFromCsvTextByNode(
+  csvByNode: Record<string, string>,
+  metadata: Partial<RunMetadata> = {},
+): VisualizerDataset {
+  const rowsByNode = new Map(
+    Object.entries(csvByNode).map(([nodeId, content]) => [nodeId, parseValidatedCsv(content, `${nodeId}.csv`)]),
+  );
+  return datasetFromCsvRows(rowsByNode, metadata);
+}
+
+function datasetFromCsvRows(
+  rowsByNode: Map<string, ResultCsvRow[]>,
+  metadata: Partial<RunMetadata> = {},
+): VisualizerDataset {
   const resultNodes = Array.from(rowsByNode.keys());
   const nodes = normalizeNodes(
-    nileMvpNodes
+    fallbackNodes
       .filter((candidate) => resultNodes.includes(candidate.id))
       .map((candidate) => ({ ...candidate })),
     { periods: [] },
@@ -169,7 +192,7 @@ export async function datasetFromCsvFiles(files: FileList | File[]): Promise<Vis
   }
 
   const edges = normalizeEdges(
-    nileMvpEdges.filter((candidate) => known.has(candidate.from) && known.has(candidate.to)),
+    fallbackEdges.filter((candidate) => known.has(candidate.from) && known.has(candidate.to)),
     nodes,
   );
   const periodIndexes = Array.from(
@@ -181,16 +204,29 @@ export async function datasetFromCsvFiles(files: FileList | File[]): Promise<Vis
 
   return {
     metadata: {
-      name: "NRSM saved results",
-      source: "results-dir CSV",
-      horizon: `${periods.length} reporting periods`,
-      reporting: "saved CSV",
-      units: "model units per reporting period",
+      name: metadata.name ?? "NRSM saved results",
+      source: metadata.source ?? "results-dir CSV",
+      horizon: metadata.horizon ?? `${periods.length} reporting periods`,
+      reporting: metadata.reporting ?? "saved CSV",
+      units: metadata.units ?? "model units per reporting period",
+      origin: metadata.origin ?? "uploaded-csv",
+      runId: metadata.runId,
+      schemaVersion: metadata.schemaVersion,
+      assembledAt: metadata.assembledAt,
     },
     nodes,
     edges,
     periods,
   };
+}
+
+function selectNileMvpRows(rowsByNode: Map<string, ResultCsvRow[]>) {
+  const fallbackIds = new Set(fallbackNodes.map((node) => node.id));
+  const matchingRows = new Map(
+    Array.from(rowsByNode.entries()).filter(([nodeId]) => fallbackIds.has(nodeId)),
+  );
+
+  return matchingRows.size >= 6 && matchingRows.size < rowsByNode.size ? matchingRows : rowsByNode;
 }
 
 export function datasetFromUnknown(input: unknown, source = "Uploaded file"): VisualizerDataset {
@@ -216,6 +252,8 @@ export function datasetFromUnknown(input: unknown, source = "Uploaded file"): Vi
       horizon: payload.metadata?.horizon,
       reporting: payload.metadata?.reporting,
       units: payload.metadata?.units,
+      origin: "uploaded-json",
+      schemaVersion: payload.schema_version ?? payload.metadata?.schemaVersion,
     },
   });
 }
@@ -241,6 +279,10 @@ export function datasetFromRustResult(
     horizon: options.metadata?.horizon ?? `${periods.length} reporting periods`,
     reporting: options.metadata?.reporting ?? `${result.reporting ?? "raw"} / ${timestep}`,
     units: options.metadata?.units ?? "model units per reporting period",
+    origin: options.metadata?.origin ?? "uploaded-json",
+    runId: options.metadata?.runId,
+    schemaVersion: options.metadata?.schemaVersion,
+    assembledAt: options.metadata?.assembledAt,
   };
 
   return { metadata, nodes, edges, periods };
@@ -258,6 +300,10 @@ function normalizeVisualizerDataset(dataset: VisualizerDataset, source: string):
       horizon: dataset.metadata?.horizon ?? `${dataset.periods.length} periods`,
       reporting: dataset.metadata?.reporting ?? "periodic",
       units: dataset.metadata?.units ?? "model units",
+      origin: dataset.metadata?.origin ?? "uploaded-json",
+      runId: dataset.metadata?.runId,
+      schemaVersion: dataset.metadata?.schemaVersion,
+      assembledAt: dataset.metadata?.assembledAt,
     },
     nodes: dataset.nodes,
     edges: dataset.edges,
@@ -312,7 +358,6 @@ function normalizeEdges(rawEdges: RawGraph["edges"], nodes: NileNode[]): NileEdg
       from: raw.from,
       to: raw.to,
       label: raw.label ?? fallback?.label ?? `${titleFromId(raw.from)} to ${titleFromId(raw.to)}`,
-      lossFraction: raw.lossFraction ?? fallback?.lossFraction ?? Math.max(0, 1 - (raw.fraction ?? 1)),
       path,
       gradient: raw.gradient ?? fallback?.gradient ?? {
         x1: from?.x ?? 0,
@@ -333,15 +378,16 @@ function rustPeriodToVisualizerPeriod(
   const byNode = new Map((period.node_results ?? []).map((node) => [node.node_id, node]));
   const nodeResults = nodes.map((node) => rustNodeToVisualizerNode(node, byNode.get(node.id), index, edges));
   const edgeResults = edges.map((edge) => edgeResultFromNodes(edge, byNode, edges));
+  const startDay = period.start_day ?? index;
+  const endDayExclusive = period.end_day_exclusive ?? index + 1;
 
   return {
     periodIndex: period.period_index ?? index,
-    label: `Period ${index + 1}`,
-    startDay: period.start_day ?? index,
-    endDayExclusive: period.end_day_exclusive ?? index + 1,
+    label: periodLabel(index, startDay, endDayExclusive),
+    startDay,
+    endDayExclusive,
     totalIncomingFlow: sum(nodeResults, (node) => node.totalIncomingFlow),
     totalLocalInflow: sum(nodeResults, (node) => node.totalLocalInflow),
-    totalEdgeLoss: sum(edgeResults, (edge) => edge.totalLostFlow),
     totalBasinExitFlow: sum(nodeResults, (node) => node.totalBasinExitOutflow),
     nodeResults,
     edgeResults,
@@ -360,9 +406,18 @@ function rustNodeToVisualizerNode(
   const outgoingCount = edges.filter((edge) => edge.from === node.id).length;
   const isTerminal = outgoingCount === 0 || terminalKinds.has(node.kind);
   const releaseForExit = numeric(result?.production_release) + numeric(result?.spill);
-  const drinkTarget = numeric(result?.drink_water_met) + numeric(result?.unmet_drink_water);
+  const drinkMet = numeric(result?.drink_water_met);
+  const drinkTarget = drinkMet + numeric(result?.unmet_drink_water);
+  const foodWaterMet = numeric(result?.food_water_met);
+  const foodWaterDemand = foodWaterMet + numeric(result?.unmet_food_water);
   const foodProduced = numeric(result?.food_produced);
-  const energy = numeric(result?.energy_value);
+  const turbineFlow = numeric(result?.production_release);
+  // RawRust JSON path: prefer MWh if present, else convert kWh; fall back to
+  // EUR `energy_value` only when the simulator hasn't surfaced electricity.
+  const mwh = numeric(result?.generated_electricity_mwh);
+  const kwh = numeric(result?.generated_electricity_kwh);
+  const energyMwh = mwh > 0 ? mwh : kwh > 0 ? kwh / 1000 : 0;
+  const energyValueEur = numeric(result?.energy_value);
 
   return {
     nodeId: node.id,
@@ -373,9 +428,15 @@ function rustNodeToVisualizerNode(
     totalAvailableWater: totalInflow + storage,
     totalDownstreamOutflow: downstream,
     totalBasinExitOutflow: isTerminal ? downstream || releaseForExit : 0,
-    drinkingWater: drinkTarget > 0 ? delivery(numeric(result?.drink_water_met), drinkTarget) : null,
-    irrigation: foodProduced > 0 ? irrigation(foodProduced) : null,
-    hydropower: energy > 0 ? hydropower(numeric(result?.production_release), energy) : null,
+    drinkingWater: drinkTarget > 0 ? delivery(drinkMet, drinkTarget) : null,
+    irrigation:
+      foodWaterDemand > 0 || foodProduced > 0
+        ? { water: delivery(foodWaterMet, foodWaterDemand), foodProduced }
+        : null,
+    hydropower:
+      energyMwh > 0 || turbineFlow > 0
+        ? { turbineFlow, energyGenerated: energyMwh, valueEur: energyValueEur }
+        : null,
   };
 }
 
@@ -387,13 +448,9 @@ function edgeResultFromNodes(
   const from = byNode.get(edge.from);
   const outgoing = edges.filter((candidate) => candidate.from === edge.from);
   const share = outgoing.length > 0 ? 1 / outgoing.length : 1;
-  const sent = numeric(from?.downstream_release) * share;
-  const received = sent * (1 - edge.lossFraction);
   return {
     edgeId: edge.id,
-    totalRoutedFlow: sent,
-    totalLostFlow: Math.max(0, sent - received),
-    totalReceivedFlow: received,
+    totalFlow: numeric(from?.downstream_release) * share,
   };
 }
 
@@ -413,15 +470,16 @@ function csvRowsToPeriod(
   const first = Array.from(rowByNode.values())[0];
   const nodeResults = nodes.map((node) => csvRowToNodeResult(node, rowByNode.get(node.id), index, edges));
   const edgeResults = edges.map((edge) => edgeResultFromCsv(edge, rowByNode, edges));
+  const startDay = numberFrom(first?.start_day, index);
+  const endDayExclusive = numberFrom(first?.end_day_exclusive, index + 1);
 
   return {
     periodIndex,
-    label: `Period ${periodIndex + 1}`,
-    startDay: numberFrom(first?.start_day, index),
-    endDayExclusive: numberFrom(first?.end_day_exclusive, index + 1),
+    label: periodLabel(index, startDay, endDayExclusive),
+    startDay,
+    endDayExclusive,
     totalIncomingFlow: sum(nodeResults, (node) => node.totalIncomingFlow),
     totalLocalInflow: sum(nodeResults, (node) => node.totalLocalInflow),
-    totalEdgeLoss: sum(edgeResults, (edge) => edge.totalLostFlow),
     totalBasinExitFlow: sum(nodeResults, (node) => node.totalBasinExitOutflow),
     nodeResults,
     edgeResults,
@@ -438,11 +496,14 @@ function csvRowToNodeResult(
   const totalInflow = numberFrom(row?.total_inflow);
   const downstream = numberFrom(row?.downstream_release);
   const outgoingCount = edges.filter((edge) => edge.from === node.id).length;
-  const releaseForRouting = numberFrom(row?.release_for_routing)
-    || numberFrom(row?.production_release) + numberFrom(row?.spill);
-  const drinkTarget = numberFrom(row?.drink_water_met) + numberFrom(row?.unmet_drink_water);
+  const drinkMet = numberFrom(row?.drink_water_met);
+  const drinkTarget = drinkMet + numberFrom(row?.unmet_drink_water);
+  const foodWaterMet = numberFrom(row?.food_water_met);
+  const foodWaterDemand = foodWaterMet + numberFrom(row?.unmet_food_water);
   const foodProduced = numberFrom(row?.food_produced);
-  const energy = numberFrom(row?.energy_value);
+  const turbineFlow = numberFrom(row?.production_release);
+  const energyMwh = pickEnergyMwh(row);
+  const energyValueEur = numberFrom(row?.energy_value);
 
   return {
     nodeId: node.id,
@@ -453,10 +514,23 @@ function csvRowToNodeResult(
     totalAvailableWater: totalInflow + storage,
     totalDownstreamOutflow: downstream,
     totalBasinExitOutflow: outgoingCount === 0 ? totalInflow - numberFrom(row?.evaporation) : 0,
-    drinkingWater: drinkTarget > 0 ? delivery(numberFrom(row?.drink_water_met), drinkTarget) : null,
-    irrigation: foodProduced > 0 ? irrigation(foodProduced) : null,
-    hydropower: energy > 0 ? hydropower(numberFrom(row?.production_release), energy) : null,
+    drinkingWater: drinkTarget > 0 ? delivery(drinkMet, drinkTarget) : null,
+    irrigation:
+      foodWaterDemand > 0 || foodProduced > 0
+        ? { water: delivery(foodWaterMet, foodWaterDemand), foodProduced }
+        : null,
+    hydropower:
+      energyMwh > 0 || turbineFlow > 0
+        ? { turbineFlow, energyGenerated: energyMwh, valueEur: energyValueEur }
+        : null,
   };
+}
+
+function pickEnergyMwh(row: ResultCsvRow | undefined): number {
+  const mwh = numberFrom(row?.generated_electricity_mwh);
+  if (mwh > 0) return mwh;
+  const kwh = numberFrom(row?.generated_electricity_kwh);
+  return kwh > 0 ? kwh / 1000 : 0;
 }
 
 function edgeResultFromCsv(
@@ -467,13 +541,9 @@ function edgeResultFromCsv(
   const from = rowByNode.get(edge.from);
   const outgoing = edges.filter((candidate) => candidate.from === edge.from);
   const share = outgoing.length > 0 ? 1 / outgoing.length : 1;
-  const sent = numberFrom(from?.downstream_release) * share;
-  const loss = numberFrom(from?.routing_loss) * share;
   return {
     edgeId: edge.id,
-    totalRoutedFlow: sent,
-    totalLostFlow: loss,
-    totalReceivedFlow: Math.max(0, sent - loss),
+    totalFlow: numberFrom(from?.downstream_release) * share,
   };
 }
 
@@ -487,22 +557,10 @@ function delivery(actualDelivery: number, totalTarget: number): Delivery {
   };
 }
 
-function irrigation(foodProduced: number): Irrigation {
-  return {
-    water: delivery(foodProduced, foodProduced),
-    foodProduced,
-  };
-}
-
-function hydropower(turbineFlow: number, energyGenerated: number): Hydropower {
-  return {
-    turbineFlow,
-    energyGenerated,
-    totalTargetEnergy: energyGenerated,
-    totalMinimumEnergy: energyGenerated,
-    shortfallToTarget: 0,
-    shortfallToMinimum: 0,
-  };
+function periodLabel(_index: number, startDay: number, endDayExclusive: number): string {
+  const start = Math.round(startDay) + 1;
+  const end = Math.round(endDayExclusive);
+  return start === end ? `Day ${start}` : `Days ${start}–${end}`;
 }
 
 function normalizeKind(value: unknown): NileNode["kind"] {
@@ -542,14 +600,30 @@ function numberFrom(value: unknown, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function parseCsv(content: string): Array<Record<string, string>> {
+function parseValidatedCsv(content: string, filename: string): ParsedCsvRow[] {
   const lines = content.split(/\r?\n/).filter((line) => line.trim() !== "");
   if (lines.length === 0) return [];
   const headers = splitCsvLine(lines[0]);
-  return lines.slice(1).map((line) => {
-    const fields = splitCsvLine(line);
-    return Object.fromEntries(headers.map((header, index) => [header, fields[index] ?? ""]));
-  });
+  const missing = REQUIRED_CSV_COLUMNS.filter((column) => !headers.includes(column));
+  if (missing.length > 0) {
+    throw new Error(`${filename}: missing required column(s) ${missing.join(", ")}`);
+  }
+
+  const rows: ParsedCsvRow[] = [];
+  for (let index = 1; index < lines.length; index++) {
+    const fields = splitCsvLine(lines[index]);
+    if (fields.length < headers.length) {
+      console.warn(`${filename}: row ${index} has ${fields.length} fields, expected ${headers.length} — padding empties`);
+    }
+    const raw = Object.fromEntries(headers.map((header, position) => [header, fields[position] ?? ""]));
+    const result = ResultCsvRowSchema.safeParse(raw);
+    if (!result.success) {
+      const issue = result.error.issues[0];
+      throw new Error(`${filename}: row ${index} ${issue.path.join(".")}: ${issue.message}`);
+    }
+    rows.push(result.data);
+  }
+  return rows;
 }
 
 function splitCsvLine(line: string) {
@@ -576,64 +650,6 @@ function splitCsvLine(line: string) {
 
 function sum<T>(items: T[], selector: (item: T) => number) {
   return items.reduce((total, item) => total + selector(item), 0);
-}
-
-function node(
-  id: string,
-  name: string,
-  shortNameValue: string,
-  kind: NileNode["kind"],
-  x: number,
-  y: number,
-  country: string,
-  capacity?: number,
-  initialStorage?: number,
-): NileNode {
-  return {
-    id,
-    name,
-    shortName: shortNameValue,
-    kind,
-    x,
-    y,
-    country,
-    capacity,
-    initialStorage,
-  };
-}
-
-function nodeFromGeo(
-  id: string,
-  name: string,
-  shortNameValue: string,
-  kind: NileNode["kind"],
-  longitude: number,
-  latitude: number,
-  country: string,
-  capacity?: number,
-  initialStorage?: number,
-): NileNode {
-  const point = roundedPoint(longitude, latitude);
-  return node(id, name, shortNameValue, kind, point.x, point.y, country, capacity, initialStorage);
-}
-
-function edge(id: string, from: string, to: string, label: string): RawGraphEdge {
-  const fromNode = nileMvpNodes.find((candidate) => candidate.id === from);
-  const toNode = nileMvpNodes.find((candidate) => candidate.id === to);
-  return {
-    id,
-    from,
-    to,
-    label,
-    lossFraction: 0,
-    path: pathBetween(fromNode, toNode),
-    gradient: {
-      x1: fromNode?.x ?? 0,
-      y1: fromNode?.y ?? 0,
-      x2: toNode?.x ?? 0,
-      y2: toNode?.y ?? 0,
-    },
-  };
 }
 
 function looksLikeVisualizerDataset(value: RawVisualizerFile) {

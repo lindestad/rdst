@@ -8,60 +8,120 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { datasetFromCsvFiles, datasetFromFile } from "./adapters/nrsm";
-import { sampleDataset } from "./data/nile";
 import { BasinMap } from "./components/BasinMap";
 import { LeftRail } from "./components/LeftRail";
+import { ProvenanceBadge } from "./components/ProvenanceBadge";
 import { RightRail } from "./components/RightRail";
 import { SummaryItem } from "./components/SummaryItem";
-import { PitchPage } from "./pages/PitchPage";
 import { ScenarioPage } from "./pages/ScenarioPage";
+import { ShowcasePage } from "./pages/ShowcasePage";
 import { TeamPage } from "./pages/TeamPage";
-import type { Lens, VisualizerDataset } from "./types";
+import { defaultScenarioRunId, packagedScenarioRuns } from "./data/scenarioCatalog";
+import { CUSTOM_SCENARIO_RUN_ID, useVisualizerState } from "./hooks/useVisualizerState";
 
-type SitePage = "visualization" | "scenarios" | "pitch" | "team";
+type SitePage = "visualization" | "scenarios" | "showcase" | "team";
 
 const sitePages: Array<{ id: SitePage; label: string; Icon: LucideIcon }> = [
-  { id: "visualization", label: "Visualization", Icon: Network },
+  { id: "showcase", label: "Showcase", Icon: BookOpen },
   { id: "scenarios", label: "Scenarios", Icon: GitCompareArrows },
-  { id: "pitch", label: "Pitch", Icon: BookOpen },
+  { id: "visualization", label: "Simulator", Icon: Network },
   { id: "team", label: "Team", Icon: Users },
+];
+
+const SCENARIO_GROUP_ORDER: ReadonlyArray<"Default" | "Extremes" | "Future" | "Past" | "Smoke"> = [
+  "Default",
+  "Extremes",
+  "Future",
+  "Past",
+  "Smoke",
 ];
 
 function readPageFromHash(): SitePage {
   const raw = window.location.hash.replace(/^#\/?/, "");
-  return sitePages.some((item) => item.id === raw) ? (raw as SitePage) : "visualization";
+  if (raw === "pitch") return "showcase";
+  return sitePages.some((item) => item.id === raw) ? (raw as SitePage) : "showcase";
+}
+
+function FairWaterLogo({ small = false }: { small?: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 110.07 40.42"
+      xmlns="http://www.w3.org/2000/svg"
+      style={{ height: small ? 22 : 28, width: "auto" }}
+      aria-hidden="true"
+    >
+      <g transform="translate(-19.29,-50.75)">
+        <g>
+          <circle fill="#2fa46f" cx="28.74" cy="76.52" r="5" />
+          <circle fill="#2fa46f" cx="21.34" cy="67.93" r="2.06" />
+          <circle fill="#2fa46f" cx="44.80" cy="72.03" r="2.06" />
+          <circle fill="#2fa46f" cx="36.28" cy="64.47" r="2.06" />
+          <circle fill="#2fa46f" cx="27.85" cy="60.86" r="2.06" />
+          <circle fill="#2fa46f" cx="27.54" cy="53.06" r="2.06" />
+          <path stroke="#2fa46f" strokeWidth="1" fill="none" d="M28.74,76.52 21.34,67.93 27.85,60.86 27.54,53.06" />
+          <path stroke="#2fa46f" strokeWidth="1" fill="none" d="m44.80,72.03 -8.52-7.57 -8.43-3.61" />
+          <circle fill="#0b4f6c" cx="48.72" cy="71.78" r="2.06" />
+          <circle fill="#0b4f6c" cx="40.21" cy="64.22" r="2.06" />
+          <circle fill="#0b4f6c" cx="31.78" cy="60.61" r="2.06" />
+          <circle fill="#0b4f6c" cx="31.47" cy="52.81" r="2.06" />
+          <circle fill="#0b4f6c" cx="32.67" cy="76.27" r="5" />
+          <circle fill="#0b4f6c" cx="25.27" cy="67.68" r="2.06" />
+          <path stroke="#0b4f6c" strokeWidth="1" fill="none" d="M32.67,76.27 25.27,67.68 31.78,60.61 31.47,52.81" />
+          <path stroke="#0b4f6c" strokeWidth="1" fill="none" d="m48.72,71.78 -8.52-7.57 -8.43-3.61" />
+        </g>
+        <text fontFamily="DM Sans, sans-serif" fontWeight="700" fontSize="17.64" x="42.55" y="90.99">
+          <tspan fill="#2fa46f">Fair</tspan>
+          <tspan fill="#ffffff">Water</tspan>
+        </text>
+      </g>
+    </svg>
+  );
 }
 
 function App() {
   const [page, setPage] = useState<SitePage>(readPageFromHash);
-  const [dataset, setDataset] = useState<VisualizerDataset>(sampleDataset);
-  const [lens, setLens] = useState<Lens>("flow");
-  const [periodIndex, setPeriodIndex] = useState(0);
-  const [selectedNodeId, setSelectedNodeId] = useState(sampleDataset.nodes[0].id);
-  const [selectedEdgeId, setSelectedEdgeId] = useState(sampleDataset.edges[0].id);
-  const [isPlaying, setIsPlaying] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const state = useVisualizerState({ autoplay: true, playbackActive: page === "visualization" });
+  const {
+    dataset,
+    selectedRunId,
+    lens,
+    setLens,
+    activePeriodIndex,
+    setPeriodIndex,
+    isPlaying,
+    togglePlay,
+    pause,
+    isLoading,
+    loadError,
+    selectedNodeId,
+    selectedEdgeId,
+    setSelectedNodeId,
+    setSelectedEdgeId,
+    loadPackagedScenario,
+    loadJsonFile,
+    loadCsvFiles,
+  } = state;
 
   const { metadata, nodes, edges, periods } = dataset;
-  const activePeriodIndex = Math.min(periodIndex, periods.length - 1);
-
-  const period = periods[activePeriodIndex];
-  const selectedNode = nodes.find((node) => node.id === selectedNodeId) ?? nodes[0];
-  const selectedNodeResult = period.nodeResults.find((node) => node.nodeId === selectedNode.id);
-  const selectedEdge = edges.find((edge) => edge.id === selectedEdgeId) ?? edges[0];
-  const selectedEdgeResult = period.edgeResults.find((edge) => edge.edgeId === selectedEdge.id);
+  const hasData = periods.length > 0 && nodes.length > 0;
+  const period = hasData ? periods[activePeriodIndex] : undefined;
+  const selectedNode = hasData ? (nodes.find((node) => node.id === selectedNodeId) ?? nodes[0]) : undefined;
+  const selectedNodeResult = period && selectedNode
+    ? period.nodeResults.find((node) => node.nodeId === selectedNode.id)
+    : undefined;
+  const selectedEdge = edges.length > 0
+    ? (edges.find((edge) => edge.id === selectedEdgeId) ?? edges[0])
+    : undefined;
+  const selectedEdgeResult = period && selectedEdge
+    ? period.edgeResults.find((edge) => edge.edgeId === selectedEdge.id)
+    : undefined;
 
   const maxEdgeFlow = useMemo(
-    () => Math.max(1, ...periods.flatMap((item) => item.edgeResults.map((edge) => edge.totalRoutedFlow))),
+    () => Math.max(1, ...periods.flatMap((item) => item.edgeResults.map((edge) => edge.totalFlow))),
     [periods],
   );
   const maxNodeAvailable = useMemo(
     () => Math.max(1, ...periods.flatMap((item) => item.nodeResults.map((node) => node.totalAvailableWater))),
-    [periods],
-  );
-  const maxLoss = useMemo(
-    () => Math.max(1, ...periods.flatMap((item) => item.edgeResults.map((edge) => edge.totalLostFlow))),
     [periods],
   );
 
@@ -69,58 +129,36 @@ function App() {
     const sync = () => setPage(readPageFromHash());
     window.addEventListener("hashchange", sync);
     if (!window.location.hash) {
-      window.history.replaceState(null, "", "#/visualization");
+      window.history.replaceState(null, "", "#/showcase");
     }
     return () => window.removeEventListener("hashchange", sync);
   }, []);
 
-  useEffect(() => {
-    if (!isPlaying || page !== "visualization") return;
-    const timer = window.setInterval(() => {
-      setPeriodIndex((current) => (current + 1) % periods.length);
-    }, 2200);
-    return () => window.clearInterval(timer);
-  }, [isPlaying, page, periods.length]);
-
-  useEffect(() => {
-    setPeriodIndex(0);
-    setSelectedNodeId(dataset.nodes[0]?.id ?? "");
-    setSelectedEdgeId(dataset.edges[0]?.id ?? "");
-  }, [dataset]);
-
-  async function loadFile(file: File | null) {
-    if (!file) return;
-    try {
-      const next = await datasetFromFile(file);
-      setDataset(next);
-      setLoadError(null);
-    } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "Could not load simulator output.");
-    }
-  }
-
-  async function loadCsvFiles(files: FileList | null) {
-    if (!files || files.length === 0) return;
-    try {
-      const next = await datasetFromCsvFiles(files);
-      setDataset(next);
-      setLoadError(null);
-    } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "Could not load NRSM CSV results.");
-    }
-  }
-
   function navigate(nextPage: SitePage) {
     window.location.hash = `/${nextPage}`;
     setPage(nextPage);
+    window.scrollTo({ top: 0, behavior: "instant" });
   }
 
+  const isShowcase = page === "showcase";
+  const shellClass = `app-shell${isShowcase ? " showcase-active" : ""}`;
+
   return (
-    <main className="app-shell">
+    <main className={shellClass}>
       <header className="topbar">
         <div className="brand-block">
-          <p className="app-kicker">Fairwater</p>
-          <h1>River basin decisions made visible</h1>
+          <a className="brand-mark" href="#/showcase" onClick={(event) => { event.preventDefault(); navigate("showcase"); }}>
+            <FairWaterLogo />
+          </a>
+          {!isShowcase && (
+            <span className="brand-meta">
+              {page === "visualization"
+                ? "Live Simulator"
+                : page === "scenarios"
+                  ? "Scenario Benchmarks"
+                  : "Project Team"}
+            </span>
+          )}
           <nav className="site-nav" aria-label="Site pages">
             {sitePages.map(({ id, label, Icon }) => (
               <button
@@ -129,32 +167,50 @@ function App() {
                 onClick={() => navigate(id)}
                 type="button"
               >
-                <Icon size={16} />
+                <Icon size={14} />
                 <span>{label}</span>
               </button>
             ))}
           </nav>
         </div>
 
-        {page === "visualization" ? (
+        {page === "visualization" && (
           <div className="scenario-strip" aria-label="Scenario summary">
             <SummaryItem label="Scenario" value={metadata.name} />
+            <SummaryItem label="Horizon" value={metadata.horizon} />
             <SummaryItem label="Source" value={metadata.source} />
             <SummaryItem label="Reporting" value={metadata.reporting} />
-            <SummaryItem label="Graph" value={`${nodes.length} nodes / ${edges.length} edges`} />
-          </div>
-        ) : (
-          <div className="site-summary">
-            <SummaryItem label="Project" value="Fairwater" />
-            <SummaryItem label="Focus" value="Water, food, energy" />
-            <SummaryItem label="Engine" value="NRSM Rust" />
           </div>
         )}
 
         {page === "visualization" && (
           <div className="file-tools">
-            <label className="file-button secondary" title="Load NRSM --results-dir CSV files">
-              <FileJson size={18} />
+            <ProvenanceBadge metadata={metadata} />
+            <label className="scenario-select-wrap" title="Choose a packaged NRSM scenario run">
+              <span>Run</span>
+              <select
+                disabled={isLoading}
+                onChange={(event) => void loadPackagedScenario(event.currentTarget.value)}
+                value={selectedRunId}
+              >
+                {selectedRunId === CUSTOM_SCENARIO_RUN_ID && (
+                  <option value={CUSTOM_SCENARIO_RUN_ID}>Uploaded run</option>
+                )}
+                {SCENARIO_GROUP_ORDER.map((group) => (
+                  <optgroup key={group} label={group}>
+                    {packagedScenarioRuns
+                      .filter((run) => run.group === group)
+                      .map((run) => (
+                        <option key={run.id} value={run.id}>
+                          {run.label}
+                        </option>
+                      ))}
+                  </optgroup>
+                ))}
+              </select>
+            </label>
+            <label className="file-button" title="Load NRSM --results-dir CSV files">
+              <FileJson size={16} />
               <span>Load CSVs</span>
               <input
                 accept=".csv,text/csv"
@@ -165,36 +221,44 @@ function App() {
               />
             </label>
             <label className="file-button" title="Load NRSM JSON output">
-              <FileJson size={18} />
+              <FileJson size={16} />
               <span>Load JSON</span>
               <input
                 accept="application/json,.json"
-                onChange={(event) => void loadFile(event.currentTarget.files?.[0] ?? null)}
+                onChange={(event) => void loadJsonFile(event.currentTarget.files?.[0] ?? null)}
                 type="file"
               />
             </label>
             <button
               className="icon-button"
-              onClick={() => {
-                setDataset(sampleDataset);
-                setLoadError(null);
-              }}
+              disabled={isLoading}
+              onClick={() => void loadPackagedScenario(defaultScenarioRunId)}
               title="Reset to sample run"
               type="button"
             >
-              <RotateCcw size={17} />
+              <RotateCcw size={16} />
             </button>
           </div>
         )}
       </header>
       {loadError && <div className="load-error">{loadError}</div>}
+      {isLoading && (
+        <div className="load-status" role="status" aria-live="polite">
+          Loading scenario…
+        </div>
+      )}
 
-      {page === "scenarios" ? (
+      {page === "showcase" ? (
+        <ShowcasePage onOpenVisualization={() => navigate("visualization")} />
+      ) : page === "scenarios" ? (
         <ScenarioPage onOpenVisualization={() => navigate("visualization")} />
-      ) : page === "pitch" ? (
-        <PitchPage onOpenVisualization={() => navigate("visualization")} />
       ) : page === "team" ? (
         <TeamPage onOpenVisualization={() => navigate("visualization")} />
+      ) : !hasData || !period || !selectedNode || !selectedEdge ? (
+        <section className="empty-state" role="status">
+          <h2>No simulator data loaded.</h2>
+          <p>Pick a packaged run, upload an NRSM JSON, or load a results-dir of CSVs to begin.</p>
+        </section>
       ) : (
         <section className="workspace">
           <LeftRail
@@ -204,10 +268,10 @@ function App() {
             periods={periods}
             activePeriodIndex={activePeriodIndex}
             isPlaying={isPlaying}
-            onTogglePlay={() => setIsPlaying((current) => !current)}
+            onTogglePlay={togglePlay}
             onPeriodChange={(index) => {
               setPeriodIndex(index);
-              setIsPlaying(false);
+              pause();
             }}
           />
 
@@ -232,7 +296,6 @@ function App() {
             periods={periods}
             activePeriodIndex={activePeriodIndex}
             period={period}
-            maxLoss={maxLoss}
           />
         </section>
       )}
