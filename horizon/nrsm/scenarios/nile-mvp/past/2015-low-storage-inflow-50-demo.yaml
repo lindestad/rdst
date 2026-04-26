@@ -1,0 +1,4 @@
+settings:
+  start_date: 2015-02-01
+  end_date: 2015-03-02
+  inflow_scale: 0.5

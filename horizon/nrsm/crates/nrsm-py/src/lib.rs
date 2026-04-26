@@ -37,6 +37,7 @@ impl PyPreparedScenario {
             start_date: period.start_date,
             end_date: period.end_date,
             node_ids: period.node_ids,
+            inflow_scale: period.inflow_scale,
         })
         .map_err(to_py_value_error)?;
 
@@ -113,6 +114,7 @@ struct PeriodSpec {
     start_date: String,
     end_date: String,
     node_ids: Option<Vec<String>>,
+    inflow_scale: f64,
 }
 
 fn read_period_spec(path: &Path) -> Result<PeriodSpec, Box<dyn std::error::Error>> {
@@ -124,11 +126,20 @@ fn read_period_spec(path: &Path) -> Result<PeriodSpec, Box<dyn std::error::Error
     let start_date = required_string_setting(settings, "start_date", path)?;
     let end_date = required_string_setting(settings, "end_date", path)?;
     let node_ids = optional_string_list_setting(settings, "node_ids", path)?;
+    let inflow_scale = optional_f64_setting(settings, "inflow_scale", path)?.unwrap_or(1.0);
+    if inflow_scale < 0.0 {
+        return Err(format!(
+            "period file `{}` setting `settings.inflow_scale` must be non-negative",
+            path.display()
+        )
+        .into());
+    }
 
     Ok(PeriodSpec {
         start_date,
         end_date,
         node_ids,
+        inflow_scale,
     })
 }
 
@@ -181,6 +192,24 @@ fn optional_string_list_setting(
         strings.push(text.to_string());
     }
     Ok(Some(strings))
+}
+
+fn optional_f64_setting(
+    settings: &serde_yaml::Value,
+    field: &str,
+    path: &Path,
+) -> Result<Option<f64>, Box<dyn std::error::Error>> {
+    let Some(value) = settings.get(field) else {
+        return Ok(None);
+    };
+    if let Some(number) = value.as_f64() {
+        return Ok(Some(number));
+    }
+    Err(format!(
+        "period file `{}` setting `settings.{field}` must be a number",
+        path.display()
+    )
+    .into())
 }
 
 fn infer_nrsm_root(period_path: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
@@ -244,7 +273,7 @@ mod tests {
         let path = dir.join("wet-season.yaml");
         fs::write(
             &path,
-            "settings:\n  start_date: 1963-09-01\n  end_date: 1963-09-30\n  node_ids:\n    - tana\n    - gerd\nnodes: []\n",
+            "settings:\n  start_date: 1963-09-01\n  end_date: 1963-09-30\n  inflow_scale: 0.7\n  node_ids:\n    - tana\n    - gerd\nnodes: []\n",
         )
         .expect("period file should be written");
 
@@ -256,6 +285,7 @@ mod tests {
             period.node_ids,
             Some(vec!["tana".to_string(), "gerd".to_string()])
         );
+        assert_eq!(period.inflow_scale, 0.7);
 
         fs::remove_dir_all(&dir).expect("temp dir should be removed");
     }

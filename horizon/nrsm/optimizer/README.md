@@ -129,13 +129,17 @@ uv run nrsm-benchmark `
   --generated-dir ..\data\generated\benchmark-smoke `
   --optimized-actions runs\smoke\actions `
   --output-dir runs\benchmarks\smoke `
+  --terminal-storage-value 0.02 `
+  --unmet-food-penalty 0.2 `
+  --unmet-drink-penalty 5.0 `
   --nodes gerd aswand
 ```
 
 The benchmark writes:
 
 - `benchmark_summary.csv`: one row per policy with summary metrics,
-  reliability ratios, and deltas versus `full_production`.
+  reliability ratios, optional `policy_value`, and deltas versus
+  `full_production`.
 - `benchmark_manifest.json`: machine-readable paths and summaries.
 - `policies/<policy>/actions`: replayable action CSVs.
 - `policies/<policy>/results`: standard NRSM result CSVs for plotting.
@@ -154,6 +158,21 @@ Built-in policies:
 Benchmarking deliberately stays separate from plotting. The benchmark produces
 run folders and CSV contracts; `horizon/nrsm/plotting` should own comparison
 figures and dashboards.
+
+For hackathon stress demos, `policy_value` can make the payoff legible as a
+single score:
+
+```text
+policy_value =
+  total_energy_value
+  + terminal_storage_value * delta_terminal_reservoir_storage
+  - unmet_food_penalty * total_unmet_food_water
+  - unmet_drink_penalty * total_unmet_drink_water
+```
+
+This does not change the simulator physics. It is just a benchmark valuation
+layer for answering questions like "how much energy can we keep while preserving
+water in a low-storage run?"
 
 ## Why Not CMA-ES First?
 

@@ -8,7 +8,7 @@ import {
   STRESS_CRITICAL_RATIO,
   STRESS_WARNING_RATIO,
 } from "../config";
-import { format } from "../lib/format";
+import { WATER_VOLUME_UNIT_COMPACT, format } from "../lib/format";
 import type {
   EdgePeriodResult,
   Lens,
@@ -85,7 +85,7 @@ export function edgeLabel(
     return `${Math.round(ratio * 100)}% of baseline`;
   }
 
-  return `${format(result.totalFlow)} flow`;
+  return `${format(result.totalFlow)} ${WATER_VOLUME_UNIT_COMPACT} flow`;
 }
 
 export function edgeWidth(result: EdgePeriodResult | undefined, max: number) {

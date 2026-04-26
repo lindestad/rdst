@@ -126,7 +126,7 @@ export function BasinMap({
       <svg
         className={`basin-map ${isPanning ? "panning" : ""}`}
         viewBox={`0 0 ${VIEWBOX_W} ${VIEWBOX_H}`}
-        preserveAspectRatio="xMidYMin meet"
+        preserveAspectRatio="none"
         role="img"
         aria-label="Nile basin simulator graph"
         aria-describedby="basin-map-desc"
@@ -143,7 +143,7 @@ export function BasinMap({
         </desc>
         <defs>
           <clipPath id="basin-clip">
-            <rect x="24" y="18" width="992" height="684" rx="8" />
+            <rect x="0" y="0" width={VIEWBOX_W} height={VIEWBOX_H} />
           </clipPath>
           <pattern id="scribble-critical" width="38" height="38" patternUnits="userSpaceOnUse">
             <path d="M-6 6 Q 4 -2 13 7 T 28 10 T 44 4" fill="none" stroke="#c8362a" strokeWidth="1.7" strokeLinecap="round" opacity="0.95" />
@@ -178,7 +178,7 @@ export function BasinMap({
           })}
         </defs>
 
-        <rect className="basin-frame" x="24" y="18" width="992" height="684" rx="8" />
+        <rect className="basin-frame" x="0" y="0" width={VIEWBOX_W} height={VIEWBOX_H} />
 
         <g className="map-clip-layer" clipPath="url(#basin-clip)">
         <g
@@ -317,7 +317,7 @@ export function BasinMap({
         </g>
         </g>
 
-        <text className="map-attribution" x={994} y={690}>
+        <text className="map-attribution" x={VIEWBOX_W - 18} y={VIEWBOX_H - 18}>
           © OpenStreetMap contributors
         </text>
       </svg>

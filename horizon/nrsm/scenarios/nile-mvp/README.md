@@ -1,14 +1,15 @@
 # Nile MVP Scenario Catalog
 
-This folder contains period specs for the Nile MVP topology, plus simulator-ready
-stress cases under `extremes/`. The period YAML files do not define node data,
-topology, population, evaporation, inflow, agriculture, or energy prices. They
-only select a date window, plus an optional node subset. The simulator-ready
-files are generated from `horizon/data` by the dataloader.
+This folder contains runnable NRSM YAML scenarios for the Nile MVP topology.
+`scenario.yaml` remains the small default demo. The `past/` and `future/`
+folders contain dated variants with all 13 Nile MVP nodes. The `extremes/`
+folder contains simulator-native stress cases used by the visualizer preset
+buttons. The `few-nodes/` folder contains one deliberately small Blue Nile
+scenario for quick smoke tests.
 
-The `extremes/` folder contains simulator-native stress cases used by the
-visualizer preset buttons. The `few-nodes/` folder contains one deliberately
-small Blue Nile period spec for quick smoke tests.
+The simulator currently executes by `settings.horizon_days`; `start_date` and
+`end_date` are calendar labels for scenario selection, reporting, and future
+calendar-aware outputs.
 
 | File | Nodes | Window | Days | Shape |
 | --- | ---: | --- | ---: | --- |
@@ -20,6 +21,7 @@ small Blue Nile period spec for quick smoke tests.
 | `past/2010-dry-season-180d.yaml` | 13 | 2010-04-01 to 2010-09-27 | 180 | lower inflow, higher evaporation |
 | `past/2012-wet-season-120d.yaml` | 13 | 2012-07-01 to 2012-10-28 | 120 | higher inflow |
 | `past/2015-low-storage-30d.yaml` | 13 | 2015-02-01 to 2015-03-02 | 30 | lower starting storage |
+| `past/2015-low-storage-inflow-50-demo.yaml` | 13 | 2015-02-01 to 2015-03-02 | 30 | demo stress run with hydmod inflows scaled to 50% |
 | `past/2018-energy-prices-365d.yaml` | 13 | 2018-01-01 to 2018-12-31 | 365 | higher hydropower prices |
 | `past/2020-full-year-balanced.yaml` | 13 | 2020-01-01 to 2020-12-30 | 365 | full-year balanced |
 | `past/2024-hot-60d.yaml` | 13 | 2024-06-01 to 2024-07-30 | 60 | hot short run |
@@ -36,34 +38,17 @@ small Blue Nile period spec for quick smoke tests.
 | `future/2100-long-range-365d.yaml` | 13 | 2100-01-01 to 2100-12-31 | 365 | long-range annual run |
 | `extremes/upstream-holdback-90d.yaml` | 13 | 2030-01-01 to 2030-03-31 | 90 | GERD constrained release stress case |
 
-Run a period from `horizon/nrsm` by assembling it from `horizon/data` first:
+Run any scenario from `horizon/nrsm`:
 
 ```powershell
-cargo run -p nrsm-dataloader -- assemble --period scenarios\nile-mvp\past\1963-september-30d.yaml --input ..\data
-cargo run -p nrsm-cli -- data\generated\1963-september-30d\config.yaml --json --pretty
+cargo run -p nrsm-cli -- scenarios/nile-mvp/future/2030-full-year-growth.yaml --json --pretty
 ```
-
-## Run With Real Data
-
-`--period` reads `settings.start_date`, `settings.end_date`, and optional
-`settings.node_ids` from the YAML. All node values are read from the CSV-backed
-data bundle under `horizon/data`.
-
-```powershell
-cargo run -p nrsm-dataloader -- assemble --period scenarios\nile-mvp\past\1963-september-30d.yaml --input ..\data
-cargo run -p nrsm-cli -- data\generated\1963-september-30d\config.yaml --json --pretty
-```
-
-Without `--output`, the generated scenario is written to
-`data/generated/<period-file-name>/`. Historical windows must be covered by the
-source CSVs; future windows need extrapolated input data before this path can
-assemble them.
 
 ## Create Your Own Scenario
 
-Start by copying the closest existing YAML, then change the date window. Use
-`past/` for historical windows, `future/` for planning windows, and
-`few-nodes/` only for small smoke tests.
+Start by copying the closest existing YAML, then change the `settings` block and
+the node inputs you want to test. Use `past/` for historical windows,
+`future/` for planning windows, and `few-nodes/` only for small smoke tests.
 
 ```powershell
 Copy-Item scenarios\nile-mvp\past\2024-hot-60d.yaml scenarios\nile-mvp\future\2032-custom-90d.yaml
@@ -71,43 +56,86 @@ Copy-Item scenarios\nile-mvp\past\2024-hot-60d.yaml scenarios\nile-mvp\future\20
 
 Each scenario needs:
 
+- `settings.timestep_days`: keep this at `1.0`; the engine is daily.
 - `settings.start_date`: first calendar day, written as `YYYY-MM-DD`.
 - `settings.end_date`: last calendar day, written as `YYYY-MM-DD`.
-- `settings.node_ids`, optionally: a list of topology node ids to assemble. Omit
-  it to use all 13 Nile MVP nodes.
+- `settings.horizon_days`: number of simulated days. This should match the
+  inclusive calendar window, so `2032-01-01` to `2032-03-30` is `90`.
+- `settings.reporting`: use `daily` for short/debug runs or `monthly30_day` for
+  longer runs.
+- `settings.production_level_fraction`: default production action for nodes that
+  do not have an explicit `actions.production_level` series.
+- `nodes`: the river topology and per-node inputs. Full Nile MVP scenarios
+  should keep all 13 nodes unless the file is explicitly a quick smoke test.
+
+The simulator currently uses `horizon_days` for execution. `start_date` and
+`end_date` are metadata that make the scenario window clear to people and future
+calendar-aware outputs. CSV-backed modules are loaded by row order and selected
+column; make sure every referenced CSV has at least `horizon_days` data rows.
+
+Common node edits:
+
+- Change `catchment_inflow.rate` to represent wetter or drier local inflow.
+- Change `modules.evaporation.rate` to test hotter or cooler loss conditions.
+- Change `modules.drink_water.daily_demand` for population or demand growth.
+- Change `modules.food_production.max_food_units` for irrigation demand.
+- Change `modules.energy.price_per_unit` for hydropower value scenarios.
+- Change `reservoir.initial_level` for storage sensitivity runs.
+- Change `settings.production_level_fraction` for broad operating policy tests.
+- For dataloader-assembled period specs, set `settings.inflow_scale` to create
+  explicit demo/stress runs from the real hydmod inflow series.
 
 Minimal shape:
 
 ```yaml
 settings:
+  timestep_days: 1.0
   start_date: 2032-01-01
   end_date: 2032-01-30
+  horizon_days: 30
+  reporting: daily
+  production_level_fraction: 0.9
+
+nodes:
+  - id: tana
+    reservoir:
+      initial_level: 0
+      max_capacity: 100000
+    max_production: 1000
+    catchment_inflow:
+      type: constant
+      rate: 170
+    connections:
+      - node_id: gerd
+        fraction: 1
+        delay: 2
+
+  - id: gerd
+    reservoir:
+      initial_level: 500
+      max_capacity: 950
+    max_production: 220
+    catchment_inflow:
+      type: constant
+      rate: 0
+    connections: []
+    modules:
+      energy:
+        price_per_unit: 0.68
+        effective_head_m: 145
+        turbine_efficiency: 0.9
 ```
 
-Small subset shape:
-
-```yaml
-settings:
-  start_date: 2032-01-01
-  end_date: 2032-01-30
-  node_ids:
-    - tana
-    - gerd
-    - roseires
-```
-
-Run the period after editing:
+Run the scenario after editing:
 
 ```powershell
-cargo run -p nrsm-dataloader -- assemble --period scenarios\nile-mvp\future\2032-custom-90d.yaml --input ..\data
-cargo run -p nrsm-cli -- data\generated\2032-custom-90d\config.yaml --json --results-dir data\results\2032-custom-90d
+cargo run -p nrsm-cli -- scenarios\nile-mvp\future\2032-custom-90d.yaml --json --pretty
 ```
 
-Before committing a new catalog period, assemble at least one historical window
-and preferably run the dataloader tests:
+Write CSV outputs for plotting or review:
 
 ```powershell
-cargo test -p nrsm-dataloader
+cargo run -p nrsm-cli -- scenarios\nile-mvp\future\2032-custom-90d.yaml --json --results-dir data\results\2032-custom-90d
 ```
 
 Run simulator-native stress cases directly:
@@ -135,4 +163,11 @@ for file in scenarios/nile-mvp/extremes/*.yaml; do
   id=${id//\//__}
   cargo run -q -p nrsm-cli -- "$file" --json --results-dir "../../nile-visualizer-app/src/data/results/scenarios/$id" > "/tmp/nrsm-${id//__/-}.json"
 done
+```
+
+Before committing a new catalog scenario, run it once and preferably run the
+core tests:
+
+```powershell
+cargo test -p nrsm-sim-core
 ```

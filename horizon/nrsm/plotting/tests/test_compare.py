@@ -5,6 +5,7 @@ from pathlib import Path
 import pandas as pd
 
 from nrsm_plotting.compare import (
+    benchmark_summary_path,
     load_named_runs,
     parse_run_specs,
     plot_comparison,
@@ -101,6 +102,7 @@ def test_runs_from_benchmark_dir_reads_manifest(tmp_path: Path) -> None:
         ("full", full_results),
         ("optimized", optimized_results),
     ]
+    assert benchmark_summary_path(benchmark) is None
 
 
 def test_runs_from_benchmark_dir_resolves_relative_manifest_paths(tmp_path: Path) -> None:
@@ -139,3 +141,35 @@ def test_plot_comparison_writes_summary_manifest_and_plots(tmp_path: Path) -> No
     summary = pd.read_csv(manifest.summary_csv)
     optimized_row = summary.loc[summary["run"] == "optimized"].iloc[0]
     assert optimized_row["delta_total_energy_value"] == 38.0
+
+
+def test_plot_comparison_adds_policy_value_plot_from_benchmark_summary(tmp_path: Path) -> None:
+    full = tmp_path / "full"
+    optimized = tmp_path / "optimized"
+    output = tmp_path / "plots"
+    benchmark_summary = tmp_path / "benchmark_summary.csv"
+    write_result_folder(full, 1.0)
+    write_result_folder(optimized, 1.2)
+    pd.DataFrame(
+        {
+            "policy": ["full", "optimized"],
+            "policy_value": [190.0, 260.0],
+            "delta_policy_value": [0.0, 70.0],
+        }
+    ).to_csv(benchmark_summary, index=False)
+
+    runs = load_named_runs([("full", full), ("optimized", optimized)])
+    manifest = plot_comparison(
+        runs,
+        output,
+        file_format="png",
+        dpi=80,
+        benchmark_summary=benchmark_summary,
+    )
+
+    assert len(manifest.plots) == 6
+    assert (output / "demo_policy_value.png").exists()
+    summary = pd.read_csv(manifest.summary_csv)
+    optimized_row = summary.loc[summary["run"] == "optimized"].iloc[0]
+    assert optimized_row["policy_value"] == 260.0
+    assert optimized_row["delta_policy_value"] == 70.0

@@ -1,5 +1,9 @@
 import type { NodePeriodResult } from "../types";
 
+export const WATER_VOLUME_UNIT = "million m³";
+export const WATER_VOLUME_UNIT_COMPACT = "Mm³";
+export const ENERGY_UNIT = "TWh";
+
 export function sumNodes(
   nodesToSum: NodePeriodResult[],
   selector: (node: NodePeriodResult) => number,

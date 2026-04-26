@@ -41,6 +41,9 @@ def run_benchmarks(
     optimized_action_column: str = "optimized",
     start_date: date | None = None,
     controlled_nodes: Sequence[str] | None = None,
+    terminal_storage_value: float = 0.0,
+    unmet_food_penalty: float = 0.0,
+    unmet_drink_penalty: float = 0.0,
 ) -> list[BenchmarkRun]:
     output_dir.mkdir(parents=True, exist_ok=True)
     node_ids = tuple(simulator.node_ids())
@@ -102,8 +105,20 @@ def run_benchmarks(
         evaluate_policy(simulator, policy, output_dir, start_date=start_date)
         for policy in policies
     ]
-    write_benchmark_summary(runs, output_dir / "benchmark_summary.csv")
-    write_manifest(runs, output_dir)
+    write_benchmark_summary(
+        runs,
+        output_dir / "benchmark_summary.csv",
+        terminal_storage_value=terminal_storage_value,
+        unmet_food_penalty=unmet_food_penalty,
+        unmet_drink_penalty=unmet_drink_penalty,
+    )
+    write_manifest(
+        runs,
+        output_dir,
+        terminal_storage_value=terminal_storage_value,
+        unmet_food_penalty=unmet_food_penalty,
+        unmet_drink_penalty=unmet_drink_penalty,
+    )
     return runs
 
 
@@ -254,10 +269,24 @@ def action_dates(horizon_days: int, start_date: date | None) -> list[str]:
     ]
 
 
-def write_benchmark_summary(runs: Sequence[BenchmarkRun], path: Path) -> None:
+def write_benchmark_summary(
+    runs: Sequence[BenchmarkRun],
+    path: Path,
+    *,
+    terminal_storage_value: float = 0.0,
+    unmet_food_penalty: float = 0.0,
+    unmet_drink_penalty: float = 0.0,
+) -> None:
     baseline = next(
         (run.summary for run in runs if run.name == "full_production"),
         runs[0].summary,
+    )
+    baseline_policy_value = policy_value(
+        baseline,
+        baseline=baseline,
+        terminal_storage_value=terminal_storage_value,
+        unmet_food_penalty=unmet_food_penalty,
+        unmet_drink_penalty=unmet_drink_penalty,
     )
     rows = []
     for run in runs:
@@ -280,12 +309,33 @@ def write_benchmark_summary(runs: Sequence[BenchmarkRun], path: Path) -> None:
             run.summary.get("total_food_water_met", 0.0),
             run.summary.get("total_food_water_demand", 0.0),
         )
+        row["policy_value"] = policy_value(
+            run.summary,
+            baseline=baseline,
+            terminal_storage_value=terminal_storage_value,
+            unmet_food_penalty=unmet_food_penalty,
+            unmet_drink_penalty=unmet_drink_penalty,
+        )
+        row["delta_policy_value"] = row["policy_value"] - baseline_policy_value
         rows.append(row)
     pd.DataFrame(rows).to_csv(path, index=False)
 
 
-def write_manifest(runs: Sequence[BenchmarkRun], output_dir: Path) -> None:
+def write_manifest(
+    runs: Sequence[BenchmarkRun],
+    output_dir: Path,
+    *,
+    terminal_storage_value: float = 0.0,
+    unmet_food_penalty: float = 0.0,
+    unmet_drink_penalty: float = 0.0,
+) -> None:
     manifest = {
+        "policy_value": {
+            "terminal_storage_value": terminal_storage_value,
+            "unmet_food_penalty": unmet_food_penalty,
+            "unmet_drink_penalty": unmet_drink_penalty,
+            "formula": "total_energy_value + terminal_storage_value * delta_terminal_reservoir_storage - unmet_food_penalty * total_unmet_food_water - unmet_drink_penalty * total_unmet_drink_water",
+        },
         "policies": [
             {
                 "name": run.name,
@@ -307,3 +357,22 @@ def ratio(numerator: float, denominator: float) -> float:
     if denominator <= 0.0:
         return 1.0
     return float(numerator) / float(denominator)
+
+
+def policy_value(
+    summary: dict[str, float],
+    *,
+    baseline: dict[str, float],
+    terminal_storage_value: float,
+    unmet_food_penalty: float,
+    unmet_drink_penalty: float,
+) -> float:
+    terminal_storage_delta = float(summary.get("terminal_reservoir_storage", 0.0)) - float(
+        baseline.get("terminal_reservoir_storage", 0.0)
+    )
+    return (
+        float(summary.get("total_energy_value", 0.0))
+        + terminal_storage_value * terminal_storage_delta
+        - unmet_food_penalty * float(summary.get("total_unmet_food_water", 0.0))
+        - unmet_drink_penalty * float(summary.get("total_unmet_drink_water", 0.0))
+    )

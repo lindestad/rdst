@@ -1,72 +1,90 @@
-import { MapPinned } from "lucide-react";
+type Member = {
+  tag: string;
+  name: string;
+  role: string;
+  focus: string;
+};
 
-const teamMembers = [
+const members: Member[] = [
   {
     tag: "01",
-    name: "Bernt Viggo Matheussen",
-    role: "Hydrology lead",
+    name: "Emilio Lombardo",
+    role: "Mathematical modeling",
     focus:
-      "PhD in hydrological modeling. Provides the scientific foundation that keeps the platform grounded in physical reality, with deep expertise in river systems and water resource simulation.",
+      "Industrial mathematics student contributing to the mathematical modeling and numerical methods underpinning the simulation engine. Works on translating basin tradeoffs into robust computational structure.",
   },
   {
     tag: "02",
-    name: "Jonas Tjemsland",
-    role: "Data and Earth observation",
+    name: "Storm Selvig",
+    role: "Backend and data infrastructure",
     focus:
-      "PhD in Theoretical Astroparticle Physics. Leads data pipeline development and the integration of satellite and climate datasets, applying rigorous quantitative methods to real-world water systems.",
+      "Data engineering student responsible for backend infrastructure, data architecture, and the systems that make large-scale satellite data processable in real time. Keeps the data layer reliable and deployable.",
   },
   {
     tag: "03",
     name: "Daniel Lindestad",
     role: "Product and stakeholder lead",
     focus:
-      "Master's in economics, currently completing a degree in data science. Bridges the technical and policy dimensions of the platform and leads product development and stakeholder communication.",
+      "Business administration graduate specialized in analytical finance, now completing computer engineering with a focus on applied machine learning. Leads product development and stakeholder communication.",
   },
   {
     tag: "04",
-    name: "Storm Selvig",
-    role: "Backend and data infrastructure",
+    name: "Bernt Viggo Matheussen",
+    role: "Hydrology lead",
     focus:
-      "Data engineering student responsible for backend infrastructure, data architecture, and the systems that make large-scale satellite data processable in real time.",
+      "PhD in hydrological modeling. Brings deep expertise in river systems and water resource simulation, providing the scientific foundation that keeps the platform grounded in physical reality and credible simplifications.",
   },
   {
     tag: "05",
-    name: "Emilio Lombardo",
-    role: "Mathematical modeling",
+    name: "Jonas Tjemsland",
+    role: "Data and Earth observation",
     focus:
-      "Industrial mathematics student contributing to the mathematical modeling and numerical methods underpinning the simulation engine.",
+      "PhD in Theoretical Astroparticle Physics. Leads data pipeline development and the integration of satellite and climate datasets, applying rigorous quantitative methods to real-world water systems and open-data workflows.",
   },
 ];
 
 export function TeamPage({ onOpenVisualization }: { onOpenVisualization: () => void }) {
   return (
-    <section className="content-page team-page">
-      <div className="content-hero compact-hero">
+    <section className="fw-team">
+      <div className="fw-team-hero">
         <div>
-          <p className="app-kicker">Team</p>
-          <h2>FairWater team</h2>
+          <span className="label" style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 10,
+            fontFamily: "DM Mono, monospace",
+            fontSize: 10.5,
+            letterSpacing: "0.16em",
+            textTransform: "uppercase",
+            color: "var(--green)",
+          }}>
+            <span style={{ display: "inline-block", width: 18, height: 1, background: "var(--green)", opacity: 0.6 }} />
+            Team
+          </span>
+          <h2>The people behind FairWater.</h2>
           <p>
             FairWater was built by a five-person team with backgrounds in
-            hydrology, data engineering, mathematical modeling, and economics.
-            Together they cover the full path from satellite pixels to policy
-            evidence.
+            hydrology, data engineering, mathematical modeling, economics, and
+            applied machine learning. Together they cover the full path from
+            satellite pixels to a working river-basin decision tool.
           </p>
         </div>
-        <button className="file-button" onClick={onOpenVisualization} type="button">
-          <MapPinned size={18} />
-          <span>View basin run</span>
+        <button type="button" className="fw-btn fw-btn-green" onClick={onOpenVisualization}>
+          View basin run
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 13, height: 13 }}>
+            <line x1="7" y1="17" x2="17" y2="7" />
+            <polyline points="7 7 17 7 17 17" />
+          </svg>
         </button>
       </div>
 
-      <div className="team-grid">
-        {teamMembers.map((member) => (
-          <article className="team-card" key={member.name}>
-            <div className="avatar-mark">{member.tag}</div>
-            <div>
-              <h3>{member.name}</h3>
-              <strong>{member.role}</strong>
-              <p>{member.focus}</p>
-            </div>
+      <div className="fw-team-grid">
+        {members.map((m) => (
+          <article className="fw-team-card" key={m.name}>
+            <div className="fw-team-tag">{m.tag}</div>
+            <h3>{m.name}</h3>
+            <span className="fw-team-role">{m.role}</span>
+            <p>{m.focus}</p>
           </article>
         ))}
       </div>
