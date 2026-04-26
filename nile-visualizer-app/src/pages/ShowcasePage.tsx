@@ -386,9 +386,9 @@ export function ShowcasePage({ onOpenVisualization }: Props) {
           <h1 className="fw-h1">
             FairWater
             <em>
-              River basin decisions
+              Every drop
               <br />
-              made visible.
+              accounted for.
             </em>
           </h1>
           <button type="button" className="fw-cta-link" onClick={onOpenVisualization}>
@@ -479,7 +479,8 @@ export function ShowcasePage({ onOpenVisualization }: Props) {
           <p>
             FairWater is built as a clean separation of concerns: each layer has a
             hard interface, enabling parallel development and independent
-            validation.
+            validation. The optimizer sits on top of the simulator and searches
+            for basin-wide policies that beat local, rule-based operation.
           </p>
         </div>
 
@@ -531,15 +532,17 @@ export function ShowcasePage({ onOpenVisualization }: Props) {
             <div className="fw-pipe-icon">
               <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" /></svg>
             </div>
-            <h3>Scenario Runner</h3>
+            <h3>Scenario Runner + Optimizer</h3>
             <p>
               YAML-defined scenarios encode policy choices — reservoir release
               schedules, irrigation area multipliers, environmental-flow
-              constraints, and scoring weights — and are executed synchronously or
-              as packaged runs.
+              constraints, and scoring weights. The optimizer then runs fast
+              policy searches against the Rust core to find higher-value water
+              allocations across energy, food, storage, and reliability.
             </p>
             <div className="fw-tech-tags">
               <span className="fw-tech-tag">FastAPI</span>
+              <span className="fw-tech-tag">CMA-ES</span>
               <span className="fw-tech-tag">JSON Store</span>
               <span className="fw-tech-tag">NRSM CLI</span>
             </div>
@@ -782,7 +785,7 @@ export function ShowcasePage({ onOpenVisualization }: Props) {
           <p>
             Each component was chosen for correctness and auditability — not
             convenience. The simulation core is intentionally separate from the
-            data layer and the dashboard.
+            data layer, the optimizer, and the dashboard.
           </p>
         </div>
         <table className="fw-tech-table fw-reveal">
@@ -823,6 +826,17 @@ export function ShowcasePage({ onOpenVisualization }: Props) {
                 Runs any scenario YAML and emits structured JSON or per-node CSVs
                 to a results directory. Entry point for CI and batch scenario
                 generation.
+              </td>
+            </tr>
+            <tr>
+              <td className="fw-td-layer">L3 · Optimizer</td>
+              <td className="fw-td-name">Policy Optimizer</td>
+              <td className="fw-td-stack">Python · CMA-ES · NRSM bindings</td>
+              <td className="fw-td-role">
+                Searches time-varying reservoir actions against the fast Rust
+                simulator. Scores each policy with a configurable objective over
+                hydropower value, food-water delivery, drinking-water reliability,
+                and terminal storage.
               </td>
             </tr>
             <tr>
