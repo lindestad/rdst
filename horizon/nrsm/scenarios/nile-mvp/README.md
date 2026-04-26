@@ -15,6 +15,7 @@ The simulator-ready files are generated from `horizon/data` by the dataloader.
 | `past/2010-dry-season-180d.yaml` | 13 | 2010-04-01 to 2010-09-27 | 180 | lower inflow, higher evaporation |
 | `past/2012-wet-season-120d.yaml` | 13 | 2012-07-01 to 2012-10-28 | 120 | higher inflow |
 | `past/2015-low-storage-30d.yaml` | 13 | 2015-02-01 to 2015-03-02 | 30 | lower starting storage |
+| `past/2015-low-storage-inflow-50-demo.yaml` | 13 | 2015-02-01 to 2015-03-02 | 30 | demo stress run with hydmod inflows scaled to 50% |
 | `past/2018-energy-prices-365d.yaml` | 13 | 2018-01-01 to 2018-12-31 | 365 | higher hydropower prices |
 | `past/2020-full-year-balanced.yaml` | 13 | 2020-01-01 to 2020-12-30 | 365 | full-year balanced |
 | `past/2024-hot-60d.yaml` | 13 | 2024-06-01 to 2024-07-30 | 60 | hot short run |
@@ -69,6 +70,9 @@ Each scenario needs:
 - `settings.end_date`: last calendar day, written as `YYYY-MM-DD`.
 - `settings.node_ids`, optionally: a list of topology node ids to assemble. Omit
   it to use all 13 Nile MVP nodes.
+- `settings.inflow_scale`, optionally: a non-negative multiplier applied to
+  hydmod `runoff_m3_day` while assembling the scenario. Omit it for the real
+  data value `1.0`; use values below `1.0` only for explicit stress/demo runs.
 
 Minimal shape:
 
@@ -76,6 +80,7 @@ Minimal shape:
 settings:
   start_date: 2032-01-01
   end_date: 2032-01-30
+  inflow_scale: 0.75
 ```
 
 Small subset shape:

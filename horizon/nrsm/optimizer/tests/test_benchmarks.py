@@ -100,6 +100,8 @@ def test_benchmark_summary_writes_deltas_and_reliability(tmp_path) -> None:
                 "total_food_water_demand": 10.0,
                 "total_drink_water_met": 5.0,
                 "total_unmet_drink_water": 0.0,
+                "total_unmet_food_water": 2.0,
+                "terminal_reservoir_storage": 100.0,
             },
             actions_dir=tmp_path / "full" / "actions",
             results_dir=tmp_path / "full" / "results",
@@ -113,16 +115,26 @@ def test_benchmark_summary_writes_deltas_and_reliability(tmp_path) -> None:
                 "total_food_water_demand": 10.0,
                 "total_drink_water_met": 4.0,
                 "total_unmet_drink_water": 1.0,
+                "total_unmet_food_water": 1.0,
+                "terminal_reservoir_storage": 150.0,
             },
             actions_dir=tmp_path / "opt" / "actions",
             results_dir=tmp_path / "opt" / "results",
         ),
     ]
 
-    write_benchmark_summary(runs, tmp_path / "benchmark_summary.csv")
+    write_benchmark_summary(
+        runs,
+        tmp_path / "benchmark_summary.csv",
+        terminal_storage_value=0.5,
+        unmet_food_penalty=2.0,
+        unmet_drink_penalty=10.0,
+    )
 
     frame = pd.read_csv(tmp_path / "benchmark_summary.csv")
     optimized = frame.loc[frame["policy"] == "optimized"].iloc[0]
     assert optimized["delta_total_energy_value"] == 2.0
     assert optimized["food_water_reliability"] == 0.9
     assert optimized["drink_water_reliability"] == 0.8
+    assert optimized["policy_value"] == 25.0
+    assert optimized["delta_policy_value"] == 19.0

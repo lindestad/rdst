@@ -20,6 +20,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--optimized-actions", type=Path, help="Optional optimizer action CSV directory.")
     parser.add_argument("--optimized-action-column", default="optimized")
     parser.add_argument("--nodes", nargs="*", help="Limit heuristic policies to specific controlled node ids.")
+    parser.add_argument(
+        "--terminal-storage-value",
+        type=float,
+        default=0.0,
+        help="Optional EUR/m3 value for terminal storage above the full-production baseline.",
+    )
+    parser.add_argument(
+        "--unmet-food-penalty",
+        type=float,
+        default=0.0,
+        help="Optional EUR/m3 penalty for unmet food water in the benchmark policy_value.",
+    )
+    parser.add_argument(
+        "--unmet-drink-penalty",
+        type=float,
+        default=0.0,
+        help="Optional EUR/m3 penalty for unmet drinking water in the benchmark policy_value.",
+    )
     args = parser.parse_args(argv)
 
     if args.period:
@@ -40,6 +58,9 @@ def main(argv: list[str] | None = None) -> int:
         optimized_action_column=args.optimized_action_column,
         start_date=start_date,
         controlled_nodes=args.nodes,
+        terminal_storage_value=args.terminal_storage_value,
+        unmet_food_penalty=args.unmet_food_penalty,
+        unmet_drink_penalty=args.unmet_drink_penalty,
     )
 
     print(
@@ -48,6 +69,9 @@ def main(argv: list[str] | None = None) -> int:
                 "output_dir": str(args.output_dir),
                 "policies": [run.name for run in runs],
                 "benchmark_summary": str(args.output_dir / "benchmark_summary.csv"),
+                "terminal_storage_value": args.terminal_storage_value,
+                "unmet_food_penalty": args.unmet_food_penalty,
+                "unmet_drink_penalty": args.unmet_drink_penalty,
             },
             indent=2,
         )

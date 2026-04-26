@@ -11,6 +11,7 @@ pub struct AssembleOptions {
     pub start_date: String,
     pub end_date: String,
     pub node_ids: Option<Vec<String>>,
+    pub inflow_scale: f64,
 }
 
 impl Default for AssembleOptions {
@@ -21,6 +22,7 @@ impl Default for AssembleOptions {
             start_date: "2005-01-01".to_string(),
             end_date: "2005-01-31".to_string(),
             node_ids: None,
+            inflow_scale: 1.0,
         }
     }
 }
@@ -72,7 +74,13 @@ pub fn assemble_horizon_data_snapshot(
     let mut warnings = Vec::<String>::new();
 
     for node in &nodes {
-        let catchment = catchment_inflow_rows(&options.input_dir, node, &dates, &mut warnings)?;
+        let catchment = catchment_inflow_rows(
+            &options.input_dir,
+            node,
+            &dates,
+            options.inflow_scale,
+            &mut warnings,
+        )?;
         outputs.push(write_module_csv(
             &modules_dir,
             &node.node_id,
@@ -248,8 +256,12 @@ fn catchment_inflow_rows(
     input_dir: &Path,
     node: &TopologyNode,
     dates: &[SimpleDate],
+    inflow_scale: f64,
     _warnings: &mut Vec<String>,
 ) -> Result<ModuleRows, Box<dyn std::error::Error>> {
+    if inflow_scale < 0.0 {
+        return Err("settings.inflow_scale must be non-negative".into());
+    }
     let path = input_dir
         .join("hydmod")
         .join("daily")
@@ -264,10 +276,19 @@ fn catchment_inflow_rows(
     }
 
     let values = read_date_value_map(&path, "runoff_m3_day")?;
-    Ok(ModuleRows {
-        rows: rows_for_dates(&values, dates, &path, "runoff_m3_day")?,
-        source_note: "hydmod daily Runoff_m3s converted to m3/day".to_string(),
-    })
+    let rows = rows_for_dates(&values, dates, &path, "runoff_m3_day")?
+        .into_iter()
+        .map(|(date, value)| (date, value * inflow_scale))
+        .collect();
+    let source_note = if (inflow_scale - 1.0).abs() < f64::EPSILON {
+        "hydmod daily Runoff_m3s converted to m3/day".to_string()
+    } else {
+        format!(
+            "hydmod daily Runoff_m3s converted to m3/day, scaled by {:.6}",
+            inflow_scale
+        )
+    };
+    Ok(ModuleRows { rows, source_note })
 }
 
 const EVAPORATION_TEMP_SLOPE_MM_PER_C: f64 = 0.2301;
@@ -925,6 +946,7 @@ mod tests {
             start_date: "2005-01-01".to_string(),
             end_date: "2005-01-02".to_string(),
             node_ids: None,
+            inflow_scale: 1.0,
         })
         .expect("snapshot should assemble");
 
@@ -995,6 +1017,7 @@ mod tests {
             start_date: "2005-01-01".to_string(),
             end_date: "2005-01-02".to_string(),
             node_ids: Some(vec!["res".to_string(), "src".to_string()]),
+            inflow_scale: 1.0,
         })
         .expect("subset snapshot should assemble");
 
@@ -1014,6 +1037,41 @@ mod tests {
                 .join("gezira_irr.drink_water.csv")
                 .exists()
         );
+
+        fs::remove_dir_all(&dir).expect("temporary directory should be removed");
+    }
+
+    #[test]
+    fn applies_inflow_scale_to_hydmod_runoff() {
+        let unique = format!(
+            "nrsm-horizon-data-inflow-scale-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system time should be after epoch")
+                .as_nanos()
+        );
+        let dir = std::env::temp_dir().join(unique);
+        let input = dir.join("horizon_data");
+        write_fixture_data(&input);
+        let output = dir.join("generated");
+
+        assemble_horizon_data_snapshot(&AssembleOptions {
+            input_dir: input,
+            output_dir: output.clone(),
+            start_date: "2005-01-01".to_string(),
+            end_date: "2005-01-02".to_string(),
+            node_ids: Some(vec!["src".to_string()]),
+            inflow_scale: 0.25,
+        })
+        .expect("scaled snapshot should assemble");
+
+        let inflow = fs::read_to_string(output.join("modules").join("src.catchment_inflow.csv"))
+            .expect("inflow module csv should be readable");
+        assert!(inflow.contains("2005-01-01,216000.000000"));
+        assert!(inflow.contains("2005-01-02,237600.000000"));
+        let warnings = fs::read_to_string(output.join("staging").join("assembly_warnings.csv"))
+            .expect("warnings csv should be readable");
+        assert!(warnings.contains("scaled by 0.250000"));
 
         fs::remove_dir_all(&dir).expect("temporary directory should be removed");
     }

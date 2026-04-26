@@ -15,6 +15,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 start_date: assemble.start_date,
                 end_date: assemble.end_date,
                 node_ids: assemble.node_ids,
+                inflow_scale: assemble.inflow_scale,
             })?;
             println!(
                 "Wrote {} assembled dataloader files to {}",
@@ -60,6 +61,7 @@ struct AssembleCli {
     start_date: String,
     end_date: String,
     node_ids: Option<Vec<String>>,
+    inflow_scale: f64,
 }
 
 #[derive(Debug)]
@@ -92,6 +94,7 @@ fn parse_assemble_args(args: Vec<String>) -> Result<Cli, Box<dyn std::error::Err
     let mut period_path = None;
     let mut start_date = None;
     let mut end_date = None;
+    let mut inflow_scale = None;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -125,6 +128,12 @@ fn parse_assemble_args(args: Vec<String>) -> Result<Cli, Box<dyn std::error::Err
                 };
                 end_date = Some(value);
             }
+            "--inflow-scale" => {
+                let Some(value) = args.next() else {
+                    return Err("missing value for --inflow-scale".into());
+                };
+                inflow_scale = Some(value.parse::<f64>()?);
+            }
             "--help" | "-h" => {
                 print_assemble_help();
                 std::process::exit(0);
@@ -144,6 +153,12 @@ fn parse_assemble_args(args: Vec<String>) -> Result<Cli, Box<dyn std::error::Err
         .or_else(|| period.as_ref().map(|period| period.end_date.clone()))
         .unwrap_or(defaults.end_date);
     let node_ids = period.as_ref().and_then(|period| period.node_ids.clone());
+    let inflow_scale = inflow_scale
+        .or_else(|| period.as_ref().map(|period| period.inflow_scale))
+        .unwrap_or(defaults.inflow_scale);
+    if inflow_scale < 0.0 {
+        return Err("inflow scale must be non-negative".into());
+    }
     let output_dir = output_dir.unwrap_or_else(|| {
         period_path
             .as_ref()
@@ -160,6 +175,7 @@ fn parse_assemble_args(args: Vec<String>) -> Result<Cli, Box<dyn std::error::Err
             start_date,
             end_date,
             node_ids,
+            inflow_scale,
         }),
     })
 }
@@ -169,6 +185,7 @@ struct PeriodSpec {
     start_date: String,
     end_date: String,
     node_ids: Option<Vec<String>>,
+    inflow_scale: f64,
 }
 
 fn read_period_spec(path: &PathBuf) -> Result<PeriodSpec, Box<dyn std::error::Error>> {
@@ -180,11 +197,20 @@ fn read_period_spec(path: &PathBuf) -> Result<PeriodSpec, Box<dyn std::error::Er
     let start_date = required_string_setting(settings, "start_date", path)?;
     let end_date = required_string_setting(settings, "end_date", path)?;
     let node_ids = optional_string_list_setting(settings, "node_ids", path)?;
+    let inflow_scale = optional_f64_setting(settings, "inflow_scale", path)?.unwrap_or(1.0);
+    if inflow_scale < 0.0 {
+        return Err(format!(
+            "period file `{}` setting `settings.inflow_scale` must be non-negative",
+            path.display()
+        )
+        .into());
+    }
 
     Ok(PeriodSpec {
         start_date,
         end_date,
         node_ids,
+        inflow_scale,
     })
 }
 
@@ -237,6 +263,24 @@ fn optional_string_list_setting(
         strings.push(text.to_string());
     }
     Ok(Some(strings))
+}
+
+fn optional_f64_setting(
+    settings: &serde_yaml::Value,
+    field: &str,
+    path: &PathBuf,
+) -> Result<Option<f64>, Box<dyn std::error::Error>> {
+    let Some(value) = settings.get(field) else {
+        return Ok(None);
+    };
+    if let Some(number) = value.as_f64() {
+        return Ok(Some(number));
+    }
+    Err(format!(
+        "period file `{}` setting `settings.{field}` must be a number",
+        path.display()
+    )
+    .into())
 }
 
 fn parse_seed_args(args: Vec<String>) -> Result<Cli, Box<dyn std::error::Error>> {
@@ -302,7 +346,7 @@ fn print_help() {
 
 fn print_assemble_help() {
     eprintln!(
-        "Usage: nrsm-dataloader assemble [--period FILE] [--input DIR] [--output DIR] [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]"
+        "Usage: nrsm-dataloader assemble [--period FILE] [--input DIR] [--output DIR] [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD] [--inflow-scale N]"
     );
 }
 
@@ -331,7 +375,7 @@ mod tests {
         let path = dir.join("wet-season.yaml");
         fs::write(
             &path,
-            "settings:\n  start_date: 1963-09-01\n  end_date: 1963-09-30\n  node_ids:\n    - tana\n    - gerd\nnodes: []\n",
+            "settings:\n  start_date: 1963-09-01\n  end_date: 1963-09-30\n  inflow_scale: 0.7\n  node_ids:\n    - tana\n    - gerd\nnodes: []\n",
         )
         .expect("period file should be written");
 
@@ -343,6 +387,7 @@ mod tests {
             period.node_ids,
             Some(vec!["tana".to_string(), "gerd".to_string()])
         );
+        assert_eq!(period.inflow_scale, 0.7);
 
         fs::remove_dir_all(&dir).expect("temp dir should be removed");
     }
@@ -377,11 +422,31 @@ mod tests {
         assert_eq!(assemble.start_date, "1963-09-01");
         assert_eq!(assemble.end_date, "1963-09-30");
         assert_eq!(assemble.node_ids, None);
+        assert_eq!(assemble.inflow_scale, 1.0);
         assert_eq!(
             assemble.output_dir,
             std::path::PathBuf::from("data/generated/1963-september-30d")
         );
 
         fs::remove_dir_all(&dir).expect("temp dir should be removed");
+    }
+
+    #[test]
+    fn assemble_args_accept_inflow_scale_override() {
+        let cli = parse_assemble_args(vec![
+            "--start-date".to_string(),
+            "2005-01-01".to_string(),
+            "--end-date".to_string(),
+            "2005-01-31".to_string(),
+            "--inflow-scale".to_string(),
+            "0.4".to_string(),
+        ])
+        .expect("args should parse");
+
+        let Command::Assemble(assemble) = cli.command else {
+            panic!("expected assemble command");
+        };
+
+        assert_eq!(assemble.inflow_scale, 0.4);
     }
 }
