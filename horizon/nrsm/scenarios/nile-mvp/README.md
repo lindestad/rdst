@@ -2,8 +2,10 @@
 
 This folder contains runnable NRSM YAML scenarios for the Nile MVP topology.
 `scenario.yaml` remains the small default demo. The `past/` and `future/`
-folders contain dated variants with all 13 Nile MVP nodes. The `few-nodes/`
-folder contains one deliberately small Blue Nile scenario for quick smoke tests.
+folders contain dated variants with all 13 Nile MVP nodes. The `extremes/`
+folder contains simulator-native stress cases used by the visualizer preset
+buttons. The `few-nodes/` folder contains one deliberately small Blue Nile
+scenario for quick smoke tests.
 
 The simulator currently executes by `settings.horizon_days`; `start_date` and
 `end_date` are calendar labels for scenario selection, reporting, and future
@@ -33,6 +35,7 @@ calendar-aware outputs.
 | `future/2060-hot-low-inflow-90d.yaml` | 13 | 2060-06-01 to 2060-08-29 | 90 | hot and low inflow |
 | `future/2075-short-emergency-14d.yaml` | 13 | 2075-07-01 to 2075-07-14 | 14 | emergency short run |
 | `future/2100-long-range-365d.yaml` | 13 | 2100-01-01 to 2100-12-31 | 365 | long-range annual run |
+| `extremes/upstream-holdback-90d.yaml` | 13 | 2030-01-01 to 2030-03-31 | 90 | GERD constrained release stress case |
 
 Run any scenario from `horizon/nrsm`:
 
@@ -130,6 +133,17 @@ Write CSV outputs for plotting or review:
 
 ```powershell
 cargo run -p nrsm-cli -- scenarios\nile-mvp\future\2032-custom-90d.yaml --json --results-dir data\results\2032-custom-90d
+```
+
+Refresh the packaged web visualizer catalog from `horizon/nrsm`:
+
+```bash
+for file in scenarios/nile-mvp/scenario.yaml scenarios/nile-mvp/past/*.yaml scenarios/nile-mvp/future/*.yaml scenarios/nile-mvp/extremes/*.yaml scenarios/nile-mvp/few-nodes/*.yaml; do
+  rel=${file#scenarios/nile-mvp/}
+  id=${rel%.yaml}
+  id=${id//\//__}
+  cargo run -q -p nrsm-cli -- "$file" --json --results-dir "../../nile-visualizer-app/src/data/results/scenarios/$id" > "/tmp/nrsm-${id//__/-}.json"
+done
 ```
 
 Before committing a new catalog scenario, run it once and preferably run the
