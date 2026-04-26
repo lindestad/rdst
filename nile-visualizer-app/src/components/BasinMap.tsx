@@ -126,7 +126,7 @@ export function BasinMap({
       <svg
         className={`basin-map ${isPanning ? "panning" : ""}`}
         viewBox={`0 0 ${VIEWBOX_W} ${VIEWBOX_H}`}
-        preserveAspectRatio="xMidYMin meet"
+        preserveAspectRatio="none"
         role="img"
         aria-label="Nile basin simulator graph"
         aria-describedby="basin-map-desc"
