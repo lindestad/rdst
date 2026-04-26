@@ -79,12 +79,16 @@ h4 {
 .app-shell {
   display: grid;
   grid-template-rows: auto 1fr;
-  min-height: 100vh;
+  height: 100vh;
   background: var(--warm);
+  overflow: hidden;
 }
 
 .app-shell.showcase-active {
+  height: auto;
+  min-height: 100vh;
   background: var(--dark);
+  overflow: visible;
 }
 
 .topbar {
@@ -454,11 +458,15 @@ h4 {
   display: grid;
   grid-template-columns: 320px minmax(460px, 1fr) 396px;
   min-height: 0;
+  height: 100%;
   background: var(--warm);
 }
 
 .left-rail,
 .right-rail {
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -915,6 +923,7 @@ h4 {
   flex-direction: column;
   min-width: 0;
   min-height: 480px;
+  padding-top: 88px;
   overflow: hidden;
   background:
     radial-gradient(120% 80% at 70% 30%, rgba(47, 164, 111, 0.06), transparent 60%),
