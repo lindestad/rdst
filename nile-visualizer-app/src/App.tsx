@@ -12,16 +12,16 @@ import { LeftRail } from "./components/LeftRail";
 import { ProvenanceBadge } from "./components/ProvenanceBadge";
 import { RightRail } from "./components/RightRail";
 import { SummaryItem } from "./components/SummaryItem";
-import { PitchPage } from "./pages/PitchPage";
+import { ShowcasePage } from "./pages/ShowcasePage";
 import { TeamPage } from "./pages/TeamPage";
 import { defaultScenarioRunId, packagedScenarioRuns } from "./data/scenarioCatalog";
 import { CUSTOM_SCENARIO_RUN_ID, useVisualizerState } from "./hooks/useVisualizerState";
 
-type SitePage = "visualization" | "pitch" | "team";
+type SitePage = "visualization" | "showcase" | "team";
 
 const sitePages: Array<{ id: SitePage; label: string; Icon: LucideIcon }> = [
-  { id: "visualization", label: "Visualization", Icon: Network },
-  { id: "pitch", label: "Pitch", Icon: BookOpen },
+  { id: "showcase", label: "Showcase", Icon: BookOpen },
+  { id: "visualization", label: "Simulator", Icon: Network },
   { id: "team", label: "Team", Icon: Users },
 ];
 
@@ -35,7 +35,44 @@ const SCENARIO_GROUP_ORDER: ReadonlyArray<"Default" | "Extremes" | "Future" | "P
 
 function readPageFromHash(): SitePage {
   const raw = window.location.hash.replace(/^#\/?/, "");
-  return sitePages.some((item) => item.id === raw) ? (raw as SitePage) : "visualization";
+  if (raw === "pitch") return "showcase";
+  return sitePages.some((item) => item.id === raw) ? (raw as SitePage) : "showcase";
+}
+
+function FairWaterLogo({ small = false }: { small?: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 110.07 40.42"
+      xmlns="http://www.w3.org/2000/svg"
+      style={{ height: small ? 22 : 28, width: "auto" }}
+      aria-hidden="true"
+    >
+      <g transform="translate(-19.29,-50.75)">
+        <g>
+          <circle fill="#2fa46f" cx="28.74" cy="76.52" r="5" />
+          <circle fill="#2fa46f" cx="21.34" cy="67.93" r="2.06" />
+          <circle fill="#2fa46f" cx="44.80" cy="72.03" r="2.06" />
+          <circle fill="#2fa46f" cx="36.28" cy="64.47" r="2.06" />
+          <circle fill="#2fa46f" cx="27.85" cy="60.86" r="2.06" />
+          <circle fill="#2fa46f" cx="27.54" cy="53.06" r="2.06" />
+          <path stroke="#2fa46f" strokeWidth="1" fill="none" d="M28.74,76.52 21.34,67.93 27.85,60.86 27.54,53.06" />
+          <path stroke="#2fa46f" strokeWidth="1" fill="none" d="m44.80,72.03 -8.52-7.57 -8.43-3.61" />
+          <circle fill="#0b4f6c" cx="48.72" cy="71.78" r="2.06" />
+          <circle fill="#0b4f6c" cx="40.21" cy="64.22" r="2.06" />
+          <circle fill="#0b4f6c" cx="31.78" cy="60.61" r="2.06" />
+          <circle fill="#0b4f6c" cx="31.47" cy="52.81" r="2.06" />
+          <circle fill="#0b4f6c" cx="32.67" cy="76.27" r="5" />
+          <circle fill="#0b4f6c" cx="25.27" cy="67.68" r="2.06" />
+          <path stroke="#0b4f6c" strokeWidth="1" fill="none" d="M32.67,76.27 25.27,67.68 31.78,60.61 31.47,52.81" />
+          <path stroke="#0b4f6c" strokeWidth="1" fill="none" d="m48.72,71.78 -8.52-7.57 -8.43-3.61" />
+        </g>
+        <text fontFamily="DM Sans, sans-serif" fontWeight="700" fontSize="17.64" x="42.55" y="90.99">
+          <tspan fill="#2fa46f">Fair</tspan>
+          <tspan fill="#ffffff">Water</tspan>
+        </text>
+      </g>
+    </svg>
+  );
 }
 
 function App() {
@@ -89,7 +126,7 @@ function App() {
     const sync = () => setPage(readPageFromHash());
     window.addEventListener("hashchange", sync);
     if (!window.location.hash) {
-      window.history.replaceState(null, "", "#/visualization");
+      window.history.replaceState(null, "", "#/showcase");
     }
     return () => window.removeEventListener("hashchange", sync);
   }, []);
@@ -97,14 +134,24 @@ function App() {
   function navigate(nextPage: SitePage) {
     window.location.hash = `/${nextPage}`;
     setPage(nextPage);
+    window.scrollTo({ top: 0, behavior: "instant" });
   }
 
+  const isShowcase = page === "showcase";
+  const shellClass = `app-shell${isShowcase ? " showcase-active" : ""}`;
+
   return (
-    <main className="app-shell">
+    <main className={shellClass}>
       <header className="topbar">
         <div className="brand-block">
-          <p className="app-kicker">Fairwater</p>
-          <h1>River basin decisions made visible</h1>
+          <a className="brand-mark" href="#/showcase" onClick={(event) => { event.preventDefault(); navigate("showcase"); }}>
+            <FairWaterLogo />
+          </a>
+          {!isShowcase && (
+            <span className="brand-meta">
+              {page === "visualization" ? "Live Simulator" : "Project Team"}
+            </span>
+          )}
           <nav className="site-nav" aria-label="Site pages">
             {sitePages.map(({ id, label, Icon }) => (
               <button
@@ -113,25 +160,19 @@ function App() {
                 onClick={() => navigate(id)}
                 type="button"
               >
-                <Icon size={16} />
+                <Icon size={14} />
                 <span>{label}</span>
               </button>
             ))}
           </nav>
         </div>
 
-        {page === "visualization" ? (
+        {page === "visualization" && (
           <div className="scenario-strip" aria-label="Scenario summary">
             <SummaryItem label="Scenario" value={metadata.name} />
             <SummaryItem label="Horizon" value={metadata.horizon} />
             <SummaryItem label="Source" value={metadata.source} />
             <SummaryItem label="Reporting" value={metadata.reporting} />
-          </div>
-        ) : (
-          <div className="site-summary">
-            <SummaryItem label="Project" value="Fairwater" />
-            <SummaryItem label="Focus" value="Water, food, energy" />
-            <SummaryItem label="Engine" value="NRSM Rust" />
           </div>
         )}
 
@@ -161,8 +202,8 @@ function App() {
                 ))}
               </select>
             </label>
-            <label className="file-button secondary" title="Load NRSM --results-dir CSV files">
-              <FileJson size={18} />
+            <label className="file-button" title="Load NRSM --results-dir CSV files">
+              <FileJson size={16} />
               <span>Load CSVs</span>
               <input
                 accept=".csv,text/csv"
@@ -173,7 +214,7 @@ function App() {
               />
             </label>
             <label className="file-button" title="Load NRSM JSON output">
-              <FileJson size={18} />
+              <FileJson size={16} />
               <span>Load JSON</span>
               <input
                 accept="application/json,.json"
@@ -188,7 +229,7 @@ function App() {
               title="Reset to sample run"
               type="button"
             >
-              <RotateCcw size={17} />
+              <RotateCcw size={16} />
             </button>
           </div>
         )}
@@ -200,8 +241,8 @@ function App() {
         </div>
       )}
 
-      {page === "pitch" ? (
-        <PitchPage onOpenVisualization={() => navigate("visualization")} />
+      {page === "showcase" ? (
+        <ShowcasePage onOpenVisualization={() => navigate("visualization")} />
       ) : page === "team" ? (
         <TeamPage onOpenVisualization={() => navigate("visualization")} />
       ) : !hasData || !period || !selectedNode || !selectedEdge ? (

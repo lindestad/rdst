@@ -1,6 +1,11 @@
-import { MapPinned } from "lucide-react";
+type Member = {
+  tag: string;
+  name: string;
+  role: string;
+  focus: string;
+};
 
-const teamMembers = [
+const members: Member[] = [
   {
     tag: "01",
     name: "Bernt Viggo Matheussen",
@@ -20,7 +25,7 @@ const teamMembers = [
     name: "Daniel Lindestad",
     role: "Product and stakeholder lead",
     focus:
-      "Master's in economics, currently completing a degree in data science. Bridges the technical and policy dimensions of the platform and leads product development and stakeholder communication.",
+      "Master’s in economics, currently completing a degree in data science. Bridges the technical and policy dimensions of the platform and leads product development and stakeholder communication.",
   },
   {
     tag: "04",
@@ -40,11 +45,23 @@ const teamMembers = [
 
 export function TeamPage({ onOpenVisualization }: { onOpenVisualization: () => void }) {
   return (
-    <section className="content-page team-page">
-      <div className="content-hero compact-hero">
+    <section className="fw-team">
+      <div className="fw-team-hero">
         <div>
-          <p className="app-kicker">Team</p>
-          <h2>FairWater team</h2>
+          <span className="label" style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 10,
+            fontFamily: "DM Mono, monospace",
+            fontSize: 10.5,
+            letterSpacing: "0.16em",
+            textTransform: "uppercase",
+            color: "var(--green)",
+          }}>
+            <span style={{ display: "inline-block", width: 18, height: 1, background: "var(--green)", opacity: 0.6 }} />
+            Team
+          </span>
+          <h2>The people behind FairWater.</h2>
           <p>
             FairWater was built by a five-person team with backgrounds in
             hydrology, data engineering, mathematical modeling, and economics.
@@ -52,21 +69,22 @@ export function TeamPage({ onOpenVisualization }: { onOpenVisualization: () => v
             evidence.
           </p>
         </div>
-        <button className="file-button" onClick={onOpenVisualization} type="button">
-          <MapPinned size={18} />
-          <span>View basin run</span>
+        <button type="button" className="fw-btn fw-btn-green" onClick={onOpenVisualization}>
+          View basin run
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 13, height: 13 }}>
+            <line x1="7" y1="17" x2="17" y2="7" />
+            <polyline points="7 7 17 7 17 17" />
+          </svg>
         </button>
       </div>
 
-      <div className="team-grid">
-        {teamMembers.map((member) => (
-          <article className="team-card" key={member.name}>
-            <div className="avatar-mark">{member.tag}</div>
-            <div>
-              <h3>{member.name}</h3>
-              <strong>{member.role}</strong>
-              <p>{member.focus}</p>
-            </div>
+      <div className="fw-team-grid">
+        {members.map((m) => (
+          <article className="fw-team-card" key={m.name}>
+            <div className="fw-team-tag">{m.tag}</div>
+            <h3>{m.name}</h3>
+            <span className="fw-team-role">{m.role}</span>
+            <p>{m.focus}</p>
           </article>
         ))}
       </div>
