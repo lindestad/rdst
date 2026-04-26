@@ -42,12 +42,13 @@ export type Irrigation = {
   foodProduced: number;
 };
 
-// Hydropower is an output of the simulator (production_release × kWh/m³),
-// not a demand. NRSM has no "energy target" — we only surface what was
-// generated and its EUR value.
+// NRSM simulator volumes are reported in million cubic meters (Mm³). The
+// frontend keeps those raw numeric values and labels them explicitly.
+// Hydropower is an output of the simulator, not a demand; because releases are
+// Mm³-scale, the displayed generated-energy values are TWh-scale.
 export type Hydropower = {
-  turbineFlow: number; // m³ released through turbines
-  energyGenerated: number; // MWh
+  turbineFlow: number; // million m³ released through turbines
+  energyGenerated: number; // TWh
   valueEur: number; // monetary value of generated electricity
 };
 

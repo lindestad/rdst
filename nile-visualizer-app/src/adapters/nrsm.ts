@@ -412,11 +412,11 @@ function rustNodeToVisualizerNode(
   const foodWaterDemand = foodWaterMet + numeric(result?.unmet_food_water);
   const foodProduced = numeric(result?.food_produced);
   const turbineFlow = numeric(result?.production_release);
-  // RawRust JSON path: prefer MWh if present, else convert kWh; fall back to
-  // EUR `energy_value` only when the simulator hasn't surfaced electricity.
+  // Raw NRSM water volumes are Mm³, so generated_electricity_mwh is displayed
+  // as TWh-scale in the frontend.
   const mwh = numeric(result?.generated_electricity_mwh);
   const kwh = numeric(result?.generated_electricity_kwh);
-  const energyMwh = mwh > 0 ? mwh : kwh > 0 ? kwh / 1000 : 0;
+  const energyTwh = mwh > 0 ? mwh : kwh > 0 ? kwh / 1000 : 0;
   const energyValueEur = numeric(result?.energy_value);
 
   return {
@@ -434,8 +434,8 @@ function rustNodeToVisualizerNode(
         ? { water: delivery(foodWaterMet, foodWaterDemand), foodProduced }
         : null,
     hydropower:
-      energyMwh > 0 || turbineFlow > 0
-        ? { turbineFlow, energyGenerated: energyMwh, valueEur: energyValueEur }
+      energyTwh > 0 || turbineFlow > 0
+        ? { turbineFlow, energyGenerated: energyTwh, valueEur: energyValueEur }
         : null,
   };
 }
@@ -502,7 +502,7 @@ function csvRowToNodeResult(
   const foodWaterDemand = foodWaterMet + numberFrom(row?.unmet_food_water);
   const foodProduced = numberFrom(row?.food_produced);
   const turbineFlow = numberFrom(row?.production_release);
-  const energyMwh = pickEnergyMwh(row);
+  const energyTwh = pickEnergyTwh(row);
   const energyValueEur = numberFrom(row?.energy_value);
 
   return {
@@ -520,13 +520,13 @@ function csvRowToNodeResult(
         ? { water: delivery(foodWaterMet, foodWaterDemand), foodProduced }
         : null,
     hydropower:
-      energyMwh > 0 || turbineFlow > 0
-        ? { turbineFlow, energyGenerated: energyMwh, valueEur: energyValueEur }
+      energyTwh > 0 || turbineFlow > 0
+        ? { turbineFlow, energyGenerated: energyTwh, valueEur: energyValueEur }
         : null,
   };
 }
 
-function pickEnergyMwh(row: ResultCsvRow | undefined): number {
+function pickEnergyTwh(row: ResultCsvRow | undefined): number {
   const mwh = numberFrom(row?.generated_electricity_mwh);
   if (mwh > 0) return mwh;
   const kwh = numberFrom(row?.generated_electricity_kwh);

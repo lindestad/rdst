@@ -1,5 +1,11 @@
 import { Activity, Droplets } from "lucide-react";
-import { format, signed, sumNodes } from "../lib/format";
+import {
+  ENERGY_UNIT,
+  WATER_VOLUME_UNIT,
+  format,
+  signed,
+  sumNodes,
+} from "../lib/format";
 import type {
   EdgePeriodResult,
   NileEdge,
@@ -45,14 +51,14 @@ function PlotPanel({ periods, activeIndex }: { periods: PeriodResult[]; activeIn
         activeIndex={activeIndex}
         color="#1e96c8"
         label="Basin exit"
-        unit="m³"
+        unit={WATER_VOLUME_UNIT}
         values={periods.map((item) => item.totalBasinExitFlow)}
       />
       <LinePlot
         activeIndex={activeIndex}
         color="#b17621"
         label="Energy"
-        unit="MWh"
+        unit={ENERGY_UNIT}
         values={periods.map((item) => sumNodes(item.nodeResults, (node) => node.hydropower?.energyGenerated ?? 0))}
       />
       <LinePlot
@@ -118,7 +124,9 @@ function NodeInspector({ node, result }: { node: NileNode; result: NodePeriodRes
   if (!result) return null;
 
   const storageDelta = result.endingStorage - result.startingStorage;
-  const storageLabel = node.capacity ? `${format(result.endingStorage)} / ${format(node.capacity)} m³` : "n/a";
+  const storageLabel = node.capacity
+    ? `${format(result.endingStorage)} / ${format(node.capacity)} ${WATER_VOLUME_UNIT}`
+    : "n/a";
   const hp = result.hydropower;
 
   return (
@@ -131,19 +139,19 @@ function NodeInspector({ node, result }: { node: NileNode; result: NodePeriodRes
         <Activity size={19} />
       </div>
       <dl className="data-list">
-        <DataItem label="Inflow" value={`${format(result.totalIncomingFlow)} m³`} />
-        <DataItem label="Available" value={`${format(result.totalAvailableWater)} m³`} />
-        <DataItem label="Outflow" value={`${format(result.totalDownstreamOutflow)} m³`} />
+        <DataItem label="Inflow" value={`${format(result.totalIncomingFlow)} ${WATER_VOLUME_UNIT}`} />
+        <DataItem label="Available" value={`${format(result.totalAvailableWater)} ${WATER_VOLUME_UNIT}`} />
+        <DataItem label="Outflow" value={`${format(result.totalDownstreamOutflow)} ${WATER_VOLUME_UNIT}`} />
         <DataItem label="Storage" value={storageLabel} />
         <DataItem
           label="Storage Δ"
-          value={`${signed(storageDelta)} m³`}
+          value={`${signed(storageDelta)} ${WATER_VOLUME_UNIT}`}
           tone={storageDelta >= 0 ? "good" : "warn"}
         />
         {hp && (
           <DataItem
             label="Energy"
-            value={`${format(hp.energyGenerated)} MWh`}
+            value={`${format(hp.energyGenerated)} ${ENERGY_UNIT}`}
           />
         )}
       </dl>
@@ -153,13 +161,13 @@ function NodeInspector({ node, result }: { node: NileNode; result: NodePeriodRes
           label="Drinking"
           value={result.drinkingWater?.actualDelivery ?? 0}
           target={result.drinkingWater?.totalTarget ?? 0}
-          unit="m³"
+          unit={WATER_VOLUME_UNIT}
         />
         <SectorBar
           label="Irrigation"
           value={result.irrigation?.water.actualDelivery ?? 0}
           target={result.irrigation?.water.totalTarget ?? 0}
-          unit="m³"
+          unit={WATER_VOLUME_UNIT}
         />
       </div>
     </section>
@@ -179,7 +187,7 @@ function EdgeInspector({ edge, result }: { edge: NileEdge; result: EdgePeriodRes
         <Droplets size={19} />
       </div>
       <dl className="data-list">
-        <DataItem label="Flow" value={`${format(result.totalFlow)} m³`} />
+        <DataItem label="Flow" value={`${format(result.totalFlow)} ${WATER_VOLUME_UNIT}`} />
         <DataItem label="From" value={edge.from} />
         <DataItem label="To" value={edge.to} />
       </dl>
@@ -196,8 +204,8 @@ function RunBalance({ period }: { period: PeriodResult }) {
   return (
     <section className="inspector balance">
       <p className="control-label">Period balance</p>
-      <SectorBar label="Drinking met" value={drinkDelivered} target={drinkDemand} unit="m³" />
-      <SectorBar label="Food water met" value={foodDelivered} target={foodDemand} unit="m³" />
+      <SectorBar label="Drinking met" value={drinkDelivered} target={drinkDemand} unit={WATER_VOLUME_UNIT} />
+      <SectorBar label="Food water met" value={foodDelivered} target={foodDemand} unit={WATER_VOLUME_UNIT} />
     </section>
   );
 }

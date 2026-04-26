@@ -7,7 +7,7 @@ import {
   type LucideIcon,
   Zap,
 } from "lucide-react";
-import { format, sumNodes } from "../lib/format";
+import { ENERGY_UNIT, WATER_VOLUME_UNIT_COMPACT, format, sumNodes } from "../lib/format";
 import type { Lens, PeriodResult, RunMetadata } from "../types";
 
 const lensOptions: Array<{ id: Lens; label: string; Icon: LucideIcon }> = [
@@ -144,12 +144,12 @@ function MetricStack({ period }: { period: PeriodResult }) {
 
   return (
     <div className="metric-stack">
-      <Metric label="Basin exit" value={format(period.totalBasinExitFlow)} unit="m³" accent="blue" />
-      <Metric label="Storage" value={format(storage)} unit="m³" accent="cyan" />
-      <Metric label="Drinking" value={format(drinking)} unit="m³" accent="cyan" />
-      <Metric label="Irrigation" value={format(irrigation)} unit="m³" accent="violet" />
+      <Metric label="Basin exit" value={format(period.totalBasinExitFlow)} unit={WATER_VOLUME_UNIT_COMPACT} accent="blue" />
+      <Metric label="Storage" value={format(storage)} unit={WATER_VOLUME_UNIT_COMPACT} accent="cyan" />
+      <Metric label="Drinking" value={format(drinking)} unit={WATER_VOLUME_UNIT_COMPACT} accent="cyan" />
+      <Metric label="Irrigation" value={format(irrigation)} unit={WATER_VOLUME_UNIT_COMPACT} accent="violet" />
       <Metric label="Food" value={format(food)} unit="units" accent="green" />
-      <Metric label="Energy" value={format(energy)} unit="MWh" accent="yellow" />
+      <Metric label="Energy" value={format(energy)} unit={ENERGY_UNIT} accent="yellow" />
     </div>
   );
 }
