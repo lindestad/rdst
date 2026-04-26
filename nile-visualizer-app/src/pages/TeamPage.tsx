@@ -1,3 +1,5 @@
+import teamPhoto from "../../team_photo.jpeg";
+
 type Member = {
   tag: string;
   name: string;
@@ -77,6 +79,10 @@ export function TeamPage({ onOpenVisualization }: { onOpenVisualization: () => v
           </svg>
         </button>
       </div>
+
+      <figure className="fw-team-photo">
+        <img src={teamPhoto} alt="The five-person FairWater team" />
+      </figure>
 
       <div className="fw-team-grid">
         {members.map((m) => (
