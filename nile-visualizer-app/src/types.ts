@@ -100,3 +100,28 @@ export type VisualizerDataset = {
   edges: NileEdge[];
   periods: PeriodResult[];
 };
+
+export type BenchmarkPolicy = {
+  id: string;
+  label: string;
+  description: string;
+  policyValue: number;
+  energyValue: number;
+  generatedElectricityKwh: number;
+  terminalReservoirStorage: number;
+  terminalStorageDelta: number;
+  unmetFoodWater: number;
+  unmetDrinkWater: number;
+  foodReliability: number;
+  drinkReliability: number;
+};
+
+export type OptimizerScenario = {
+  id: string;
+  name: string;
+  period: string;
+  simulator: string;
+  summary: string;
+  valueFormula: string;
+  policies: BenchmarkPolicy[];
+};

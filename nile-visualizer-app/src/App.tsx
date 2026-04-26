@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   BookOpen,
   FileJson,
+  GitCompareArrows,
   Network,
   RotateCcw,
   Users,
@@ -14,13 +15,15 @@ import { LeftRail } from "./components/LeftRail";
 import { RightRail } from "./components/RightRail";
 import { SummaryItem } from "./components/SummaryItem";
 import { PitchPage } from "./pages/PitchPage";
+import { ScenarioPage } from "./pages/ScenarioPage";
 import { TeamPage } from "./pages/TeamPage";
 import type { Lens, VisualizerDataset } from "./types";
 
-type SitePage = "visualization" | "pitch" | "team";
+type SitePage = "visualization" | "scenarios" | "pitch" | "team";
 
 const sitePages: Array<{ id: SitePage; label: string; Icon: LucideIcon }> = [
   { id: "visualization", label: "Visualization", Icon: Network },
+  { id: "scenarios", label: "Scenarios", Icon: GitCompareArrows },
   { id: "pitch", label: "Pitch", Icon: BookOpen },
   { id: "team", label: "Team", Icon: Users },
 ];
@@ -186,7 +189,9 @@ function App() {
       </header>
       {loadError && <div className="load-error">{loadError}</div>}
 
-      {page === "pitch" ? (
+      {page === "scenarios" ? (
+        <ScenarioPage onOpenVisualization={() => navigate("visualization")} />
+      ) : page === "pitch" ? (
         <PitchPage onOpenVisualization={() => navigate("visualization")} />
       ) : page === "team" ? (
         <TeamPage onOpenVisualization={() => navigate("visualization")} />
