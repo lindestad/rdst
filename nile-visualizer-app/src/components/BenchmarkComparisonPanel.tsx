@@ -27,19 +27,19 @@ function valueWidth(policy: BenchmarkPolicy, maxValue: number) {
 export function BenchmarkComparisonPanel({ scenario }: { scenario: OptimizerScenario }) {
   const sortedPolicies = [...scenario.policies].sort((a, b) => b.policyValue - a.policyValue);
   const optimized = scenario.policies.find((policy) => policy.id === "optimized") ?? sortedPolicies[0];
-  const naivePolicies = scenario.policies.filter((policy) => policy.id !== optimized.id);
-  const bestNaive = naivePolicies.reduce(
+  const baselinePolicies = scenario.policies.filter((policy) => policy.id !== optimized.id);
+  const bestBaseline = baselinePolicies.reduce(
     (best, policy) => (policy.policyValue > best.policyValue ? policy : best),
-    naivePolicies[0],
+    baselinePolicies[0],
   );
   const maxValue = Math.max(...scenario.policies.map((policy) => policy.policyValue), 1);
-  const optimizerGain = optimized.policyValue - bestNaive.policyValue;
+  const optimizerGain = optimized.policyValue - bestBaseline.policyValue;
 
   const metricCards = [
     {
       label: "Optimizer gain",
       value: formatCompact(optimizerGain),
-      detail: `vs ${bestNaive.label}`,
+      detail: `vs ${bestBaseline.label}`,
       Icon: TrendingUp,
       tone: "green",
     },
@@ -71,7 +71,7 @@ export function BenchmarkComparisonPanel({ scenario }: { scenario: OptimizerScen
       <div className="benchmark-heading">
         <div>
           <p className="app-kicker">Benchmark comparison</p>
-          <h2>Optimized actions outperform naive reservoir rules</h2>
+          <h2>Optimized actions outperform baseline reservoir rules</h2>
         </div>
         <div className="benchmark-badge">
           <BatteryCharging size={18} />
@@ -93,7 +93,7 @@ export function BenchmarkComparisonPanel({ scenario }: { scenario: OptimizerScen
       <div className="benchmark-chart" aria-label="Policy payoff comparison">
         {sortedPolicies.map((policy, index) => {
           const isOptimized = policy.id === optimized.id;
-          const delta = policy.policyValue - bestNaive.policyValue;
+          const delta = policy.policyValue - bestBaseline.policyValue;
           return (
             <article className={isOptimized ? "benchmark-row optimized" : "benchmark-row"} key={policy.id}>
               <div className="benchmark-rank">{index + 1}</div>
@@ -114,7 +114,7 @@ export function BenchmarkComparisonPanel({ scenario }: { scenario: OptimizerScen
       </div>
 
       <div className="benchmark-footnote">
-        <strong>Payoff model</strong>
+        <strong>Optimization objective</strong>
         <span>{scenario.valueFormula}</span>
       </div>
     </section>

@@ -15,11 +15,11 @@ export function ScenarioPage({ onOpenVisualization }: { onOpenVisualization: () 
       <div className="content-hero compact-hero scenario-hero">
         <div>
           <p className="app-kicker">Scenario lab</p>
-          <h2>Optimized water decisions against simple benchmark policies</h2>
+          <h2>Optimized basin operation beats baseline reservoir policies</h2>
           <p>
-            Run the same Nile stress case through the Rust simulator, compare
-            optimized actions against naive reservoir rules, and show the payoff
-            in energy, storage, and unmet demand.
+            The optimizer runs the same Nile stress case through NRSM, compares
+            basin-wide coordinated actions against standard operating rules, and
+            shows the payoff in energy, storage, food, and water reliability.
           </p>
         </div>
         <button className="file-button" onClick={onOpenVisualization} type="button">
@@ -31,7 +31,7 @@ export function ScenarioPage({ onOpenVisualization }: { onOpenVisualization: () 
       <section className="scenario-layout">
         <aside className="scenario-list" aria-label="Available scenarios">
           <div>
-            <p className="app-kicker">Available scenario</p>
+            <p className="app-kicker">Scenario portfolio</p>
             <h3>Benchmark runs</h3>
           </div>
           {optimizerScenarios.map((item) => (
@@ -50,7 +50,7 @@ export function ScenarioPage({ onOpenVisualization }: { onOpenVisualization: () 
           ))}
           <div className="scenario-note">
             <Activity size={17} />
-            <span>Scenario data is exported from NRSM benchmark summaries so the frontend stays independent of generated run folders.</span>
+            <span>Each benchmark is generated from NRSM outputs, keeping the dashboard tied to simulator results.</span>
           </div>
         </aside>
 

@@ -2738,17 +2738,53 @@ h4 {
 }
 
 .scenario-page {
-  gap: 16px;
+  display: grid;
+  align-content: start;
+  gap: 20px;
+  min-height: 0;
+  overflow: auto;
+  padding: 42px clamp(22px, 4vw, 56px) 64px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(243, 240, 234, 0.7)),
+    var(--warm);
 }
 
 .scenario-hero {
-  align-items: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 28px;
+  align-items: end;
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto 10px;
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--line);
+}
+
+.scenario-hero h2 {
+  max-width: 780px;
+  margin: 12px 0 14px;
+  font-size: clamp(40px, 5vw, 62px);
+  line-height: 0.98;
+  letter-spacing: -0.02em;
+}
+
+.scenario-hero p {
+  max-width: 760px;
+  margin: 0;
+  color: var(--muted-deep);
+  font-size: 17px;
+  font-weight: 300;
+  line-height: 1.62;
 }
 
 .scenario-layout {
   display: grid;
   grid-template-columns: 286px minmax(0, 1fr);
   gap: 16px;
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
 }
 
 .scenario-list,
@@ -2756,7 +2792,7 @@ h4 {
 .benchmark-panel {
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--surface-2);
+  background: var(--paper);
 }
 
 .scenario-list {
@@ -2782,14 +2818,21 @@ h4 {
   border: 1px solid var(--line);
   border-radius: 8px;
   color: var(--ink);
-  background: var(--surface);
+  background: rgba(255, 255, 255, 0.72);
   text-align: left;
   cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.scenario-option:hover {
+  border-color: var(--line-strong);
+  background: #fff;
+  transform: translateY(-1px);
 }
 
 .scenario-option svg {
   margin-top: 2px;
-  color: var(--blue);
+  color: var(--navy);
 }
 
 .scenario-option strong,
@@ -2926,7 +2969,7 @@ h4 {
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--surface);
+  background: var(--paper);
 }
 
 .benchmark-row.optimized {
@@ -2977,13 +3020,13 @@ h4 {
   height: 15px;
   overflow: hidden;
   border-radius: 999px;
-  background: var(--surface-3);
+  background: #dfe9ed;
 }
 
 .benchmark-bar {
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, var(--blue), var(--green));
+  background: linear-gradient(90deg, var(--navy), var(--green));
 }
 
 .benchmark-row:not(.optimized) .benchmark-bar {
@@ -3034,6 +3077,10 @@ h4 {
     grid-template-columns: 1fr;
   }
 
+  .scenario-list {
+    align-self: stretch;
+  }
+
   .benchmark-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -3048,6 +3095,25 @@ h4 {
 }
 
 @media (max-width: 820px) {
+  .scenario-page {
+    padding: 28px 18px 48px;
+  }
+
+  .scenario-hero {
+    grid-template-columns: 1fr;
+    gap: 18px;
+    align-items: start;
+  }
+
+  .scenario-hero h2 {
+    font-size: clamp(34px, 10vw, 46px);
+  }
+
+  .scenario-hero .file-button {
+    width: 100%;
+    justify-content: center;
+  }
+
   .benchmark-metrics {
     grid-template-columns: 1fr;
   }

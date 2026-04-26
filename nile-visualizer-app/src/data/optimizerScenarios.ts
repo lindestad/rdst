@@ -7,14 +7,14 @@ export const optimizerScenarios: OptimizerScenario[] = [
     period: "2015-02-01 to 2015-03-02",
     simulator: "NRSM Rust, canonical 13-catchment Nile graph",
     summary:
-      "A deliberately stressed one-month reservoir-control case with inflows scaled to 50%. The optimizer is compared against simple release rules under the same hydrology, storage, demand, and electricity-price assumptions.",
+      "A one-month reservoir-control case with inflows scaled to 50%. The optimizer coordinates releases across the basin under shared hydrology, storage, demand, and electricity-price assumptions.",
     valueFormula:
       "Policy payoff = energy value + terminal reservoir value - unmet food-water penalty - unmet drinking-water penalty.",
     policies: [
       {
         id: "optimized",
         label: "Optimized",
-        description: "Action CSVs selected by the optimizer for GERD, Roseires, Merowe, and Aswan High Dam.",
+        description: "Coordinated release schedule selected for GERD, Roseires, Merowe, and Aswan High Dam.",
         policyValue: 75228296.7876247,
         energyValue: 47688492.7876247,
         generatedElectricityKwh: 1943647168.938265,
@@ -28,7 +28,7 @@ export const optimizerScenarios: OptimizerScenario[] = [
       {
         id: "no_production",
         label: "No production",
-        description: "Action 0.0 at every node and day.",
+        description: "All controlled reservoirs conserve water through the period.",
         policyValue: 60121822.785904944,
         energyValue: 31721822.785904948,
         generatedElectricityKwh: 563024293.125,
@@ -42,7 +42,7 @@ export const optimizerScenarios: OptimizerScenario[] = [
       {
         id: "constant_50",
         label: "Constant 50%",
-        description: "Action 0.5 at every node and day.",
+        description: "All controlled reservoirs release at half of available production capacity.",
         policyValue: 57826860.77147123,
         energyValue: 43626860.77147123,
         generatedElectricityKwh: 1461436016.25,
@@ -56,7 +56,7 @@ export const optimizerScenarios: OptimizerScenario[] = [
       {
         id: "full_production",
         label: "Full production",
-        description: "Action 1.0 at every node and day.",
+        description: "All controlled reservoirs maximize hydropower release each day.",
         policyValue: 55531898.75703753,
         energyValue: 55531898.75703753,
         generatedElectricityKwh: 2359847739.375,
@@ -70,7 +70,7 @@ export const optimizerScenarios: OptimizerScenario[] = [
       {
         id: "storage_guardrail",
         label: "Storage guardrail",
-        description: "Action is reduced where full-production storage falls below guardrail levels.",
+        description: "Reservoirs reduce releases when storage approaches guardrail levels.",
         policyValue: 55531898.75703753,
         energyValue: 55531898.75703753,
         generatedElectricityKwh: 2359847739.375,
@@ -84,7 +84,7 @@ export const optimizerScenarios: OptimizerScenario[] = [
       {
         id: "inflow_proxy",
         label: "Inflow proxy",
-        description: "Action follows observed full-production inflow divided by observed max release.",
+        description: "Reservoir releases track incoming water relative to maximum observed release.",
         policyValue: 53300551.81499353,
         energyValue: 45100551.81499353,
         generatedElectricityKwh: 1254049885.375,
