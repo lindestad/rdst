@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   BookOpen,
+  BriefcaseBusiness,
   FileJson,
   GitCompareArrows,
   Network,
@@ -12,18 +13,20 @@ import { BasinMap } from "./components/BasinMap";
 import { LeftRail } from "./components/LeftRail";
 import { ProvenanceBadge } from "./components/ProvenanceBadge";
 import { RightRail } from "./components/RightRail";
+import { BusinessPage } from "./pages/BusinessPage";
 import { ScenarioPage } from "./pages/ScenarioPage";
 import { ShowcasePage } from "./pages/ShowcasePage";
 import { TeamPage } from "./pages/TeamPage";
 import { defaultScenarioRunId, packagedScenarioRuns } from "./data/scenarioCatalog";
 import { CUSTOM_SCENARIO_RUN_ID, useVisualizerState } from "./hooks/useVisualizerState";
 
-type SitePage = "visualization" | "scenarios" | "showcase" | "team";
+type SitePage = "visualization" | "scenarios" | "showcase" | "business" | "team";
 
 const sitePages: Array<{ id: SitePage; label: string; Icon: LucideIcon }> = [
   { id: "showcase", label: "Showcase", Icon: BookOpen },
   { id: "scenarios", label: "Scenarios", Icon: GitCompareArrows },
   { id: "visualization", label: "Simulator", Icon: Network },
+  { id: "business", label: "Business", Icon: BriefcaseBusiness },
   { id: "team", label: "Team", Icon: Users },
 ];
 
@@ -155,7 +158,9 @@ function App() {
                 ? "Live Simulator"
                 : page === "scenarios"
                   ? "Scenario Benchmarks"
-                  : "Project Team"}
+                  : page === "business"
+                    ? "Business Case"
+                    : "Project Team"}
             </span>
           )}
           <nav className="site-nav" aria-label="Site pages">
@@ -242,6 +247,8 @@ function App() {
         <ShowcasePage onOpenVisualization={() => navigate("visualization")} />
       ) : page === "scenarios" ? (
         <ScenarioPage onOpenVisualization={() => navigate("visualization")} />
+      ) : page === "business" ? (
+        <BusinessPage onOpenVisualization={() => navigate("visualization")} />
       ) : page === "team" ? (
         <TeamPage onOpenVisualization={() => navigate("visualization")} />
       ) : !hasData || !period || !selectedNode || !selectedEdge ? (
