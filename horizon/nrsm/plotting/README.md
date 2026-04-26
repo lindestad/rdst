@@ -88,7 +88,10 @@ uv run nrsm-plots-compare `
 The comparison command writes:
 
 - `comparison_summary.csv`: totals, reliability ratios, and deltas versus the
-  first run.
+  first run. When the input is a benchmark directory with `policy_value`, the
+  value columns are carried through.
+- `demo_policy_value.png`: single-score payoff ranking, written when
+  `benchmark_summary.csv` contains `policy_value`.
 - `policy_metric_totals.png`: energy, shortages, and spill by policy.
 - `policy_reliability.png`: drinking-water and food-water reliability.
 - `energy_storage_tradeoff.png`: energy value versus terminal storage.

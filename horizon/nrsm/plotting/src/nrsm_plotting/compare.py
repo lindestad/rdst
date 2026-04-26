@@ -75,6 +75,11 @@ def runs_from_benchmark_dir(benchmark_dir: str | Path) -> list[tuple[str, Path]]
     ]
 
 
+def benchmark_summary_path(benchmark_dir: str | Path) -> Path | None:
+    path = Path(benchmark_dir) / "benchmark_summary.csv"
+    return path if path.exists() else None
+
+
 def _resolve_benchmark_path(benchmark_dir: Path, path: Path) -> Path:
     if path.is_absolute():
         return path
@@ -106,15 +111,17 @@ def plot_comparison(
     *,
     file_format: str = "png",
     dpi: int = 160,
+    benchmark_summary: str | Path | None = None,
 ) -> CompareManifest:
     output = Path(output_dir)
     output.mkdir(parents=True, exist_ok=True)
 
-    summary = build_comparison_summary(runs)
+    summary = build_comparison_summary(runs, benchmark_summary=benchmark_summary)
     summary_csv = output / "comparison_summary.csv"
     summary.to_csv(summary_csv, index=False)
 
     plots = [
+        *_optional_policy_value_plot(summary, output, file_format, dpi),
         _plot_metric_bars(summary, output, file_format, dpi),
         _plot_reliability(summary, output, file_format, dpi),
         _plot_energy_storage(summary, output, file_format, dpi),
@@ -153,7 +160,11 @@ def plot_comparison(
     )
 
 
-def build_comparison_summary(runs: list[NamedRun]) -> pd.DataFrame:
+def build_comparison_summary(
+    runs: list[NamedRun],
+    *,
+    benchmark_summary: str | Path | None = None,
+) -> pd.DataFrame:
     rows: list[dict[str, float | str]] = []
     baseline = run_totals(runs[0])
     for run in runs:
@@ -167,7 +178,40 @@ def build_comparison_summary(runs: list[NamedRun]) -> pd.DataFrame:
             if isinstance(value, (float, int)):
                 row[f"delta_{key}"] = float(value) - float(baseline.get(key, 0.0))
         rows.append(row)
-    return pd.DataFrame(rows)
+    summary = pd.DataFrame(rows)
+    if benchmark_summary is not None:
+        summary = merge_benchmark_value_columns(summary, Path(benchmark_summary))
+    return summary
+
+
+def merge_benchmark_value_columns(summary: pd.DataFrame, benchmark_summary: Path) -> pd.DataFrame:
+    if not benchmark_summary.exists():
+        return summary
+    benchmark = pd.read_csv(benchmark_summary)
+    if "policy" not in benchmark.columns:
+        return summary
+
+    value_columns = [
+        column
+        for column in (
+            "policy_value",
+            "delta_policy_value",
+            "delta_terminal_reservoir_storage",
+            "delta_minimum_reservoir_storage",
+        )
+        if column in benchmark.columns
+    ]
+    if not value_columns:
+        return summary
+
+    values = benchmark[["policy", *value_columns]].rename(columns={"policy": "run"})
+    merged = summary.merge(values, on="run", how="left", suffixes=("", "_benchmark"))
+    for column in value_columns:
+        benchmark_column = f"{column}_benchmark"
+        if benchmark_column in merged.columns:
+            merged[column] = merged[benchmark_column].combine_first(merged.get(column))
+            merged = merged.drop(columns=[benchmark_column])
+    return merged
 
 
 def run_totals(run: NamedRun) -> dict[str, float]:
@@ -228,6 +272,60 @@ def _plot_metric_bars(
         ax.grid(axis="y", color=GRID_COLOR, linewidth=0.8)
     fig.tight_layout()
     return _save(fig, output / f"policy_metric_totals.{file_format}", dpi)
+
+
+def _optional_policy_value_plot(
+    summary: pd.DataFrame, output: Path, file_format: str, dpi: int
+) -> list[Path]:
+    if "policy_value" not in summary.columns or summary["policy_value"].isna().all():
+        return []
+    return [_plot_policy_value(summary, output, file_format, dpi)]
+
+
+def _plot_policy_value(
+    summary: pd.DataFrame, output: Path, file_format: str, dpi: int
+) -> Path:
+    frame = summary.sort_values("policy_value", ascending=False).reset_index(drop=True)
+    colors = [
+        "#16a34a" if str(run).lower() == "optimized" else "#64748b"
+        for run in frame["run"]
+    ]
+    fig, ax = plt.subplots(figsize=(11, 6))
+    values_m = frame["policy_value"] / 1_000_000.0
+    bars = ax.bar(frame["run"], values_m, color=colors)
+    ax.set_title("Demo Payoff By Policy")
+    ax.set_ylabel("Policy value (million EUR equivalent)")
+    ax.tick_params(axis="x", rotation=25)
+    ax.grid(axis="y", color=GRID_COLOR, linewidth=0.8)
+
+    for bar, value in zip(bars, values_m, strict=True):
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height(),
+            f"{value:.1f}",
+            ha="center",
+            va="bottom",
+            fontsize=9,
+        )
+
+    if "optimized" in set(frame["run"]):
+        optimized = frame.loc[frame["run"] == "optimized"].iloc[0]
+        next_best = frame.loc[frame["run"] != "optimized"].head(1)
+        if not next_best.empty:
+            margin = (optimized["policy_value"] - next_best.iloc[0]["policy_value"]) / 1_000_000.0
+            ax.text(
+                0.02,
+                0.95,
+                f"Optimized beats best naive by {margin:.1f}M",
+                transform=ax.transAxes,
+                ha="left",
+                va="top",
+                fontsize=11,
+                fontweight="bold",
+                color="#166534",
+            )
+    fig.tight_layout()
+    return _save(fig, output / f"demo_policy_value.{file_format}", dpi)
 
 
 def _plot_reliability(

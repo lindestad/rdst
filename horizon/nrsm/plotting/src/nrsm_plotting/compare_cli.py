@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 
 from nrsm_plotting.compare import (
+    benchmark_summary_path,
     load_named_runs,
     parse_run_specs,
     plot_comparison,
@@ -51,12 +52,18 @@ def main(argv: list[str] | None = None) -> int:
         if args.benchmark_dir
         else parse_run_specs(args.runs)
     )
+    benchmark_summary = (
+        benchmark_summary_path(args.benchmark_dir)
+        if args.benchmark_dir
+        else None
+    )
     runs = load_named_runs(run_specs, nodes=args.nodes)
     manifest = plot_comparison(
         runs,
         args.output_dir,
         file_format=args.format,
         dpi=args.dpi,
+        benchmark_summary=benchmark_summary,
     )
 
     print(f"Wrote {len(manifest.plots)} comparison plots to {manifest.output_dir}")
