@@ -11,14 +11,14 @@ const members: Member[] = [
     name: "Emilio Lombardo",
     role: "Mathematical modeling",
     focus:
-      "Industrial mathematics student contributing to the mathematical modeling and numerical methods underpinning the simulation engine.",
+      "Industrial mathematics student contributing to the mathematical modeling and numerical methods underpinning the simulation engine. Works on translating basin tradeoffs into robust computational structure.",
   },
   {
     tag: "02",
     name: "Storm Selvig",
     role: "Backend and data infrastructure",
     focus:
-      "Data engineering student responsible for backend infrastructure, data architecture, and the systems that make large-scale satellite data processable in real time.",
+      "Data engineering student responsible for backend infrastructure, data architecture, and the systems that make large-scale satellite data processable in real time. Keeps the data layer reliable and deployable.",
   },
   {
     tag: "03",
@@ -32,14 +32,14 @@ const members: Member[] = [
     name: "Bernt Viggo Matheussen",
     role: "Hydrology lead",
     focus:
-      "PhD in hydrological modeling. Brings deep expertise in river systems and water resource simulation, providing the scientific foundation that keeps the platform grounded in physical reality.",
+      "PhD in hydrological modeling. Brings deep expertise in river systems and water resource simulation, providing the scientific foundation that keeps the platform grounded in physical reality and credible simplifications.",
   },
   {
     tag: "05",
     name: "Jonas Tjemsland",
     role: "Data and Earth observation",
     focus:
-      "PhD in Theoretical Astroparticle Physics. Leads data pipeline development and the integration of satellite and climate datasets, applying rigorous quantitative methods to real-world water systems.",
+      "PhD in Theoretical Astroparticle Physics. Leads data pipeline development and the integration of satellite and climate datasets, applying rigorous quantitative methods to real-world water systems and open-data workflows.",
   },
 ];
 
