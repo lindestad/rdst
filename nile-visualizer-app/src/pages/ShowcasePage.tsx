@@ -542,7 +542,7 @@ export function ShowcasePage({ onOpenVisualization }: Props) {
             </p>
             <div className="fw-tech-tags">
               <span className="fw-tech-tag">FastAPI</span>
-              <span className="fw-tech-tag">CMA-ES</span>
+              <span className="fw-tech-tag">NSGA-II</span>
               <span className="fw-tech-tag">JSON Store</span>
               <span className="fw-tech-tag">NRSM CLI</span>
             </div>
@@ -831,7 +831,7 @@ export function ShowcasePage({ onOpenVisualization }: Props) {
             <tr>
               <td className="fw-td-layer">L3 · Optimizer</td>
               <td className="fw-td-name">Policy Optimizer</td>
-              <td className="fw-td-stack">Python · CMA-ES · NRSM bindings</td>
+              <td className="fw-td-stack">Python · NSGA-II · NRSM bindings</td>
               <td className="fw-td-role">
                 Searches time-varying reservoir actions against the fast Rust
                 simulator. Scores each policy with a configurable objective over
