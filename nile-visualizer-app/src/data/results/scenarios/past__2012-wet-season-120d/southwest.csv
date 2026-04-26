@@ -1,0 +1,5 @@
+period_index,start_day,end_day_exclusive,duration_days,node_id,action,reservoir_level,total_inflow,evaporation,drink_water_met,unmet_drink_water,food_water_demand,food_water_met,unmet_food_water,food_produced,production_release,generated_electricity_kwh,generated_electricity_mwh,water_value_eur_per_m3,spill,release_for_routing,downstream_release,routing_loss,energy_value
+0,0,30,30,southwest,1,0,3880.8000000000015,1620,0,0,0,0,0,0,2260.800000000001,0,0,0,0,2260.800000000001,2260.800000000001,0,0
+1,30,60,30,southwest,1,0,6850.799999999997,1620,0,0,0,0,0,0,5230.8,0,0,0,0,5230.8,5230.8,0,0
+2,60,90,30,southwest,1,0,6850.799999999997,1620,0,0,0,0,0,0,5230.8,0,0,0,0,5230.8,5230.8,0,0
+3,90,120,30,southwest,1,0,6850.799999999997,1620,0,0,0,0,0,0,5230.8,0,0,0,0,5230.8,5230.8,0,0

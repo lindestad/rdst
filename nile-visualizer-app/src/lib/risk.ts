@@ -6,8 +6,14 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
+import {
+  DELIVERY_CRITICAL_RATIO,
+  DELIVERY_WARNING_RATIO,
+  STORAGE_CRITICAL_RATIO,
+  STORAGE_WARNING_RATIO,
+} from "../config";
 import { roundedPoint } from "./geo";
-import type { ImpactZone } from "./riverPaths";
+import type { ImpactDimension, ImpactZone } from "./riverPaths";
 import type { NileNode, NodePeriodResult, PeriodResult } from "../types";
 
 export type SectorKind = "food" | "drinking" | "power" | "storage" | "flow";
@@ -114,12 +120,12 @@ export function sectorLabel(kind: SectorKind) {
 
 export function sectorRiskLevel(sector: SectorRisk): RiskLevel {
   if (sector.kind === "storage") {
-    if (sector.ratio < 0.18) return "critical";
-    if (sector.ratio < 0.4) return "warning";
+    if (sector.ratio < STORAGE_CRITICAL_RATIO) return "critical";
+    if (sector.ratio < STORAGE_WARNING_RATIO) return "warning";
     return "none";
   }
-  if (sector.ratio < 0.75) return "critical";
-  if (sector.ratio < 0.97) return "warning";
+  if (sector.ratio < DELIVERY_CRITICAL_RATIO) return "critical";
+  if (sector.ratio < DELIVERY_WARNING_RATIO) return "warning";
   return "none";
 }
 
@@ -159,13 +165,8 @@ export function computeRegionRisk(
         nodeShortName: node.shortName,
       });
     }
-    if (result.hydropower && result.hydropower.totalTargetEnergy > 0) {
-      sectors.push({
-        kind: "power",
-        ratio: result.hydropower.energyGenerated / result.hydropower.totalTargetEnergy,
-        nodeShortName: node.shortName,
-      });
-    }
+    // Hydropower stress isn't computed: NRSM has no energy target. Power
+    // impact zones still trigger off storage/flow ratios upstream.
     if (node.capacity && node.capacity > 0) {
       sectors.push({
         kind: "storage",
@@ -206,76 +207,97 @@ export function computeRegionRisk(
   return { level: sectorRiskLevel(worst), worst, byKind };
 }
 
+// `intensity` ∈ [0,1] — used to drive opacity continuously so the user can
+// see magnitude, not just a discrete bucket. `level` keeps the warning vs
+// critical distinction so we can pick a hatching pattern.
+export type ZoneRisk = { level: RiskLevel; ratio: number; intensity: number };
+
 export function computeZoneRisk(
   zone: ImpactZone,
-  nodes: NileNode[],
+  _nodes: NileNode[],
   resultById: Map<string, NodePeriodResult>,
   periods: PeriodResult[],
-): { level: RiskLevel; ratio: number } {
+): ZoneRisk {
   let worst = 1;
   let active = false;
 
-  for (const nodeId of zone.trigger.nodeIds) {
-    const result = resultById.get(nodeId);
-    if (!result) continue;
-    const node = nodes.find((candidate) => candidate.id === nodeId);
-    if (!node) continue;
-
-    let ratio = 1;
-    switch (zone.trigger.kind) {
-      case "drinking":
-        if (result.drinkingWater && result.drinkingWater.totalTarget > 0) {
-          ratio = result.drinkingWater.actualDelivery / result.drinkingWater.totalTarget;
-          active = true;
-        }
-        break;
-      case "food":
-        if (result.irrigation && result.irrigation.water.totalTarget > 0) {
-          ratio = result.irrigation.water.actualDelivery / result.irrigation.water.totalTarget;
-          active = true;
-        }
-        break;
-      case "power":
-        if (result.hydropower && result.hydropower.totalTargetEnergy > 0) {
-          ratio = result.hydropower.energyGenerated / result.hydropower.totalTargetEnergy;
-          active = true;
-        }
-        break;
-      case "storage":
-        if (node.capacity && node.capacity > 0) {
-          ratio = result.endingStorage / node.capacity;
-          active = true;
-        }
-        break;
-      case "flow": {
-        const max = Math.max(
-          1,
-          ...periods.flatMap((entry) =>
-            entry.nodeResults
-              .filter((candidate) => candidate.nodeId === nodeId)
-              .map((candidate) => candidate.totalDownstreamOutflow),
-          ),
-        );
-        if (max > 0) {
-          ratio = result.totalDownstreamOutflow / max;
-          active = true;
-        }
-        break;
-      }
-    }
-
+  // Upstream causes contribute via the relevant dimension.
+  for (const nodeId of zone.causedBy) {
+    const ratio = causedByRatio(zone.dimension, nodeId, resultById, periods);
+    if (ratio === null) continue;
+    active = true;
     if (ratio < worst) worst = ratio;
   }
 
-  if (!active) return { level: "none", ratio: 1 };
-
-  if (zone.trigger.kind === "storage") {
-    if (worst < 0.18) return { level: "critical", ratio: worst };
-    if (worst < 0.4) return { level: "warning", ratio: worst };
-    return { level: "none", ratio: worst };
+  // For delivery zones, in-zone demand-met ratios drive the zone — but only
+  // for the kind of demand the zone is built around. Without this, Gezira
+  // (food) and Khartoum-muni (drinking) would both fire when either ratio
+  // dropped, since they share `karthoum`.
+  if (zone.dimension === "delivery" && zone.deliveryNodes) {
+    for (const nodeId of zone.deliveryNodes) {
+      const result = resultById.get(nodeId);
+      if (!result) continue;
+      const ratio =
+        zone.deliveryKind === "drinking"
+          ? ratioOrNull(result.drinkingWater?.actualDelivery, result.drinkingWater?.totalTarget)
+          : zone.deliveryKind === "food"
+            ? ratioOrNull(result.irrigation?.water.actualDelivery, result.irrigation?.water.totalTarget)
+            : null;
+      if (ratio === null) continue;
+      active = true;
+      if (ratio < worst) worst = ratio;
+    }
   }
 
-  if (worst < 0.75) return { level: "critical", ratio: worst };
-  if (worst < 0.97) return { level: "warning", ratio: worst };
-  return { level: "none", ratio: worst };
+  if (!active) return { level: "none", ratio: 1, intensity: 0 };
+
+  // Critical kicks in below DELIVERY_CRITICAL_RATIO; intensity ramps from
+  // DELIVERY_WARNING_RATIO downwards. Below ~0.2 ratio the scribble is at
+  // full opacity. This mapping is shared across delivery/flow/power so a
+  // 50% drop reads the same regardless of the dimension.
+  const intensity = Math.min(1, Math.max(0, (DELIVERY_WARNING_RATIO - worst) / (DELIVERY_WARNING_RATIO - 0.2)));
+  const level: RiskLevel =
+    worst < DELIVERY_CRITICAL_RATIO ? "critical" : worst < DELIVERY_WARNING_RATIO ? "warning" : "none";
+
+  return { level, ratio: worst, intensity };
+}
+
+function causedByRatio(
+  dimension: ImpactDimension,
+  nodeId: string,
+  resultById: Map<string, NodePeriodResult>,
+  periods: PeriodResult[],
+): number | null {
+  const result = resultById.get(nodeId);
+  if (!result) return null;
+
+  if (dimension === "power") {
+    if (!result.hydropower) return null;
+    return baselineRelative(periods, nodeId, result.hydropower.energyGenerated, (n) => n.hydropower?.energyGenerated ?? 0);
+  }
+  // For flow and for upstream-causes-of-delivery, use downstream release vs
+  // historical max for that node. If the upstream is sending much less than
+  // its best period, downstream suffers.
+  return baselineRelative(periods, nodeId, result.totalDownstreamOutflow, (n) => n.totalDownstreamOutflow);
+}
+
+function baselineRelative(
+  periods: PeriodResult[],
+  nodeId: string,
+  current: number,
+  pick: (node: NodePeriodResult) => number,
+): number {
+  const max = Math.max(
+    0,
+    ...periods.flatMap((entry) =>
+      entry.nodeResults.filter((candidate) => candidate.nodeId === nodeId).map(pick),
+    ),
+  );
+  if (max <= 0) return 1;
+  return Math.min(1, current / max);
+}
+
+function ratioOrNull(actual: number | undefined, target: number | undefined): number | null {
+  if (!target || target <= 0 || actual === undefined) return null;
+  return actual / target;
 }
