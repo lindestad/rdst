@@ -96,7 +96,7 @@ h4 {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 32px;
+  gap: 20px;
   min-height: 72px;
   padding: 14px 36px;
   border-bottom: 1px solid rgba(7, 54, 73, 0.18);
@@ -268,6 +268,8 @@ h4 {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 0 0 auto;
+  min-width: 0;
 }
 
 .scenario-select-wrap {
@@ -291,7 +293,7 @@ h4 {
 
 .scenario-select-wrap select {
   min-width: 0;
-  width: 200px;
+  width: 180px;
   border: 0;
   color: #fff;
   background: transparent;
@@ -451,6 +453,10 @@ h4 {
   text-transform: none;
 }
 
+.file-tools .provenance-detail {
+  display: none;
+}
+
 /* ─────────────────────────────────────────────────────────────
    Workspace (visualization) — light cream surface
    ───────────────────────────────────────────────────────────── */
@@ -497,6 +503,43 @@ h4 {
 
 .control-group.compact {
   padding-bottom: 18px;
+}
+
+.run-details {
+  padding-bottom: 16px;
+}
+
+.run-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.run-detail {
+  min-width: 0;
+}
+
+.run-detail span {
+  display: block;
+  color: var(--muted-deep);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.run-detail strong {
+  display: block;
+  margin-top: 5px;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .control-label {
@@ -708,9 +751,10 @@ h4 {
 /* Sparkline + sector bars */
 .sparkline {
   display: grid;
-  grid-template-columns: 80px 1fr;
+  grid-template-columns: 78px minmax(0, 1fr);
   align-items: end;
   gap: 12px;
+  min-width: 0;
 }
 
 .sparkline span {
@@ -723,13 +767,17 @@ h4 {
 .bar-row {
   display: flex;
   align-items: end;
-  gap: 4px;
+  gap: 3px;
   height: 64px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .bar-row i {
   display: block;
-  width: 22px;
+  flex: 1 1 0;
+  min-width: 2px;
+  max-width: 22px;
   border-radius: 0;
   background: rgba(11, 79, 108, 0.18);
 }
@@ -949,9 +997,9 @@ h4 {
 .map-toolbar {
   position: absolute;
   z-index: 2;
-  top: 18px;
-  left: 18px;
-  right: 18px;
+  top: 10px;
+  left: 10px;
+  right: 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1085,8 +1133,8 @@ h4 {
 .map-zoom-controls {
   position: absolute;
   z-index: 3;
-  right: 22px;
-  bottom: 26px;
+  right: 18px;
+  bottom: 18px;
   display: grid;
   gap: 0;
   padding: 0;
